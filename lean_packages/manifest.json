@@ -1,0 +1,5 @@
+{"version": 1,
+ "packages":
+ [{"url": "https://github.com/yatima-inc/YatimaStdLib.lean",
+   "rev": "80b290a322267aee7dbca96b2547fa24de64236a",
+   "name": "YatimaStdLib"}]}
