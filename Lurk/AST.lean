@@ -26,9 +26,13 @@ inductive Value
   -- `t` `nil`
   | t | nil : Value
   -- Numerical values
-  | num : Num → Value
+  | num     : Num → Value
   -- Symbols
-  | sym : Name → Value
+  | sym     : Name → Value
+  -- Strings
+  | str     : String → Value
+  -- Characters
+  | char    : Char → Value
 
 /-- Basic Lurk expression AST -/
 inductive Expr where
