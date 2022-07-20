@@ -1,5 +1,3 @@
-import Lurk.SExpr
-
 namespace Lurk
 
 /-- Numerical values in Lurk (may be valued in a finite field) -/
@@ -35,6 +33,15 @@ inductive Literal
   | str     : String → Literal
   -- Characters
   | char    : Char → Literal
+  deriving Repr
+
+inductive SExpr where
+  | atom : String → SExpr
+  | num  : Int → SExpr
+  | str  : String → SExpr
+  | char : Char → SExpr
+  | list : List SExpr → SExpr
+  | cons : SExpr → SExpr → SExpr
   deriving Repr
 
 /-- Basic Lurk expression AST -/
