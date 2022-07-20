@@ -39,11 +39,11 @@ partial def print : Expr → String
     let formalsText := " ".intercalate (formals.map toString)
     s!"(lambda ({formalsText}) {print body})"
   | .letE bindings body => 
-    let bindingsTextList := bindings.map fun (name, expr) => s!"({name}) ({print expr}))"
+    let bindingsTextList := bindings.map fun (name, expr) => s!"({name} {print expr})"
     let bindingsText := " ".intercalate bindingsTextList
     s!"(let ({bindingsText}) {print body})"
   | .letRecE bindings body => 
-    let bindingsTextList := bindings.map fun (name, expr) => s!"({name}) ({print expr}))"
+    let bindingsTextList := bindings.map fun (name, expr) => s!"({name} {print expr})"
     let bindingsText := " ".intercalate bindingsTextList
     s!"(let ({bindingsText}) {print body})"
   | .quote datum => s!"(quote {print datum})"
