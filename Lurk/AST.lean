@@ -33,22 +33,22 @@ inductive Literal
   | str     : String → Literal
   -- Characters
   | char    : Char → Literal
+  -- Symbols
+  | sym     : Name → Literal
   deriving Repr
 
 /-- Basic Lurk expression AST -/
 inductive Expr where
-  -- Symbols
-  | sym     : Name → Expr
-  -- Numeric, string and char literals
+  -- `t`, `nil`, numeric, string and char literals
   | lit   : Literal → Expr
   -- `if <test> <consequent> <alternate>`
   | ifE     : Expr → Expr → Expr → Expr
   -- `lambda <formals> <body>`
-  | lam     : (List Name) → Expr → Expr
+  | lam     : List Name → Expr → Expr
   -- `let <bindings> <body>`
-  | letE    : Expr → Expr → Expr
+  | letE    : List (Name × Expr) → Expr → Expr
   -- `letrec <bindings> <body>`
-  | letRecE : Expr → Expr → Expr
+  | letRecE : List (Name × Expr) → Expr → Expr
   -- `quote <datum>`
   | quote   : Expr → Expr
   -- `cons <a> <d>`
