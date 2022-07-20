@@ -1,4 +1,1 @@
-import Lurk
-
-def main : IO Unit :=
-  IO.println s!"Hello, {hello}!"
+def main : IO UInt32 := pure 0
