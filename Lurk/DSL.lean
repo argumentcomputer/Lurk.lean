@@ -3,38 +3,34 @@ import Lurk.Printer
 
 open Lean Elab Meta
 
-declare_syntax_cat lurk_value 
-syntax "t"          : lurk_value
-syntax "nil"        : lurk_value
-syntax "-" noWs num : lurk_value
-syntax num          : lurk_value
-syntax ident        : lurk_value
-syntax str          : lurk_value
-syntax char         : lurk_value
+declare_syntax_cat    lurk_literal
+syntax "t"          : lurk_literal
+syntax "nil"        : lurk_literal
+syntax "-" noWs num : lurk_literal
+syntax num          : lurk_literal
+syntax str          : lurk_literal
+syntax char         : lurk_literal
 
-def elabLurkValue : Syntax → MetaM Expr
-  | `(lurk_value| t) => return mkConst ``Lurk.Value.t
-  | `(lurk_value| nil) => return mkConst ``Lurk.Value.nil
-  | `(lurk_value| -$n) => match n.getNat with
+def elabLurkLiteral : Syntax → MetaM Expr
+  | `(lurk_literal| t) => return mkConst ``Lurk.Literal.t
+  | `(lurk_literal| nil) => return mkConst ``Lurk.Literal.nil
+  | `(lurk_literal| -$n) => match n.getNat with
     | 0     => do 
       let n ← mkAppM ``Int.ofNat #[mkConst ``Nat.zero]
       let num ← mkAppM ``Lurk.Num.mk #[n, ← mkAppOptM ``none #[mkConst ``Nat]]
-      mkAppM ``Lurk.Value.num #[num]
+      mkAppM ``Lurk.Literal.num #[num]
     | n + 1 => do 
       let n ← mkAppM ``Int.negSucc #[mkNatLit n]
       let num ← mkAppM ``Lurk.Num.mk #[n, ← mkAppOptM ``none #[mkConst ``Nat]]
-      mkAppM ``Lurk.Value.num #[num]
-  | `(lurk_value| $n:num) => do 
+      mkAppM ``Lurk.Literal.num #[num]
+  | `(lurk_literal| $n:num) => do 
     let n ← mkAppM ``Int.ofNat #[mkNatLit n.getNat]
     let num ← mkAppM ``Lurk.Num.mk #[n, ← mkAppOptM ``none #[mkConst ``Nat]]
-    mkAppM ``Lurk.Value.num #[num]
-  | `(lurk_value| $i:ident) => do 
-    let s ← mkAppM ``Lurk.Name.mk #[mkStrLit i.getId.toString]
-    mkAppM ``Lurk.Value.sym #[s]
-  | `(lurk_value| $s:str)   => mkAppM ``Lurk.Value.str #[mkStrLit s.getString]
-  | `(lurk_value| $c:char)  => do
+    mkAppM ``Lurk.Literal.num #[num]
+  | `(lurk_literal| $s:str)   => mkAppM ``Lurk.Literal.str #[mkStrLit s.getString]
+  | `(lurk_literal| $c:char)  => do
     let c ← mkAppM ``Char.ofNat #[mkNatLit c.getChar.val.toNat]
-    mkAppM ``Lurk.Value.char #[c]
+    mkAppM ``Lurk.Literal.char #[c]
   | _ => throwUnsupportedSyntax
 
 declare_syntax_cat lurk_num_op 
@@ -78,7 +74,8 @@ declare_syntax_cat lurk_bindings
 syntax ("(" ident lurk_expr ")")+ : lurk_bindings
 syntax  "(" lurk_bindings ")": lurk_bindings
 
-syntax lurk_value                         : lurk_expr
+syntax ident                              : lurk_expr -- symbols
+syntax lurk_literal                       : lurk_expr
 syntax "if" lurk_expr lurk_expr lurk_expr : lurk_expr
 syntax "lambda" "(" ident+ ")" lurk_expr  : lurk_expr
 syntax "let" lurk_bindings lurk_expr      : lurk_expr
@@ -95,9 +92,12 @@ syntax "current-env"                      : lurk_expr
 syntax "eval" lurk_expr                   : lurk_expr
 syntax "(" lurk_expr ")"                  : lurk_expr
 
-partial def elabLurkExpr : Syntax → MetaM Expr 
-  | `(lurk_expr| $v:lurk_value) => do
-    mkAppM ``Lurk.Expr.value #[← elabLurkValue v]
+partial def elabLurkExpr : Syntax → MetaM Expr
+  | `(lurk_expr| $i:ident) => do 
+    let s ← mkAppM ``Lurk.Name.mk #[mkStrLit i.getId.toString]
+    mkAppM ``Lurk.Expr.sym #[s]
+  | `(lurk_expr| $l:lurk_literal) => do
+    mkAppM ``Lurk.Expr.lit #[← elabLurkLiteral l]
   | `(lurk_expr| if $test $con $alt) => do 
     mkAppM ``Lurk.Expr.ifE #[← elabLurkExpr test, ← elabLurkExpr con, ← elabLurkExpr alt]
   | `(lurk_expr| lambda ($formals*) $body) => do 
@@ -134,17 +134,15 @@ partial def elabLurkExpr : Syntax → MetaM Expr
 
 -- Tests 
 
-elab "test_elabLurkValue " v:lurk_value : term =>
-  elabLurkValue v
+elab "test_elabLurkLiteral " v:lurk_literal : term =>
+  elabLurkLiteral v
 
-#eval test_elabLurkValue 5 -- 5
-#eval test_elabLurkValue 0 -- 0
-#eval test_elabLurkValue -0 -- 0
-#eval test_elabLurkValue -5 -- -5
-#eval test_elabLurkValue "" -- ""
-#eval test_elabLurkValue "sss" -- "sss"
-#eval test_elabLurkValue e
-
+#eval test_elabLurkLiteral 5     -- Lurk.Literal.num { data := 5, modulus? := none }
+#eval test_elabLurkLiteral 0     -- Lurk.Literal.num { data := 0, modulus? := none }
+#eval test_elabLurkLiteral -0    -- Lurk.Literal.num { data := 0, modulus? := none }
+#eval test_elabLurkLiteral -5    -- Lurk.Literal.num { data := -5, modulus? := none }
+#eval test_elabLurkLiteral ""    -- Lurk.Literal.str ""
+#eval test_elabLurkLiteral "sss" -- Lurk.Literal.str ""
 
 elab "test_elabLurkNumOp " v:lurk_num_op : term =>
   elabLurkNumOp v
@@ -171,6 +169,4 @@ elab "[Lurk| " e:lurk_expr "]" : term =>
 
 #check [({ data := "n" } : Lurk.Name)]
 
-#eval [Lurk| 
-  lambda (n) n
-]
+#eval [Lurk| lambda (n) n ] -- (lambda (n) n)
