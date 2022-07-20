@@ -1,3 +1,5 @@
+import Lurk.SExpr
+
 namespace Lurk
 
 /-- Numerical values in Lurk (may be valued in a finite field) -/
@@ -50,7 +52,7 @@ inductive Expr where
   -- `letrec <bindings> <body>`
   | letRecE : Expr → Expr → Expr
   -- `quote <datum>`
-  | quote   : Expr → Expr
+  | quote   : SExpr → Expr
   -- `cons <a> <d>`
   | cons    : Expr → Expr → Expr
   -- `strcons <a> <d>`

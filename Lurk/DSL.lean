@@ -1,4 +1,3 @@
-import Lurk.SExpr
 import Lurk.Printer
 
 open Lean Elab Meta
