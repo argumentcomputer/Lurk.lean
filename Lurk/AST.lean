@@ -78,3 +78,4 @@ inductive Expr where
   | currEnv : Expr
   -- `eval <expr> <env>`
   | eval    : Expr → Option Expr → Expr
+  deriving Repr
