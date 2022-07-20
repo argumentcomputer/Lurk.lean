@@ -40,7 +40,7 @@ partial def print : Expr → String
     s!"(lambda ({formals_text}) {print body})"
   | .letE bindings body => s!"(let {print bindings} {print body})"
   | .letRecE bindings body => s!"(let {print bindings} {print body})"
-  | .quote datum => s!"(quote {print datum})"
+  | .quote datum => s!"(quote {datum})"
   | .cons a d => s!"(cons {print a} {print d})"
   | .strcons a d => s!"(strcons {print a} {print d})"
   | .consOp op expr => s!"({op} {print expr})"

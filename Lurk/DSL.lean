@@ -110,7 +110,7 @@ partial def elabLurkExpr : Syntax → MetaM Expr
   | `(lurk_expr| letrec $bind $body) => do 
     mkAppM ``Lurk.Expr.letRecE #[← elabLurkExpr bind, ← elabLurkExpr body]
   | `(lurk_expr| quote $datum) => do 
-    mkAppM ``Lurk.Expr.quote #[← elabLurkExpr datum]
+    mkAppM ``Lurk.Expr.quote #[← SExpr.elabSExpr datum]
   | `(lurk_expr| cons $a $d) => do 
     mkAppM ``Lurk.Expr.cons #[← elabLurkExpr a, ← elabLurkExpr d]
   | `(lurk_expr| strcons $a $d) => do 
