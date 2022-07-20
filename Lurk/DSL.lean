@@ -246,6 +246,7 @@ elab "[Lurk| " e:lurk_expr "]" : term =>
 
 #eval Lurk.Expr.print [Lurk| lambda (n) n ] -- (lambda (n) n)
 
-#eval [Lurk|
-let () (1)
-]
+#eval [Lurk| let () (1)].print -- "(let () 1)"
+
+#eval [Lurk| (let ((foo (lambda (a b c) (* (+ a b) c)))) (foo))].print
+-- "(let ((foo (lambda (a b c) (* (+ a b) c)))) foo)"
