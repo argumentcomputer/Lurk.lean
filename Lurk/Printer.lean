@@ -28,6 +28,7 @@ instance : ToString Literal where toString
   | .nil    => "nil"
   | .t      => "t"
   | .num  n => toString n
+  | .sym  n => toString n
   | .str  s => s!"\"{s}\""
   | .char c => s!"\\{c}"
 
@@ -37,17 +38,22 @@ partial def SExpr.print : SExpr → String
   | .str  s     => s!"\"{s}\""
   | .char c     => s!"\'{c}\'"
   | .list es    => "(" ++ " ".intercalate (es.map SExpr.print) ++ ")"
-  | .cons e1 e2 => e1.print ++ " . " ++ e2.print
+  | .cons e1 e2 => s!"{e1.print} . {e2.print}"
 
 partial def Expr.print : Expr → String
   | .lit l => toString l
-  | .sym n => toString n
   | .ifE test c alt => s!"(if {test.print} {c.print} {alt.print})"
   | .lam formals body => 
-    let formals_text := " ".intercalate (formals.map toString)
-    s!"(lambda ({formals_text}) {body.print})"
-  | .letE bindings body => s!"(let {bindings.print} {body.print})"
-  | .letRecE bindings body => s!"(let {bindings.print} {body.print})"
+    let formalsText := " ".intercalate (formals.map toString)
+    s!"(lambda ({formalsText}) {body.print})"
+  | .letE bindings body =>
+    let bindingsTextList := bindings.map fun (name, expr) => s!"({name} {expr.print})"
+    let bindingsText := " ".intercalate bindingsTextList
+    s!"(let ({bindingsText}) {body.print})"
+  | .letRecE bindings body =>
+    let bindingsTextList := bindings.map fun (name, expr) => s!"({name} {expr.print})"
+    let bindingsText := " ".intercalate bindingsTextList
+    s!"(let ({bindingsText}) {body.print})"
   | .quote datum => s!"(quote {datum.print})"
   | .cons a d => s!"(cons {a.print} {d.print})"
   | .strcons a d => s!"(strcons {a.print} {d.print})"
