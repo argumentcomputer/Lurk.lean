@@ -103,8 +103,8 @@ partial def elabLurkExpr : Syntax → MetaM Expr
   | `(lurk_expr| lambda ($formals*) $body) => do 
     let formals ← (formals.mapM fun i => mkAppM ``Lurk.Name.mk #[mkStrLit i.getId.toString])
     let formals := formals.toList 
-    let type ← mkAppM ``List #[mkConst ``Lurk.Name]
-    mkAppM ``Lurk.Expr.lam #[← mkListLit type formals, ← elabLurkExpr body] 
+    let formals ← mkListLit (mkConst ``Lurk.Name) formals
+    mkAppM ``Lurk.Expr.lam #[formals, ← elabLurkExpr body] 
   | `(lurk_expr| let $bind $body) => do 
     mkAppM ``Lurk.Expr.letE #[← elabLurkExpr bind, ← elabLurkExpr body]
   | `(lurk_expr| letrec $bind $body) => do 
@@ -172,7 +172,5 @@ elab "[Lurk| " e:lurk_expr "]" : term =>
 #check [({ data := "n" } : Lurk.Name)]
 
 #eval [Lurk| 
-
-lambda (n) n
-
+  lambda (n) n
 ]
