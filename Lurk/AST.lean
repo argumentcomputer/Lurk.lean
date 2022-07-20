@@ -33,6 +33,8 @@ inductive Literal
   | str     : String → Literal
   -- Characters
   | char    : Char → Literal
+  -- Symbols
+  | sym     : Name → Literal
   deriving Repr
 
 /-- Basic Lurk expression AST -/
@@ -67,4 +69,3 @@ inductive Expr where
   | currEnv : Expr
   -- `eval <expr> <env>`
   | eval    : Expr → Option Expr → Expr
-  
