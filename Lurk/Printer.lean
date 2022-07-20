@@ -58,3 +58,6 @@ partial def print : Expr → String
     | .eval expr₁  expr₂? => match expr₂? with 
       | some expr₂ => s!"(eval {print expr₁} {print expr₂})"
       | none => s!"(eval {print expr₁})"
+
+instance : Repr Expr where 
+  reprPrec := fun e _ => print e

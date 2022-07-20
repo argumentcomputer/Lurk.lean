@@ -4,10 +4,12 @@ namespace Lurk
 structure Num where
   data    : Int
   modulus? : Option Nat
+  deriving Repr
 
 /-- Symbolic name values in Lurk -/
 structure Name where
   data : String
+  deriving Repr
 
 /-- Operations on Lurk expressions -/
 inductive ConsOp | car | cdr | atom | emit
@@ -33,6 +35,7 @@ inductive Value
   | str     : String → Value
   -- Characters
   | char    : Char → Value
+  deriving Repr
 
 /-- Basic Lurk expression AST -/
 inductive Expr where
