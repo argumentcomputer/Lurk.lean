@@ -72,6 +72,11 @@ declare_syntax_cat sexpr
 syntax "-" noWs num        : sexpr
 syntax num                 : sexpr
 syntax ident               : sexpr
+-- TODO: these are very brittle, should generalize
+syntax "+"                 : sexpr
+syntax "-"                 : sexpr
+syntax "*"                 : sexpr
+syntax "/"                 : sexpr
 syntax str                 : sexpr
 syntax char                : sexpr
 syntax "(" sexpr+ ")"      : sexpr
@@ -90,6 +95,15 @@ partial def elabSExpr : Syntax → MetaM Expr
     mkAppM ``Lurk.SExpr.num #[n]
   | `(sexpr| $i:ident) => do
     mkAppM ``Lurk.SExpr.atom #[mkStrLit i.getId.toString]
+  -- TODO: these are extremely brittle, should generalize
+  | `(sexpr| +) => do
+    mkAppM ``Lurk.SExpr.atom #[mkStrLit "+"]
+  | `(sexpr| -) => do
+    mkAppM ``Lurk.SExpr.atom #[mkStrLit "-"]
+  | `(sexpr| *) => do
+    mkAppM ``Lurk.SExpr.atom #[mkStrLit "*"]
+  | `(sexpr| /) => do
+    mkAppM ``Lurk.SExpr.atom #[mkStrLit "/"]
   | `(sexpr| $s:str) => do
     mkAppM ``Lurk.SExpr.str #[mkStrLit s.getString]
   | `(sexpr| $c:char)  => do
@@ -105,7 +119,7 @@ partial def elabSExpr : Syntax → MetaM Expr
 elab "[SExpr| " e:sexpr "]" : term =>
   elabSExpr e
 
-#eval [SExpr| (a . b . c) ]
+#eval [SExpr| (+ a . b . c) ]
 
 declare_syntax_cat lurk_expr
 declare_syntax_cat lurk_bindings
@@ -212,4 +226,4 @@ elab "[Lurk| " e:lurk_expr "]" : term =>
 
 #check [({ data := "n" } : Lurk.Name)]
 
-#eval [Lurk| lambda (n) n ] -- (lambda (n) n)
+#eval Lurk.Expr.print [Lurk| lambda (n) n ] -- (lambda (n) n)
