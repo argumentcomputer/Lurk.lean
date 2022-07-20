@@ -4,7 +4,7 @@ namespace Lurk
 
 /-- Numerical values in Lurk (may be valued in a finite field) -/
 structure Num where
-  data    : Int
+  data     : Int
   modulus? : Option Nat
   deriving Repr
 
@@ -26,23 +26,23 @@ inductive RelOp | eq | nEq
 deriving Repr, BEq
 
 /-- Basic Lurk primitives -/
-inductive Value 
+inductive Literal
   -- `t` `nil`
-  | t | nil : Value
+  | t | nil
   -- Numerical values
-  | num     : Num → Value
-  -- Symbols
-  | sym     : Name → Value
+  | num     : Num → Literal
   -- Strings
-  | str     : String → Value
+  | str     : String → Literal
   -- Characters
-  | char    : Char → Value
+  | char    : Char → Literal
   deriving Repr
 
 /-- Basic Lurk expression AST -/
 inductive Expr where
-  -- `t` `nil` `<number>` `"..."`
-  | value   : Value → Expr
+  -- Symbols
+  | sym     : Name → Expr
+  -- Numeric, string and char literals
+  | lit   : Literal → Expr
   -- `if <test> <consequent> <alternate>`
   | ifE     : Expr → Expr → Expr → Expr
   -- `lambda <formals> <body>`
