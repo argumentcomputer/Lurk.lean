@@ -2,7 +2,7 @@ namespace Lurk
 
 /-- Numerical values in Lurk (may be valued in a finite field) -/
 structure Num where
-  data    : Int
+  data     : Int
   modulus? : Option Nat
 
 /-- Symbolic name values in Lurk -/
