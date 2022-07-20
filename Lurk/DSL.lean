@@ -177,9 +177,9 @@ partial def elabLurkExpr : Syntax → MetaM Expr
     let formals ← mkListLit (mkConst ``Lurk.Name) formals
     mkAppM ``Lurk.Expr.lam #[formals, ← elabLurkExpr body]
   | `(lurk_expr| let $bind $body) => do
-    mkAppM ``Lurk.Expr.letE #[← elabLurkExpr bind, ← elabLurkExpr body]
+    mkAppM ``Lurk.Expr.letE #[← elabLurkBindings bind, ← elabLurkExpr body]
   | `(lurk_expr| letrec $bind $body) => do
-    mkAppM ``Lurk.Expr.letRecE #[← elabLurkExpr bind, ← elabLurkExpr body]
+    mkAppM ``Lurk.Expr.letRecE #[← elabLurkBindings bind, ← elabLurkExpr body]
   | `(lurk_expr| quote $datum) => do
     mkAppM ``Lurk.Expr.quote #[← elabSExpr datum]
   | `(lurk_expr| cons $a $d) => do
@@ -247,7 +247,5 @@ elab "[Lurk| " e:lurk_expr "]" : term =>
 #eval Lurk.Expr.print [Lurk| lambda (n) n ] -- (lambda (n) n)
 
 #eval [Lurk|
-(let ((foo (lambda (a b c)
-             (* (+ a b) c))))
-  (foo))
-] -- (lambda (n) n)
+let () (1)
+]
