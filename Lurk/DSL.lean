@@ -1,4 +1,3 @@
-import Lean
 import Lurk.Printer
 
 open Lean Elab Meta
@@ -77,10 +76,10 @@ syntax  "(" lurk_bindings ")": lurk_bindings
 syntax ident                              : lurk_expr -- symbols
 syntax lurk_literal                       : lurk_expr
 syntax "if" lurk_expr lurk_expr lurk_expr : lurk_expr
-syntax "lambda" "(" ident+ ")" lurk_expr  : lurk_expr
+syntax "lambda" "(" ident* ")" lurk_expr  : lurk_expr
 syntax "let" lurk_bindings lurk_expr      : lurk_expr
 syntax "letrec" lurk_bindings lurk_expr   : lurk_expr
-syntax "quote" lurk_expr                  : lurk_expr -- TODO: fixme to use `
+syntax "quote" sexpr                      : lurk_expr -- TODO: fixme to use `
 syntax "cons" lurk_expr lurk_expr         : lurk_expr
 syntax "strcons" lurk_expr lurk_expr      : lurk_expr
 syntax  lurk_cons_op lurk_expr            : lurk_expr
@@ -110,7 +109,7 @@ partial def elabLurkExpr : Syntax → MetaM Expr
   | `(lurk_expr| letrec $bind $body) => do 
     mkAppM ``Lurk.Expr.letRecE #[← elabLurkExpr bind, ← elabLurkExpr body]
   | `(lurk_expr| quote $datum) => do 
-    mkAppM ``Lurk.Expr.quote #[← elabLurkExpr datum]
+    mkAppM ``Lurk.Expr.quote #[← elabSExpr datum]
   | `(lurk_expr| cons $a $d) => do 
     mkAppM ``Lurk.Expr.cons #[← elabLurkExpr a, ← elabLurkExpr d]
   | `(lurk_expr| strcons $a $d) => do 
