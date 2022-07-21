@@ -1,6 +1,6 @@
 import Lurk.AST
 
-open Lurk
+namespace Lurk
 
 instance : ToString Num where
   toString num := toString num.data
@@ -8,33 +8,41 @@ instance : ToString Num where
 instance : ToString Name where
   toString name := name.data
 
-instance : ToString ConsOp where toString
+instance : ToString UnaryOp where toString
   | .car  => "car"
   | .cdr  => "cdr"
   | .atom => "atom"
   | .emit => "emit"
 
-instance : ToString NumOp where toString
-  | .sum  => "+"
-  | .diff => "-"
-  | .prod => "*"
-  | .quot => "/"
-
-instance : ToString RelOp where toString
-  | .eq  => "="
-  | .nEq => "eq" -- NOTE: This was an unfortunate choice, maybe swap definitions in the AST?
+instance : ToString BinOp where toString
+  | .cons    => "cons"
+  | .strcons => "strcons"
+  | .sum     => "+"
+  | .diff    => "-"
+  | .prod    => "*"
+  | .quot    => "/"  
+  | .eq      => "="
+  | .nEq     => "eq" -- NOTE: This was an unfortunate choice, maybe swap definitions in the AST?
 
 instance : ToString Literal where toString
-  | .nil => "nil"
-  | .t => "t"
+  | .nil    => "nil"
+  | .t      => "t"
   | .num n  => toString n
-  | .sym n => toString n
+  | .sym n  => toString n
   | .str s  => s!"\"{s}\""
   | .char c => s!"\\{c}"
 
-partial def print : Expr → String
+partial def SExpr.print : SExpr → String
+  | .atom s     => s
+  | .num  n     => s!"{n}"
+  | .str  s     => s!"\"{s}\""
+  | .char c     => s!"\'{c}\'"
+  | .list es    => "(" ++ " ".intercalate (es.map SExpr.print) ++ ")"
+  | .cons e1 e2 => s!"{e1.print} . {e2.print}"
+
+partial def Expr.print : Expr → String
   | .lit l => toString l
-  | .ifE test cons alt => s!"(if {print test} {print cons} {print alt})"
+  | .ifE test c alt => s!"(if {print test} {print c} {print alt})"
   | .lam formals body => 
     let formalsText := " ".intercalate (formals.map toString)
     s!"(lambda ({formalsText}) {print body})"
@@ -46,12 +54,12 @@ partial def print : Expr → String
     let bindingsTextList := bindings.map fun (name, expr) => s!"({name} {print expr})"
     let bindingsText := " ".intercalate bindingsTextList
     s!"(let ({bindingsText}) {print body})"
-  | .quote datum => s!"(quote {print datum})"
-  | .cons a d => s!"(cons {print a} {print d})"
-  | .strcons a d => s!"(strcons {print a} {print d})"
-  | .consOp op expr => s!"({op} {print expr})"
-  | .numOp op expr₁ expr₂ => s!"({op} {print expr₁} {print expr₂})"
-  | .relOp op expr₁ expr₂ => s!"({op} {print expr₁} {print expr₂})"
+  | .app fn args => 
+    let args := " ".intercalate (args.map print)
+    s!"({print fn} {args})"
+  | .quote datum => s!"(quote {datum.print})"
+  | .unaryOp op expr => s!"({op} {print expr})"
+  | .binOp op expr₁ expr₂ => s!"({op} {print expr₁} {print expr₂})"
   | .emit expr => s!"(emit {print expr})"
   | .begin exprs => 
     let exprs_text := " ".intercalate (exprs.map print)
@@ -61,5 +69,4 @@ partial def print : Expr → String
     | some expr₂ => s!"(eval {print expr₁} {print expr₂})"
     | none => s!"(eval {print expr₁})"
 
-instance : Repr Expr where 
-  reprPrec := fun e _ => print e
+end Lurk
