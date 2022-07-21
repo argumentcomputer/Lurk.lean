@@ -1,16 +1,5 @@
 namespace Lurk
 
-/-- Numerical values in Lurk (may be valued in a finite field) -/
-structure Num where
-  data     : Int
-  modulus? : Option Nat
-  deriving Repr
-
-/-- Symbolic name values in Lurk -/
-structure Name where
-  data : String
-  deriving Repr
-
 /-- Unary operations on Lurk expressions -/
 inductive UnaryOp | car | cdr | atom | emit
 deriving Repr, BEq
@@ -24,13 +13,13 @@ inductive Literal
   -- `t` `nil`
   | t | nil
   -- Numerical values
-  | num     : Num → Literal
+  | num     : Int → Literal
   -- Strings
   | str     : String → Literal
   -- Characters
   | char    : Char → Literal
   -- Symbols
-  | sym     : Name → Literal
+  | sym     : String → Literal
   deriving Repr
 
 inductive SExpr where
@@ -49,11 +38,11 @@ inductive Expr where
   -- `if <test> <consequent> <alternate>`
   | ifE     : Expr → Expr → Expr → Expr
   -- `lambda <formals> <body>`
-  | lam     : List Name → Expr → Expr
+  | lam     : List String → Expr → Expr
   -- `let <bindings> <body>`
-  | letE    : List (Name × Expr) → Expr → Expr
+  | letE    : List (String × Expr) → Expr → Expr
   -- `letrec <bindings> <body>`
-  | letRecE : List (Name × Expr) → Expr → Expr
+  | letRecE : List (String × Expr) → Expr → Expr
   -- `<fun> <args>`
   | app     : Expr → List Expr → Expr 
   -- `quote <datum>`
