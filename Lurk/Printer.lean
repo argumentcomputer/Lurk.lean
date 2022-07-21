@@ -24,7 +24,7 @@ instance : ToString Literal where toString
   | .num n  => toString n
   | .sym n  => toString n
   | .str s  => s!"\"{s}\""
-  | .char c => s!"\\{c}"
+  | .char c => s!"#\\{c}"
 
 partial def SExpr.print : SExpr → String
   | .atom s     => s
@@ -50,7 +50,8 @@ partial def Expr.print : Expr → String
     s!"(let ({bindingsText}) {print body})"
   | .app fn args => 
     let args := " ".intercalate (args.map print)
-    s!"({print fn} {args})"
+    let argPP := if args.length == 0 then "" else " "
+    s!"({print fn}{argPP}{args})"
   | .quote datum => s!"(quote {datum.print})"
   | .unaryOp op expr => s!"({op} {print expr})"
   | .binOp op expr₁ expr₂ => s!"({op} {print expr₁} {print expr₂})"

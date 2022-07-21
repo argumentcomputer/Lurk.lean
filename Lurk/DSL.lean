@@ -127,7 +127,7 @@ syntax "(" "emit" lurk_expr ")"                   : lurk_expr
 syntax "(" "begin" lurk_expr*  ")"                : lurk_expr
 syntax "current-env"                              : lurk_expr
 syntax "(" "eval" lurk_expr  ")"                  : lurk_expr
-syntax "(" lurk_expr+ ")"                         : lurk_expr
+syntax "(" lurk_expr* ")"                         : lurk_expr
 
 
 mutual 
@@ -173,12 +173,14 @@ partial def elabLurkExpr : TSyntax `lurk_expr → MetaM Expr
   | `(lurk_expr| current-env) => return mkConst ``Lurk.Expr.currEnv
   | `(lurk_expr| (eval $e)) => elabLurkExpr e
   | `(lurk_expr| ($e*)) => do
-    match e.getSepElems.data with
-    | [ ] => throwUnsupportedSyntax
-    | [e] => elabLurkExpr e
-    | es  => match ← es.mapM elabLurkExpr with
-      | []    => unreachable!
-      | e::es => mkAppM ``Lurk.Expr.app #[e, ← mkListLit (mkConst ``Lurk.Expr) es]
+    let e := (← e.mapM elabLurkExpr).toList
+    match e with 
+    | []   => 
+      let s ← mkAppM ``Lurk.Literal.str #[mkStrLit "()"]
+      mkAppM ``Lurk.Expr.lit #[s]
+    | e::es => 
+      let type := mkConst ``Lurk.Expr
+      mkAppM ``Lurk.Expr.app #[e, ← mkListLit type es]
   | _ => throwUnsupportedSyntax
 end
 
@@ -228,3 +230,7 @@ elab "[Lurk| " e:lurk_expr "]" : term =>
   (foo "1" 2 3))
 ].print
 -- "(let ((foo (lambda (a b c) (* (+ a b) c)))) (foo 2))"
+
+#eval [Lurk|
+("s")
+].print
