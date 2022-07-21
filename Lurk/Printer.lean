@@ -2,11 +2,9 @@ import Lurk.AST
 
 namespace Lurk
 
-instance : ToString Num where
-  toString num := toString num.data
-
-instance : ToString Name where
-  toString name := name.data
+instance : ToString Num where toString
+  | .raw i      => toString i
+  | .cyclic i _ => toString i -- is this right? do we ignore the modulus?
 
 instance : ToString UnaryOp where toString
   | .car  => "car"
