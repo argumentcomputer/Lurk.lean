@@ -37,40 +37,91 @@ def elabLurkLiteral : Syntax → MetaM Expr
     mkAppM ``Lurk.Literal.sym #[s]
   | _ => throwUnsupportedSyntax
 
-declare_syntax_cat lurk_num_op 
-syntax "+ " : lurk_num_op
-syntax "- " : lurk_num_op
-syntax "* " : lurk_num_op
-syntax "/ " : lurk_num_op
+declare_syntax_cat lurk_bin_op
+syntax "cons "    : lurk_bin_op 
+syntax "strcons " : lurk_bin_op
+syntax "+ "       : lurk_bin_op
+syntax "- "       : lurk_bin_op
+syntax "* "       : lurk_bin_op
+syntax "/ "       : lurk_bin_op
+syntax "= "       : lurk_bin_op
+syntax "eq "      : lurk_bin_op
 
-def elabLurkNumOp : Syntax → MetaM Expr
-  | `(lurk_num_op| +) => return mkConst ``Lurk.NumOp.sum
-  | `(lurk_num_op| -) => return mkConst ``Lurk.NumOp.diff
-  | `(lurk_num_op| *) => return mkConst ``Lurk.NumOp.prod
-  | `(lurk_num_op| /) => return mkConst ``Lurk.NumOp.quot
+def elabLurkBinOp : Syntax → MetaM Expr
+  | `(lurk_bin_op| cons) => return mkConst ``Lurk.BinOp.cons
+  | `(lurk_bin_op| +)    => return mkConst ``Lurk.BinOp.sum
+  | `(lurk_bin_op| -)    => return mkConst ``Lurk.BinOp.diff
+  | `(lurk_bin_op| *)    => return mkConst ``Lurk.BinOp.prod
+  | `(lurk_bin_op| /)    => return mkConst ``Lurk.BinOp.quot
+  | `(lurk_bin_op| =)    => return mkConst ``Lurk.BinOp.eq
+  | `(lurk_bin_op| eq)   => return mkConst ``Lurk.BinOp.nEq -- unfortunate clash again
   | _ => throwUnsupportedSyntax
 
-declare_syntax_cat lurk_cons_op 
-syntax "car "  : lurk_cons_op
-syntax "cdr "  : lurk_cons_op
-syntax "atom " : lurk_cons_op
-syntax "emit " : lurk_cons_op
+declare_syntax_cat lurk_unary_op 
+syntax "car "  : lurk_unary_op
+syntax "cdr "  : lurk_unary_op
+syntax "atom " : lurk_unary_op
+syntax "emit " : lurk_unary_op
 
-def elabLurkConsOp : Syntax → MetaM Expr 
-  | `(lurk_cons_op| car) => return mkConst ``Lurk.ConsOp.car
-  | `(lurk_cons_op| cdr) => return mkConst ``Lurk.ConsOp.cdr
-  | `(lurk_cons_op| atom) => return mkConst ``Lurk.ConsOp.atom
-  | `(lurk_cons_op| emit) => return mkConst ``Lurk.ConsOp.emit
+def elabLurkUnaryOp : Syntax → MetaM Expr
+  | `(lurk_unary_op| car) => return mkConst ``Lurk.UnaryOp.car
+  | `(lurk_unary_op| cdr) => return mkConst ``Lurk.UnaryOp.cdr
+  | `(lurk_unary_op| atom) => return mkConst ``Lurk.UnaryOp.atom
+  | `(lurk_unary_op| emit) => return mkConst ``Lurk.UnaryOp.emit
   | _ => throwUnsupportedSyntax
 
-declare_syntax_cat lurk_rel_op 
-syntax "= "  : lurk_rel_op
-syntax "eq " : lurk_rel_op
+declare_syntax_cat sexpr
+syntax "-" noWs num        : sexpr
+syntax num                 : sexpr
+syntax ident               : sexpr
+-- TODO: these are very brittle, should generalize
+syntax "+"                 : sexpr
+syntax "-"                 : sexpr
+syntax "*"                 : sexpr
+syntax "/"                 : sexpr
+syntax str                 : sexpr
+syntax char                : sexpr
+syntax "(" sexpr+ ")"      : sexpr
+syntax sexpr " . " sexpr   : sexpr
 
-def elabLurkRelOp : Syntax → MetaM Expr 
-  | `(lurk_rel_op| =) => return mkConst ``Lurk.RelOp.eq
-  | `(lurk_rel_op| eq) => return mkConst ``Lurk.RelOp.nEq -- unfortunate clash again
+partial def elabSExpr : Syntax → MetaM Expr
+  | `(sexpr| -$n:num) => match n.getNat with
+    | 0     => do
+      let n ← mkAppM ``Int.ofNat #[mkConst ``Nat.zero]
+      mkAppM ``Lurk.SExpr.num #[n]
+    | n + 1 => do
+      let n ← mkAppM ``Int.negSucc #[mkNatLit n]
+      mkAppM ``Lurk.SExpr.num #[n]
+  | `(sexpr| $n:num) => do
+    let n ← mkAppM ``Int.ofNat #[mkNatLit n.getNat]
+    mkAppM ``Lurk.SExpr.num #[n]
+  | `(sexpr| $i:ident) => do
+    mkAppM ``Lurk.SExpr.atom #[mkStrLit i.getId.toString]
+  -- TODO: these are extremely brittle, should generalize
+  | `(sexpr| +) => do
+    mkAppM ``Lurk.SExpr.atom #[mkStrLit "+"]
+  | `(sexpr| -) => do
+    mkAppM ``Lurk.SExpr.atom #[mkStrLit "-"]
+  | `(sexpr| *) => do
+    mkAppM ``Lurk.SExpr.atom #[mkStrLit "*"]
+  | `(sexpr| /) => do
+    mkAppM ``Lurk.SExpr.atom #[mkStrLit "/"]
+  | `(sexpr| $s:str) => do
+    mkAppM ``Lurk.SExpr.str #[mkStrLit s.getString]
+  | `(sexpr| $c:char)  => do
+    let c ← mkAppM ``Char.ofNat #[mkNatLit c.getChar.val.toNat]
+    mkAppM ``Lurk.SExpr.char #[c]
+  | `(sexpr| ($es*)) => do
+    let es ← (es.mapM fun e => elabSExpr e)
+    mkAppM ``Lurk.SExpr.list #[← mkListLit (mkConst ``Lurk.SExpr) es.toList]
+  | `(sexpr| $e1 . $e2) => do
+    mkAppM ``Lurk.SExpr.cons #[← elabSExpr e1, ← elabSExpr e2]
   | _ => throwUnsupportedSyntax
+
+elab "[SExpr| " e:sexpr "]" : term =>
+  elabSExpr e
+
+#eval [SExpr| (+ a . b . c) ]
 
 declare_syntax_cat lurk_expr
 declare_syntax_cat lurk_binding
@@ -80,21 +131,18 @@ syntax "(" ident lurk_expr ")" : lurk_binding
 syntax  "(" lurk_binding* ")": lurk_bindings
 
 syntax lurk_literal                       : lurk_expr
-syntax "if" lurk_expr lurk_expr lurk_expr : lurk_expr
-syntax "lambda" "(" ident+ ")" lurk_expr  : lurk_expr
-syntax "let" lurk_bindings lurk_expr      : lurk_expr
-syntax "letrec" lurk_bindings lurk_expr   : lurk_expr
-syntax "quote" lurk_expr                  : lurk_expr -- TODO: fixme to use `
-syntax "cons" lurk_expr lurk_expr         : lurk_expr
-syntax "strcons" lurk_expr lurk_expr      : lurk_expr
-syntax  lurk_cons_op lurk_expr            : lurk_expr
-syntax  lurk_num_op lurk_expr lurk_expr   : lurk_expr
-syntax  lurk_rel_op lurk_expr lurk_expr   : lurk_expr
-syntax "emit" lurk_expr                   : lurk_expr
-syntax "begin" lurk_expr*                 : lurk_expr
+syntax "(" "if" lurk_expr lurk_expr lurk_expr ")" : lurk_expr
+syntax "(" "lambda" "(" ident* ")" lurk_expr ")"  : lurk_expr
+syntax "(" "let" lurk_bindings lurk_expr ")"      : lurk_expr
+syntax "(" "letrec" lurk_bindings lurk_expr ")"   : lurk_expr
+syntax "(" "quote" sexpr  ")"                     : lurk_expr -- TODO: fixme to use `
+syntax "(" lurk_unary_op lurk_expr ")"            : lurk_expr
+syntax "(" lurk_bin_op lurk_expr lurk_expr ")"    : lurk_expr
+syntax "(" "emit" lurk_expr ")"                   : lurk_expr
+syntax "(" "begin" lurk_expr*  ")"                : lurk_expr
 syntax "current-env"                      : lurk_expr
-syntax "eval" lurk_expr                   : lurk_expr
-syntax "(" lurk_expr ")"                  : lurk_expr
+syntax "(" "eval" lurk_expr  ")"                  : lurk_expr
+syntax "(" lurk_expr+ ")"                 : lurk_expr
 
 
 mutual 
@@ -114,40 +162,44 @@ partial def elabLurkBindings : Syntax → MetaM Expr
 partial def elabLurkExpr : Syntax → MetaM Expr
   | `(lurk_expr| $l:lurk_literal) => do
     mkAppM ``Lurk.Expr.lit #[← elabLurkLiteral l]
-  | `(lurk_expr| if $test $con $alt) => do 
-    mkAppM ``Lurk.Expr.ifE #[← elabLurkExpr test, ← elabLurkExpr con, ← elabLurkExpr alt]
-  | `(lurk_expr| lambda ($formals*) $body) => do 
-    let formals ← (formals.mapM fun i => mkAppM ``Lurk.Name.mk #[mkStrLit i.getId.toString])
-    let formals := formals.toList 
+  | `(lurk_expr| (if $test $con $alt)) => do
+    mkAppM ``Lurk.Expr.ifE
+      #[← elabLurkExpr test, ← elabLurkExpr con, ← elabLurkExpr alt]
+  | `(lurk_expr| (lambda ($formals*) $body)) => do
+    let formals ← formals.mapM fun i =>
+      mkAppM ``Lurk.Name.mk #[mkStrLit i.getId.toString]
+    let formals := formals.toList
     let formals ← mkListLit (mkConst ``Lurk.Name) formals
-    mkAppM ``Lurk.Expr.lam #[formals, ← elabLurkExpr body] 
-  | `(lurk_expr| let $bind $body) => do 
+    mkAppM ``Lurk.Expr.lam #[formals, ← elabLurkExpr body]
+  | `(lurk_expr| (let $bind $body)) => do
     mkAppM ``Lurk.Expr.letE #[← elabLurkBindings bind, ← elabLurkExpr body]
-  | `(lurk_expr| letrec $bind $body) => do 
+  | `(lurk_expr| (letrec $bind $body)) => do
     mkAppM ``Lurk.Expr.letRecE #[← elabLurkBindings bind, ← elabLurkExpr body]
-  | `(lurk_expr| quote $datum) => do 
-    mkAppM ``Lurk.Expr.quote #[← elabLurkExpr datum]
-  | `(lurk_expr| cons $a $d) => do 
-    mkAppM ``Lurk.Expr.cons #[← elabLurkExpr a, ← elabLurkExpr d]
-  | `(lurk_expr| strcons $a $d) => do 
-    mkAppM ``Lurk.Expr.strcons #[← elabLurkExpr a, ← elabLurkExpr d]
-  | `(lurk_expr| $op:lurk_cons_op $e) => do 
-    mkAppM ``Lurk.Expr.consOp #[← elabLurkConsOp op, ← elabLurkExpr e]
-  | `(lurk_expr| $op:lurk_num_op $e1 $e2) => do 
-    mkAppM ``Lurk.Expr.numOp #[← elabLurkNumOp op, ← elabLurkExpr e1, ← elabLurkExpr e2]
-  | `(lurk_expr| $op:lurk_rel_op $e1 $e2) => do 
-    mkAppM ``Lurk.Expr.numOp #[← elabLurkRelOp op, ← elabLurkExpr e1, ← elabLurkExpr e2]
-  | `(lurk_expr| emit $e) => do 
+  | `(lurk_expr| (quote $datum)) => do
+    mkAppM ``Lurk.Expr.quote #[← elabSExpr datum]
+  | `(lurk_expr| ($op:lurk_unary_op $e)) => do
+    mkAppM ``Lurk.Expr.unaryOp #[← elabLurkUnaryOp op, ← elabLurkExpr e]
+  | `(lurk_expr| ($op:lurk_bin_op $e1 $e2)) => do
+    mkAppM ``Lurk.Expr.binOp
+      #[← elabLurkBinOp op, ← elabLurkExpr e1, ← elabLurkExpr e2]
+  | `(lurk_expr| (emit $e)) => do
     mkAppM ``Lurk.Expr.emit #[← elabLurkExpr e]
-  | `(lurk_expr| begin $e*) => do 
-    let e := (← e.mapM elabLurkExpr).toList 
-    let type ← mkAppM ``List #[mkConst ``Lurk.Expr]
-    mkAppM ``Lurk.Expr.begin #[← mkListLit type e]
+  | `(lurk_expr| (begin $es*)) => do
+    let es := (← es.mapM elabLurkExpr).toList
+    let type := mkConst ``Lurk.Expr
+    mkAppM ``Lurk.Expr.begin #[← mkListLit type es]
   | `(lurk_expr| current-env) => return mkConst ``Lurk.Expr.currEnv
-  | `(lurk_expr| eval $e) => elabLurkExpr e 
-  | `(lurk_expr| ($e)) => elabLurkExpr e
+  | `(lurk_expr| (eval $e)) => elabLurkExpr e
+  | `(lurk_expr| ($e*)) => do 
+    let e := (← e.mapM elabLurkExpr).toList
+    match e with 
+    | []   => throwUnsupportedSyntax
+    | e::es => 
+      let type := mkConst ``Lurk.Expr
+      mkAppM ``Lurk.Expr.app #[e, ← mkListLit type es]
   | _ => throwUnsupportedSyntax
-end 
+end
+
 -- Tests 
 
 elab "test_elabLurkLiteral " v:lurk_literal : term =>
@@ -158,36 +210,32 @@ elab "test_elabLurkLiteral " v:lurk_literal : term =>
 #eval test_elabLurkLiteral -0    -- Lurk.Literal.num { data := 0, modulus? := none }
 #eval test_elabLurkLiteral -5    -- Lurk.Literal.num { data := -5, modulus? := none }
 #eval test_elabLurkLiteral ""    -- Lurk.Literal.str ""
-#eval test_elabLurkLiteral "sss" -- Lurk.Literal.str ""
+#eval test_elabLurkLiteral "sss" -- Lurk.Literal.str "sss"
+#eval test_elabLurkLiteral a     -- Lurk.Literal.sym { data := "a" }
 
-elab "test_elabLurkNumOp " v:lurk_num_op : term =>
-  elabLurkNumOp v
+elab "test_elabLurkBinOp " v:lurk_bin_op : term =>
+  elabLurkBinOp v
 
-#eval test_elabLurkNumOp +
-#eval test_elabLurkNumOp -
-#eval test_elabLurkNumOp *
-#eval test_elabLurkNumOp /
-
-
-elab "test_elabLurkConsOp " v:lurk_cons_op : term =>
-  elabLurkConsOp v
-
-#eval test_elabLurkConsOp car
+#eval test_elabLurkBinOp +
+#eval test_elabLurkBinOp -
+#eval test_elabLurkBinOp *
+#eval test_elabLurkBinOp /
 
 
-elab "test_elabLurkRelOp " v:lurk_rel_op : term =>
-  elabLurkRelOp v
+elab "test_elabLurkUnaryOp " v:lurk_unary_op : term =>
+  elabLurkUnaryOp v
 
-#eval test_elabLurkRelOp =
+#eval test_elabLurkUnaryOp car
 
 elab "[Lurk| " e:lurk_expr "]" : term =>
   elabLurkExpr e
 
 #check [({ data := "n" } : Lurk.Name)]
 
-#eval [Lurk| 
+#eval Lurk.Expr.print [Lurk| (lambda (n) n) ] -- (lambda (n) n)
 
+#eval Lurk.Expr.print [Lurk|
 (let ((foo (lambda (a b c)
              (* (+ a b) c))))
-  (foo))
-] -- (lambda (n) n)
+  (foo "1" 2 3))
+]
