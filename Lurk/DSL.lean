@@ -13,7 +13,7 @@ syntax char         : lurk_literal
 syntax ident        : lurk_literal
 
 def elabLurkLiteral : Syntax → MetaM Expr
-  | `(lurk_literal| t) => return mkConst ``Lurk.Literal.t
+  | `(lurk_literal| t)   => return mkConst ``Lurk.Literal.t
   | `(lurk_literal| nil) => return mkConst ``Lurk.Literal.nil
   | `(lurk_literal| -$n) => match n.getNat with
     | 0     => do 
@@ -28,13 +28,13 @@ def elabLurkLiteral : Syntax → MetaM Expr
     let n ← mkAppM ``Int.ofNat #[mkNatLit n.getNat]
     let num ← mkAppM ``Lurk.Num.raw #[n]
     mkAppM ``Lurk.Literal.num #[num]
-  | `(lurk_literal| $s:str)   => mkAppM ``Lurk.Literal.str #[mkStrLit s.getString]
-  | `(lurk_literal| $c:char)  => do
+  | `(lurk_literal| $s:str) =>
+    mkAppM ``Lurk.Literal.str #[mkStrLit s.getString]
+  | `(lurk_literal| $c:char) => do
     let c ← mkAppM ``Char.ofNat #[mkNatLit c.getChar.val.toNat]
     mkAppM ``Lurk.Literal.char #[c]
-  | `(lurk_literal| $i:ident) => do 
-    let s := mkStrLit i.getId.toString
-    mkAppM ``Lurk.Literal.sym #[s]
+  | `(lurk_literal| $i:ident) =>
+    mkAppM ``Lurk.Literal.sym #[mkStrLit i.getId.toString]
   | _ => throwUnsupportedSyntax
 
 declare_syntax_cat  lurk_bin_op
@@ -159,7 +159,7 @@ partial def elabLurkBindings : Syntax → MetaM Expr
     mkListLit type bindings.toList
   | _ => throwUnsupportedSyntax
 
-partial def elabLurkExpr : Syntax → MetaM Expr
+partial def elabLurkExpr : TSyntax `lurk_expr → MetaM Expr
   | `(lurk_expr| $l:lurk_literal) => do
     mkAppM ``Lurk.Expr.lit #[← elabLurkLiteral l]
   | `(lurk_expr| (if $test $con $alt)) => do
@@ -188,13 +188,13 @@ partial def elabLurkExpr : Syntax → MetaM Expr
     mkAppM ``Lurk.Expr.begin #[← mkListLit type es]
   | `(lurk_expr| current-env) => return mkConst ``Lurk.Expr.currEnv
   | `(lurk_expr| (eval $e)) => elabLurkExpr e
-  | `(lurk_expr| ($e*)) => do 
-    let e := (← e.mapM elabLurkExpr).toList
-    match e with 
-    | []   => throwUnsupportedSyntax
-    | e::es => 
-      let type := mkConst ``Lurk.Expr
-      mkAppM ``Lurk.Expr.app #[e, ← mkListLit type es]
+  | `(lurk_expr| ($e*)) => do
+    match e.getSepElems.data with
+    | [ ] => throwUnsupportedSyntax
+    | [e] => elabLurkExpr e
+    | es  => match ← es.mapM elabLurkExpr with
+      | []    => unreachable!
+      | e::es => mkAppM ``Lurk.Expr.app #[e, ← mkListLit (mkConst ``Lurk.Expr) es]
   | _ => throwUnsupportedSyntax
 end
 
