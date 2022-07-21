@@ -16,18 +16,12 @@ def elabLurkLiteral : Syntax → MetaM Expr
   | `(lurk_literal| t)   => return mkConst ``Lurk.Literal.t
   | `(lurk_literal| nil) => return mkConst ``Lurk.Literal.nil
   | `(lurk_literal| -$n) => match n.getNat with
-    | 0     => do 
-      let n ← mkAppM ``Int.ofNat #[mkConst ``Nat.zero]
-      let num ← mkAppM ``Lurk.Num.raw #[n]
-      mkAppM ``Lurk.Literal.num #[num]
-    | n + 1 => do 
-      let n ← mkAppM ``Int.negSucc #[mkNatLit n]
-      let num ← mkAppM ``Lurk.Num.raw #[n]
-      mkAppM ``Lurk.Literal.num #[num]
-  | `(lurk_literal| $n:num) => do 
-    let n ← mkAppM ``Int.ofNat #[mkNatLit n.getNat]
-    let num ← mkAppM ``Lurk.Num.raw #[n]
-    mkAppM ``Lurk.Literal.num #[num]
+    | 0     => do
+      mkAppM ``Lurk.Literal.num #[← mkAppM ``Int.ofNat #[mkConst ``Nat.zero]]
+    | n + 1 => do
+      mkAppM ``Lurk.Literal.num #[← mkAppM ``Int.negSucc #[mkNatLit n]]
+  | `(lurk_literal| $n:num) => do
+    mkAppM ``Lurk.Literal.num #[← mkAppM ``Int.ofNat #[mkNatLit n.getNat]]
   | `(lurk_literal| $s:str) =>
     mkAppM ``Lurk.Literal.str #[mkStrLit s.getString]
   | `(lurk_literal| $c:char) => do
@@ -87,30 +81,21 @@ syntax "/"                 : sexpr
 partial def elabSExpr : Syntax → MetaM Expr
   | `(sexpr| -$n:num) => match n.getNat with
     | 0     => do
-      let n ← mkAppM ``Int.ofNat #[mkConst ``Nat.zero]
-      mkAppM ``Lurk.SExpr.num #[n]
+      mkAppM ``Lurk.SExpr.num #[← mkAppM ``Int.ofNat #[mkConst ``Nat.zero]]
     | n + 1 => do
-      let n ← mkAppM ``Int.negSucc #[mkNatLit n]
-      mkAppM ``Lurk.SExpr.num #[n]
+      mkAppM ``Lurk.SExpr.num #[← mkAppM ``Int.negSucc #[mkNatLit n]]
   | `(sexpr| $n:num) => do
-    let n ← mkAppM ``Int.ofNat #[mkNatLit n.getNat]
-    mkAppM ``Lurk.SExpr.num #[n]
-  | `(sexpr| $i:ident) => do
-    mkAppM ``Lurk.SExpr.atom #[mkStrLit i.getId.toString]
+    mkAppM ``Lurk.SExpr.num #[← mkAppM ``Int.ofNat #[mkNatLit n.getNat]]
+  | `(sexpr| $i:ident) => mkAppM ``Lurk.SExpr.atom #[mkStrLit i.getId.toString]
   -- TODO: these are extremely brittle, should generalize
-  | `(sexpr| +) => do
-    mkAppM ``Lurk.SExpr.atom #[mkStrLit "+"]
-  | `(sexpr| -) => do
-    mkAppM ``Lurk.SExpr.atom #[mkStrLit "-"]
-  | `(sexpr| *) => do
-    mkAppM ``Lurk.SExpr.atom #[mkStrLit "*"]
-  | `(sexpr| /) => do
-    mkAppM ``Lurk.SExpr.atom #[mkStrLit "/"]
-  | `(sexpr| $s:str) => do
-    mkAppM ``Lurk.SExpr.str #[mkStrLit s.getString]
+  | `(sexpr| +) => mkAppM ``Lurk.SExpr.atom #[mkStrLit "+"]
+  | `(sexpr| -) => mkAppM ``Lurk.SExpr.atom #[mkStrLit "-"]
+  | `(sexpr| *) => mkAppM ``Lurk.SExpr.atom #[mkStrLit "*"]
+  | `(sexpr| /) => mkAppM ``Lurk.SExpr.atom #[mkStrLit "/"]
+  | `(sexpr| $s:str) => mkAppM ``Lurk.SExpr.str #[mkStrLit s.getString]
   | `(sexpr| $c:char)  => do
-    let c ← mkAppM ``Char.ofNat #[mkNatLit c.getChar.val.toNat]
-    mkAppM ``Lurk.SExpr.char #[c]
+    mkAppM ``Lurk.SExpr.char
+      #[← mkAppM ``Char.ofNat #[mkNatLit c.getChar.val.toNat]]
   | `(sexpr| ($es*)) => do
     let es ← (es.mapM fun e => elabSExpr e)
     mkAppM ``Lurk.SExpr.list #[← mkListLit (mkConst ``Lurk.SExpr) es.toList]
@@ -147,9 +132,8 @@ syntax "(" lurk_expr+ ")"                         : lurk_expr
 
 mutual 
 partial def elabLurkBinding : Syntax → MetaM Expr 
-  | `(lurk_binding| ($name $body)) => do 
-    let name := mkStrLit name.getId.toString
-    mkAppM ``Prod.mk #[name, ← elabLurkExpr body]
+  | `(lurk_binding| ($name $body)) => do
+    mkAppM ``Prod.mk #[mkStrLit name.getId.toString, ← elabLurkExpr body]
   | _ => throwUnsupportedSyntax
 
 partial def elabLurkBindings : Syntax → MetaM Expr 
@@ -230,9 +214,17 @@ elab "[Lurk| " e:lurk_expr "]" : term =>
 #eval Lurk.Expr.print [Lurk| (lambda (n) n) ]
 -- "(lambda (n) n)"
 
-#eval Lurk.Expr.print [Lurk|
+-- FIXME
+#eval [Lurk|
+(let ((foo (lambda (a) (a))))
+  (foo "1" 2 3))
+].print
+-- "(let ((foo (lambda (a) a))) (foo 2))"
+
+-- FIXME
+#eval [Lurk|
 (let ((foo (lambda (a b c)
              (* (+ a b) c))))
   (foo "1" 2 3))
-]
--- "(let ((foo (lambda (a b c) (* (+ a b) c)))) (foo \"1\" 2 3))"
+].print
+-- "(let ((foo (lambda (a b c) (* (+ a b) c)))) (foo 2))"

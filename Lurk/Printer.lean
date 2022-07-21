@@ -2,10 +2,6 @@ import Lurk.AST
 
 namespace Lurk
 
-instance : ToString Num where toString
-  | .raw i      => toString i
-  | .cyclic i _ => toString i -- is this right? do we ignore the modulus?
-
 instance : ToString UnaryOp where toString
   | .car  => "car"
   | .cdr  => "cdr"
@@ -45,11 +41,11 @@ partial def Expr.print : Expr → String
     let formalsText := " ".intercalate (formals.map toString)
     s!"(lambda ({formalsText}) {print body})"
   | .letE bindings body => 
-    let bindingsTextList := bindings.map fun (name, expr) => s!"({name} {print expr})"
+    let bindingsTextList := bindings.map fun (name, expr) => s!"({name} {expr.print})"
     let bindingsText := " ".intercalate bindingsTextList
     s!"(let ({bindingsText}) {print body})"
   | .letRecE bindings body => 
-    let bindingsTextList := bindings.map fun (name, expr) => s!"({name} {print expr})"
+    let bindingsTextList := bindings.map fun (name, expr) => s!"({name} {expr.print})"
     let bindingsText := " ".intercalate bindingsTextList
     s!"(let ({bindingsText}) {print body})"
   | .app fn args => 

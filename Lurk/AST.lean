@@ -1,11 +1,5 @@
 namespace Lurk
 
-/-- Numerical values in Lurk (may be valued in a finite field) -/
-inductive Num
-  | raw    : Int → Num
-  | cyclic : Int → Nat → Num
-  deriving Repr
-
 /-- Unary operations on Lurk expressions -/
 inductive UnaryOp | car | cdr | atom | emit
 deriving Repr, BEq
@@ -19,7 +13,7 @@ inductive Literal
   -- `t` `nil`
   | t | nil
   -- Numerical values
-  | num     : Num → Literal
+  | num     : Int → Literal
   -- Strings
   | str     : String → Literal
   -- Characters
