@@ -50,7 +50,10 @@ partial def pprint (e : Expr) (pretty := true) : Std.Format :=
     paren <| group ("strcons" ++ line ++ pprint e₁ pretty) ++ line ++ pprint e₂ pretty
   | .begin exprs => paren <| "begin" ++ line ++ fmtList exprs
   | .currEnv => "current-env"
-  | .comm n => paren $ "comm" ++ line ++ (format n.val)
+  | .hide e₁ e₂ =>
+    paren <| group ("hide" ++ line ++ pprint e₁ pretty) ++ line ++ pprint e₂ pretty
+  | .commit e => paren $ "commit" ++ line ++ (pprint e pretty)
+  | .comm e => paren $ "comm" ++ line ++ (pprint e pretty)
 where
   fmtNames (xs : List Name) := match xs with
     | [] => Format.nil
