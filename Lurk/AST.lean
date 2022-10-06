@@ -48,6 +48,7 @@ inductive Expr where
   | begin    : List Expr → Expr
   -- `current-env`
   | currEnv  : Expr
+  | comm : Fin N → Expr
   deriving Repr, BEq, Inhabited
 
 namespace Expr
