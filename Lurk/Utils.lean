@@ -108,7 +108,12 @@ partial def replace (e : Expr) (target : Expr) (replacement : Expr) : Expr :=
       .strcons e₁ e₂
     | .begin es => .begin $ es.map fun e => replace e target replacement
     | .currEnv => e
-    | .comm _ => e
+    | .hide e₁ e₂ =>
+      let e₁ := replace e₁ target replacement
+      let e₂ := replace e₂ target replacement
+      .hide e₁ e₂
+    | .commit e => .commit $ replace e target replacement
+    | .comm e => .comm $ replace e target replacement
 
 /-- Given pairs `(tgtᵢ, rplᵢ)`, replaces all occurences of `tgtᵢ` with `rplᵢ`.
   This is more efficient than `replace` since one does not have to traverse
@@ -164,7 +169,12 @@ partial def replaceN (e : Expr) (targets : List (Expr × Expr)) : Expr :=
       .strcons e₁ e₂
     | .begin es => .begin $ es.map fun e => replaceN e targets
     | .currEnv => e
-    | .comm _ => e
+    | .hide e₁ e₂ =>
+      let e₁ := replaceN e₁ targets
+      let e₂ := replaceN e₂ targets
+      .hide e₁ e₂
+    | .commit e => .commit $ replaceN e targets
+    | .comm e => .comm $ replaceN e targets
 
 mutual
 
@@ -195,7 +205,6 @@ partial def replaceFreeVars (map : Std.RBMap Name Lurk.Expr compare) :
   | x@(.lit _)   => x
   | x@(.quote _) => x
   | x@(.currEnv) => x
-  | x@(.comm _)  => x
   | .sym n => match map.find? n with
     | some e => e
     | none => .sym n
@@ -221,6 +230,9 @@ partial def replaceFreeVars (map : Std.RBMap Name Lurk.Expr compare) :
   | .cdr e => .cdr (replaceFreeVars map e)
   | .emit e => .emit (replaceFreeVars map e)
   | .begin es => .begin $ es.map (replaceFreeVars map)
+  | .hide e₁ e₂ => .hide (replaceFreeVars map e₁) (replaceFreeVars map e₂)
+  | .commit e => .commit (replaceFreeVars map e)
+  | .comm e => .comm (replaceFreeVars map e)
 
 end
 
