@@ -223,6 +223,7 @@ partial def evalM (env : Env) (e : Expr) (iter := 0) : EvalM Value := do
   --   | none => return "not there"
   -- dbg_trace s!"[`t] ....\n{t_val}\n"
   -- dbg_trace s!"[result of {iter}] ....\n{v.pprint}\n"
+  | .comm _ => throw "TODO"
   return v
 end
 
