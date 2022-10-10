@@ -23,24 +23,25 @@ inductive ScalarExpr where
   | chr (x : F)
   | str (head : Char) (tail : ScalarPtr)
 
-def hashChar (c : Char) : F :=
+def hashChar (c : Char) : ScalarPtr :=
   sorry
+
+def hash4 : F → F → F → F → F := sorry
+
+def getString : String → ScalarPtr := sorry
 
 def hashString : String → F
   | ⟨[]⟩ => .ofNat 0
   | ⟨c :: cs⟩ =>
-    let s := String.mk cs
-    sorry
-
-def hash3 : F → F → F → F := sorry
-
-def hash4 : F → F → F → F → F := sorry
+    let char := hashChar c
+    let str := getString (String.mk cs)
+    hash4 char.tag char.val str.tag str.val
 
 def ScalarExpr.hash : ScalarExpr → F
   | .nil => hashString "nil"
   | .cons car cdr => hash4 car.tag car.val cdr.tag cdr.val
   | .num x => x
   | .chr x => sorry
-  | .str c x => hash3 (hashChar c) x.tag x.val
+  | .str c x => sorry
 
 end Lurk
