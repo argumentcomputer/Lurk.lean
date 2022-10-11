@@ -1,47 +1,54 @@
-import Lurk.Literal
+import Lurk.Tag
 
 namespace Lurk
 
-inductive Tag where
-  | nil | cons | num
-
-abbrev F := Fin N
-
-def Tag.hash : Tag → F
-  | .nil  => .ofNat 0
-  | .cons => .ofNat 1
-  | .num  => .ofNat 2
-
 structure ScalarPtr where
-  tag : F
+  tag : Tag
   val : F
 
 inductive ScalarExpr where
   | nil
   | cons (car: ScalarPtr) (cdr: ScalarPtr)
   | num (val: F)
-  | chr (x : F)
-  | str (head : Char) (tail : ScalarPtr)
-
-def hashChar (c : Char) : ScalarPtr :=
-  sorry
+  | char (x : F)
+  | str (head : ScalarPtr) (tail : ScalarPtr)
 
 def hash4 : F → F → F → F → F := sorry
 
-def getString : String → ScalarPtr := sorry
+def hashPtrPair (x y : ScalarPtr) : F :=
+  hash4 x.tag.hash x.val y.tag.hash y.val
 
-def hashString : String → F
-  | ⟨[]⟩ => .ofNat 0
-  | ⟨c :: cs⟩ =>
-    let char := hashChar c
-    let str := getString (String.mk cs)
-    hash4 char.tag char.val str.tag str.val
+open Std in
+structure ScalarStore where
+  charCache   : RBMap Char   ScalarPtr compare
+  stringCache : RBMap String ScalarPtr compare
 
-def ScalarExpr.hash : ScalarExpr → F
-  | .nil => hashString "nil"
-  | .cons car cdr => hash4 car.tag car.val cdr.tag cdr.val
-  | .num x => x
-  | .chr x => sorry
-  | .str c x => sorry
+abbrev HashM := StateT ScalarStore Id
+
+def hashChar (c : Char) : HashM ScalarPtr := do
+  match (← get).charCache.find? c with
+  | some ptr => pure ptr
+  | none =>
+    let ptr := ⟨.char, .ofNat c.val.toNat⟩
+    modifyGet fun stt =>
+      (ptr, { stt with charCache := stt.charCache.insert c ptr })
+
+def hashString (s : String) : HashM ScalarPtr := do
+  match (← get).stringCache.find? s with
+  | some ptr => pure ptr
+  | none => match s with
+    | ⟨[]⟩ => return ⟨.str, F.zero⟩
+    | ⟨c :: cs⟩ => do
+      let head ← hashChar c
+      let tail ← hashString ⟨cs⟩
+      let val := hashPtrPair head tail
+      return ⟨.str, val⟩
+
+def ScalarExpr.hash : ScalarExpr → HashM F
+  | .nil => sorry
+  | .cons car cdr => return hashPtrPair car cdr
+  | .num x => return x
+  | .char x => sorry
+  | .str h t => sorry
 
 end Lurk

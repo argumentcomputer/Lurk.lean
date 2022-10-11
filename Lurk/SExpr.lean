@@ -61,31 +61,5 @@ instance : ToSExpr SExpr where
   toSExpr s := s
 
 end SExpr
+
 end Lurk 
-
-open Lean Elab Meta Term
-declare_syntax_cat           sexpr
-syntax lurk_literal        : sexpr
-syntax "(" sexpr* ")"      : sexpr
-syntax sexpr " . " sexpr   : sexpr
-
-open Lurk SExpr in 
-partial def elabSExpr : Syntax → TermElabM Lean.Expr
-  | `(sexpr| $l:lurk_literal) => do
-    mkAppM ``SExpr.lit #[← elabLiteral l]
-  | `(sexpr| ($es*)) => do
-    let es ← (es.mapM fun e => elabSExpr e)
-    mkAppM ``mkList #[← mkListLit (mkConst ``SExpr) es.toList]
-  | `(sexpr| $e1 . $e2) => do
-    mkAppM ``SExpr.cons #[← elabSExpr e1, ← elabSExpr e2]
-  | `(sexpr| $i) => do 
-    if i.raw.isAntiquot then 
-      let stx := i.raw.getAntiquotTerm
-      let e ← elabTerm stx none
-      let e ← whnf e
-      mkAppM ``ToSExpr.toSExpr #[e]
-    else 
-      throwUnsupportedSyntax 
-
-elab "[SExpr| " e:sexpr "]" : term =>
-  elabSExpr e

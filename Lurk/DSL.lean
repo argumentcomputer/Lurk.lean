@@ -2,7 +2,64 @@ import Lean
 import Lurk.Printing
 import Lurk.Utils
 
+namespace Lurk.DSL
+
 open Lean Elab Meta Term
+
+def mkNameLit (name : String) :=
+  mkAppM ``Name.mkSimple #[mkStrLit name]
+
+declare_syntax_cat    lurk_literal
+syntax "t"          : lurk_literal
+syntax "nil"        : lurk_literal
+syntax num          : lurk_literal
+-- syntax "-" noWs num : lurk_literal
+syntax str          : lurk_literal
+syntax char         : lurk_literal
+
+def elabLiteral : Syntax → TermElabM Lean.Expr
+  | `(lurk_literal| t)   => return mkConst ``Lurk.Literal.t
+  | `(lurk_literal| nil) => return mkConst ``Lurk.Literal.nil
+  -- | `(lurk_literal| -$n) => match n.getNat with
+  --   | 0     => do
+  --     mkAppM ``Lurk.Literal.num #[← mkAppM ``Fin.ofNat #[mkConst ``Nat.zero]]
+  --   | n + 1 => do
+  --     mkAppM ``Lurk.Literal.num #[← mkAppM ``Fin.ofInt #[← mkAppM ``Int.negSucc #[mkNatLit n]]]
+  | `(lurk_literal| $n:num) => do
+    mkAppM ``Lurk.mkNumLit #[mkNatLit n.getNat]
+  | `(lurk_literal| $s:str) =>
+    mkAppM ``Lurk.Literal.str #[mkStrLit s.getString]
+  | `(lurk_literal| $c:char) => do
+    let c ← mkAppM ``Char.ofNat #[mkNatLit c.getChar.val.toNat]
+    mkAppM ``Lurk.Literal.char #[c]
+  | _ => throwUnsupportedSyntax
+
+declare_syntax_cat           sexpr
+syntax lurk_literal        : sexpr
+syntax "(" sexpr* ")"      : sexpr
+syntax sexpr " . " sexpr   : sexpr
+
+open Lurk SExpr in 
+partial def elabSExpr : Syntax → TermElabM Lean.Expr
+  | `(sexpr| $l:lurk_literal) => do
+    mkAppM ``SExpr.lit #[← elabLiteral l]
+  | `(sexpr| ($es*)) => do
+    let es ← (es.mapM fun e => elabSExpr e)
+    mkAppM ``mkList #[← mkListLit (mkConst ``SExpr) es.toList]
+  | `(sexpr| $e1 . $e2) => do
+    mkAppM ``SExpr.cons #[← elabSExpr e1, ← elabSExpr e2]
+  | `(sexpr| $i) => do 
+    if i.raw.isAntiquot then 
+      let stx := i.raw.getAntiquotTerm
+      let e ← elabTerm stx none
+      let e ← whnf e
+      mkAppM ``ToSExpr.toSExpr #[e]
+    else 
+      throwUnsupportedSyntax 
+
+elab "[SExpr| " e:sexpr "]" : term =>
+  elabSExpr e
+
 
 declare_syntax_cat  lurk_bin_op
 syntax "+ "      : lurk_bin_op
@@ -16,7 +73,7 @@ syntax "<= "     : lurk_bin_op
 syntax ">= "     : lurk_bin_op
 syntax "eq "     : lurk_bin_op
 
-def elabLurkBinOp : Syntax → TermElabM Expr
+def elabLurkBinOp : Syntax → TermElabM Lean.Expr
   | `(lurk_bin_op| +)    => return mkConst ``Lurk.BinaryOp.sum
   | `(lurk_bin_op| -)    => return mkConst ``Lurk.BinaryOp.diff
   | `(lurk_bin_op| *)    => return mkConst ``Lurk.BinaryOp.prod
@@ -59,7 +116,7 @@ syntax "(" lurk_expr* ")"                         : lurk_expr
 /-- 
 There are no type guarentees. 
 -/
-partial def elabLurkIdents (i : TSyntax `ident) : TermElabM Expr := do 
+partial def elabLurkIdents (i : TSyntax `ident) : TermElabM Lean.Expr := do 
   if i.raw.isAntiquot then 
     let stx := i.raw.getAntiquotTerm
     let e ← elabTerm stx none
@@ -72,27 +129,27 @@ partial def elabLurkIdents (i : TSyntax `ident) : TermElabM Expr := do
       mkAppM ``List.cons #[e, «nil»]
   else
     let «nil» ← mkAppOptM ``List.nil #[some (mkConst ``Lean.Name)]
-    mkAppM ``List.cons #[← Lurk.mkNameLit i.getId.toString, «nil»]
+    mkAppM ``List.cons #[← mkNameLit i.getId.toString, «nil»]
 
 
 mutual 
-partial def elabLurkBinding : Syntax → TermElabM Expr 
+partial def elabLurkBinding : Syntax → TermElabM Lean.Expr 
   | `(lurk_binding| ($name $body)) => do
-    mkAppM ``Prod.mk #[← Lurk.mkNameLit name.getId.toString, ← elabLurkExpr body]
+    mkAppM ``Prod.mk #[← mkNameLit name.getId.toString, ← elabLurkExpr body]
   | _ => throwUnsupportedSyntax
 
-partial def elabLurkBindings : Syntax → TermElabM Expr 
+partial def elabLurkBindings : Syntax → TermElabM Lean.Expr
   | `(lurk_bindings| ($bindings*)) => do 
     let bindings ← bindings.mapM elabLurkBinding
     let type ← mkAppM ``Prod #[mkConst ``Lean.Name, mkConst ``Lurk.Expr]
     mkListLit type bindings.toList
   | _ => throwUnsupportedSyntax
 
-partial def elabLurkExpr : TSyntax `lurk_expr → TermElabM Expr
+partial def elabLurkExpr : TSyntax `lurk_expr → TermElabM Lean.Expr
   | `(lurk_expr| $l:lurk_literal) => do
-    mkAppM ``Lurk.Expr.lit #[← Lurk.elabLiteral l]
+    mkAppM ``Lurk.Expr.lit #[← elabLiteral l]
   | `(lurk_expr| $i:ident) => do
-    mkAppM ``Lurk.Expr.sym #[← Lurk.mkNameLit i.getId.toString]
+    mkAppM ``Lurk.Expr.sym #[← mkNameLit i.getId.toString]
   | `(lurk_expr| (if $test $con $alt)) => do
     mkAppM ``Lurk.Expr.ifE
       #[← elabLurkExpr test, ← elabLurkExpr con, ← elabLurkExpr alt]
@@ -147,6 +204,8 @@ end
 elab "⟦ " e:lurk_expr " ⟧" : term =>
   elabLurkExpr e
 
+end Lurk.DSL
+
 namespace Lurk.Expr 
 
 /--
@@ -162,7 +221,7 @@ def mkMutualBlock (mutuals : List (Name × Expr)) : List (Name × Expr) :=
   else 
     let names := mutuals.map Prod.fst
     let mutualName := names.foldl (init := `__mutual__) fun acc n => acc ++ n
-    let fnProjs := names.enum.map fun (i, (n : Name)) => (n, app ⟦$mutualName⟧ ⟦$i⟧)
+    let fnProjs := names.enum.map fun (i, (n : Name)) => (n, .app ⟦$mutualName⟧ ⟦$i⟧)
     let map := fnProjs.foldl (init := default) fun acc (n, e) => acc.insert n e
     let mutualBlock := mkIfElses (mutuals.enum.map fun (i, _, e) =>
         (⟦(= mutidx $i)⟧, replaceFreeVars map e)
