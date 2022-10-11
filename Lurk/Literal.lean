@@ -1,8 +1,5 @@
-import Lean
-
-open Lean Elab Meta Term
-
 open Std
+
 namespace Lurk
 
 def N := 0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001

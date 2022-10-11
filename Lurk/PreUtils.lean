@@ -38,9 +38,17 @@ theorem modToNat_le {n : Nat} : modToNat a n.succ < n.succ := by
   cases a with 
   | ofNat x => 
     simp [Nat.mod_lt x (Nat.succ_pos n)]
-  | negSucc x => 
-    -- apply Nat.lt_trans _ _ _
-    sorry
+  | negSucc x =>
+    simp
+    let y := x % Nat.succ n
+    have : x % Nat.succ n = y := rfl
+    rw [this]
+    have : (n + 1) - y - 1 ≤ n := by
+      have : (n + 1) - y - 1 = n - y := by
+        exact Nat.add_sub_add_right n 1 y
+      rw [this]
+      exact Nat.sub_le n y
+    exact Nat.lt_succ_of_le this
 
 end Int 
 
