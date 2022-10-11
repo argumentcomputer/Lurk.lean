@@ -1,10 +1,12 @@
 import Lurk.Tag
+import Lurk.AST
 
 namespace Lurk
 
 structure ScalarPtr where
   tag : Tag
   val : F
+  deriving Ord
 
 inductive ScalarExpr where
   | nil
@@ -20,10 +22,21 @@ def hashPtrPair (x y : ScalarPtr) : F :=
 
 open Std in
 structure ScalarStore where
+  exprs : RBMap ScalarPtr ScalarExpr compare
+  -- conts : RBMap ScalarContPtr ScalarCont compare
+  deriving Inhabited
+
+open Std in
+structure HashState where
+  exprs       : RBMap ScalarPtr ScalarExpr compare
   charCache   : RBMap Char   ScalarPtr compare
   stringCache : RBMap String ScalarPtr compare
+  deriving Inhabited
 
-abbrev HashM := StateT ScalarStore Id
+def HashState.store (stt : HashState) : ScalarStore :=
+  ⟨stt.exprs⟩
+
+abbrev HashM := StateT HashState Id
 
 def hashChar (c : Char) : HashM ScalarPtr := do
   match (← get).charCache.find? c with
@@ -41,14 +54,37 @@ def hashString (s : String) : HashM ScalarPtr := do
     | ⟨c :: cs⟩ => do
       let head ← hashChar c
       let tail ← hashString ⟨cs⟩
-      let val := hashPtrPair head tail
-      return ⟨.str, val⟩
+      let ptr := ⟨.str, hashPtrPair head tail⟩
+      modifyGet fun stt =>
+        (ptr, { stt with stringCache := stt.stringCache.insert s ptr })
 
-def ScalarExpr.hash : ScalarExpr → HashM F
-  | .nil => sorry
-  | .cons car cdr => return hashPtrPair car cdr
-  | .num x => return x
-  | .char x => sorry
-  | .str h t => sorry
+def addToStore (ptr : ScalarPtr) (expr : ScalarExpr) : HashM ScalarPtr :=
+  modifyGet fun stt =>
+    (ptr, { stt with exprs := stt.exprs.insert ptr expr })
+
+def hashExpr : Expr → HashM ScalarPtr
+  | .lit .nil => addToStore ⟨.nil, F.zero⟩ .nil
+  | .lit .t => sorry
+  | .lit (.num n) => addToStore ⟨.num, n⟩ (.num n)
+  | .lit (.str ⟨c :: cs⟩) => do
+    let headPtr ← hashChar c
+    let tailPtr ← hashString ⟨cs⟩
+    let ptr := ⟨.str, hashPtrPair headPtr tailPtr⟩
+    let expr := (.str headPtr tailPtr)
+    addToStore ptr expr
+  | .lit (.char c) => do
+    let ptr ← hashChar c
+    addToStore ptr (.char ptr.val)
+  | .cons car cdr => do
+    let carPtr ← hashExpr car
+    let cdrPtr ← hashExpr cdr
+    let ptr := ⟨.cons, (hashPtrPair carPtr cdrPtr)⟩
+    let expr := .cons carPtr cdrPtr
+    addToStore ptr expr
+  | _ => sorry
+
+def Expr.hash (e : Expr) : ScalarStore × ScalarPtr := Id.run do
+  match ← StateT.run (hashExpr e) default with
+  | (ptr, stt) => (stt.store, ptr)
 
 end Lurk

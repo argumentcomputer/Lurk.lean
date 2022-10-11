@@ -12,6 +12,7 @@ inductive Tag where
   | str
   | char
   | comm
+  deriving Ord
 
 def Tag.hash : Tag → F
   | .nil   => .ofNat 0
