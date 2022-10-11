@@ -63,7 +63,9 @@ def addToStore (ptr : ScalarPtr) (expr : ScalarExpr) : HashM ScalarPtr :=
     (ptr, { stt with exprs := stt.exprs.insert ptr expr })
 
 def hashExpr : Expr → HashM ScalarPtr
-  | .lit .nil => addToStore ⟨.nil, F.zero⟩ .nil
+  | .lit .nil =>
+    -- addToStore ⟨.nil, F.zero⟩ .nil -- I'd like to do this instead
+    do addToStore ⟨.nil, (← hashString "nil").val⟩ .nil
   | .lit .t => sorry
   | .lit (.num n) => addToStore ⟨.num, n⟩ (.num n)
   | .lit (.str ⟨c :: cs⟩) => do
