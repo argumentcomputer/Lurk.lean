@@ -1,37 +1,8 @@
 import Lurk.AST
+import YatimaStdLib.Lean
 import YatimaStdLib.RBMap
 
-def Std.RBMap.filterOut [BEq α] [Ord α]
-  (map : Std.RBMap α β compare) (s : Std.RBTree α compare) :
-    Std.RBMap α β compare :=
-  map.fold (init := default) fun acc n e' =>
-    if s.contains n then acc else acc.insert n e'
-
-namespace Lurk
-
-def compareNames : Name → Name → Ordering
-  | .anonymous, .anonymous => .eq
-  | .num namₗ nₗ, .num namᵣ nᵣ =>
-    if nₗ < nᵣ then .lt
-    else
-      if nₗ > nᵣ then .gt
-      else compareNames namₗ namᵣ
-  | .str namₗ sₗ, .str namᵣ sᵣ =>
-    if sₗ < sᵣ then .lt
-    else
-      if sₗ > sᵣ then .gt
-      else compareNames namₗ namᵣ
-  | .anonymous, .num .. => .lt
-  | .anonymous, .str .. => .lt
-  | .num .., .str .. => .lt
-  | .num .., .anonymous => .gt
-  | .str .., .anonymous => .gt
-  | .str .., .num .. => .gt
-
-scoped instance : Ord Name where
-  compare := compareNames
-
-namespace Expr
+namespace Lurk.Expr
 
 def mkNum (n : Nat) : Expr :=
   .lit $ .num (Fin.ofNat n)
@@ -237,28 +208,3 @@ partial def replaceFreeVars (map : Std.RBMap Name Lurk.Expr compare) :
 end
 
 end Lurk.Expr
-
-namespace Lean.Expr
-
-def constName (e : Expr) : Name :=
-  e.constName?.getD Name.anonymous
-
-def getAppFnArgs (e : Expr) : Name × Array Expr :=
-  withApp e λ e a => (e.constName, a)
-
-/-- Converts a `Expr` of a list to a list of `Expr`s -/
-partial def toListExpr (e : Expr) : List Expr :=
-  match e.getAppFnArgs with
-  | (``List.nil, #[_]) => []
-  | (``List.cons, #[_, x, xs]) => x :: toListExpr xs
-  | _ => []
-
-end Lean.Expr
-
-namespace Array
-
-@[inline]
-def concat {α : Type u} (ars : Array $ Array α) : Array α :=
-  ars.foldl (init := empty) fun acc ar => acc ++ ar
-
-end Array

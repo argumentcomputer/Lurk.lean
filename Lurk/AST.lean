@@ -5,8 +5,9 @@ import Lurk.FixName
 namespace Lurk
 
 /-- Binary operations on Lurk numerals -/
-inductive BinaryOp | sum | diff | prod | quot | numEq | lt | gt | le | ge | eq
-deriving Repr, BEq
+inductive BinaryOp 
+  | sum | diff | prod | quot | numEq | lt | gt | le | ge | eq
+  deriving Repr, BEq
 
 /-- Basic Lurk expression AST -/
 inductive Expr where
@@ -102,3 +103,7 @@ instance : ToExpr Char where
 
 instance : ToExpr Expr where 
   toExpr s := s
+
+end Expr
+
+end Lurk
