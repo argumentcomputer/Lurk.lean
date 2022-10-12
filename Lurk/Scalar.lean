@@ -36,7 +36,7 @@ structure HashState where
 def HashState.store (stt : HashState) : ScalarStore :=
   ⟨stt.exprs⟩
 
-abbrev HashM := StateT HashState Id
+abbrev HashM := StateM HashState
 
 def hashChar (c : Char) : HashM ScalarPtr := do
   match (← get).charCache.find? c with

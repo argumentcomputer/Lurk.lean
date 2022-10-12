@@ -152,7 +152,7 @@ mutual
 partial def replaceBindersFreeVars (map : Std.RBMap Name Lurk.Expr compare)
   (bindings : List (Name × Lurk.Expr))
     (rec : Bool) : List (Name × Lurk.Expr) := Id.run do
-  let mut ret := []
+  let mut ret := #[]
   -- `map'` will keep track of the free vars that will be replaced if found.
   let mut map' := map
   -- as we iterate on binders, occurrences of what looked like a free variable
@@ -163,13 +163,13 @@ partial def replaceBindersFreeVars (map : Std.RBMap Name Lurk.Expr compare)
       -- an occurrence of `n` in `e` can be a recursion, so we can't replace it
       -- right away
       map' := map'.erase n
-      ret := (n, replaceFreeVars map' e) :: ret
+      ret := ret.push (n, replaceFreeVars map' e)
     else
       -- any occurrence of `n` in `e` is definitely a free variable, so we first
       -- try to replace it
-      ret := (n, replaceFreeVars map' e) :: ret
+      ret := ret.push (n, replaceFreeVars map' e)
       map' := map'.erase n
-  return ret.reverse
+  return ret.data
 
 partial def replaceFreeVars (map : Std.RBMap Name Lurk.Expr compare) :
     Lurk.Expr → Lurk.Expr

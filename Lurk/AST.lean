@@ -1,6 +1,6 @@
 import Lurk.SExpr
-import Lurk.PreUtils
 import Lurk.FixName
+import YatimaStdLib.Fin
 
 namespace Lurk
 
