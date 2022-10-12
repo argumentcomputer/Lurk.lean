@@ -31,23 +31,18 @@ def modToNat : Int → Nat → Nat
   | .ofNat x,   n => x % n
   | .negSucc x, n => n - x % n - 1
 
-@[simp] theorem modToNat_ofNat : modToNat (ofNat a) n = a % n := rfl
-@[simp] theorem modToNat_neghSucc : modToNat (negSucc a) n = n - a % n - 1 := rfl
+theorem modToNat_ofNat : modToNat (ofNat a) n = a % n := rfl
+theorem modToNat_negSucc : modToNat (negSucc a) n = n - a % n - 1 := rfl
 
 theorem modToNat_le {n : Nat} : modToNat a n.succ < n.succ := by 
   cases a with 
-  | ofNat x => 
-    simp [Nat.mod_lt x (Nat.succ_pos n)]
+  | ofNat x => simp only [modToNat_ofNat, x.mod_lt (n.succ_pos)]
   | negSucc x =>
-    simp
-    let y := x % Nat.succ n
-    have : x % Nat.succ n = y := rfl
-    rw [this]
-    have : (n + 1) - y - 1 ≤ n := by
-      have : (n + 1) - y - 1 = n - y := by
-        exact Nat.add_sub_add_right n 1 y
+    let y := x % n.succ
+    have : n.succ - y - 1 ≤ n := by
+      have : n.succ - y - 1 = n - y := n.add_sub_add_right 1 y
       rw [this]
-      exact Nat.sub_le n y
+      exact n.sub_le y
     exact Nat.lt_succ_of_le this
 
 end Int 
@@ -55,7 +50,7 @@ end Int
 namespace Fin 
 
 def ofInt {n : Nat} (a : Int) : Fin n.succ := 
-  ⟨Int.modToNat a n.succ, Int.modToNat_le⟩
+  ⟨a.modToNat n.succ, Int.modToNat_le⟩
 
 /- TODO: This is copied from core since it is private -/
 private theorem mlt {b : Nat} : {a : Nat} → a < n → b % n < n
