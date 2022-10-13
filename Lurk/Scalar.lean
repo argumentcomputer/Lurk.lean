@@ -11,6 +11,7 @@ structure ScalarPtr where
 inductive ScalarExpr where
   | nil
   | cons (car : ScalarPtr) (cdr : ScalarPtr)
+  | comm (x : F) (ptr : ScalarPtr)
   | sym (sym : ScalarPtr)
   | num (val : F)
   | str (head : ScalarPtr) (tail : ScalarPtr)
@@ -64,10 +65,10 @@ def addToStore (ptr : ScalarPtr) (expr : ScalarExpr) : HashM ScalarPtr :=
     (ptr, { stt with exprs := stt.exprs.insert ptr expr })
 
 def hashExpr : Expr → HashM ScalarPtr
-  | .lit .nil =>
-    -- addToStore ⟨.nil, F.zero⟩ .nil -- I'd like to do this instead
-    do addToStore ⟨.nil, (← hashString "nil").val⟩ .nil
-  | .lit .t => sorry
+  | .lit .nil => do addToStore ⟨.nil, (← hashString "nil").val⟩ .nil
+  | .lit .t => do
+    let ptr ← hashString "t"
+    addToStore ⟨.sym, ptr.val⟩ (.sym ptr)
   | .lit (.num n) => addToStore ⟨.num, n⟩ (.num n)
   | .lit (.str ⟨c :: cs⟩) => do
     let headPtr ← hashChar c
@@ -87,6 +88,9 @@ def hashExpr : Expr → HashM ScalarPtr
     let ptr := ⟨.cons, (hashPtrPair carPtr cdrPtr)⟩
     let expr := .cons carPtr cdrPtr
     addToStore ptr expr
+  | .comm expr => do
+    let ptr ← hashExpr expr
+    addToStore ptr (.comm ptr.val ptr)
   | _ => sorry
 
 def Expr.hash (e : Expr) : ScalarStore × ScalarPtr := Id.run do
