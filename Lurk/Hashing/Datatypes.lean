@@ -1,0 +1,140 @@
+import Lurk.Literal
+
+namespace Lurk
+
+inductive Tag
+  | nil
+  | cons
+  | sym
+  | «fun»
+  | num
+  | thunk
+  | str
+  | char
+  | comm
+  deriving Ord
+
+inductive ContTag
+  | outermost
+  | call0
+  | call
+  | call2
+  | tail
+  | error
+  | lookup
+  | unop
+  | binop
+  | binop2
+  | «if»
+  | «let»
+  | letrec
+  | dummy
+  | terminal
+  | emit
+
+inductive Op1
+  | car
+  | cdr
+  | atom
+  | emit
+  | «open»
+  | secret
+  | commit
+  | num
+  | comm
+  | char
+
+inductive Op2
+  | sum
+  | diff
+  | product
+  | quotient
+  | equal
+  | numEqual
+  | less
+  | greater
+  | lessEqual
+  | greaterEqual
+  | cons
+  | strcons
+  | begin
+  | hide
+
+def Tag.hash : Tag → F
+  | .nil   => .ofNat 0
+  | .cons  => .ofNat 1
+  | .sym   => .ofNat 2
+  | .fun   => .ofNat 3
+  | .num   => .ofNat 4
+  | .thunk => .ofNat 5
+  | .str   => .ofNat 6
+  | .char  => .ofNat 7
+  | .comm  => .ofNat 8
+
+def ContTag.hash : ContTag → F
+  | .outermost => .ofNat 4096
+  | .call0     => .ofNat 4097
+  | .call      => .ofNat 4098
+  | .call2     => .ofNat 4099
+  | .tail      => .ofNat 4100
+  | .error     => .ofNat 4101
+  | .lookup    => .ofNat 4102
+  | .unop      => .ofNat 4103
+  | .binop     => .ofNat 4104
+  | .binop2    => .ofNat 4105
+  | .if        => .ofNat 4106
+  | .let       => .ofNat 4107
+  | .letrec    => .ofNat 4108
+  | .dummy     => .ofNat 4109
+  | .terminal  => .ofNat 4110
+  | .emit      => .ofNat 4111
+
+def Op1.hash : Op1 → F
+  | .car    => .ofNat 8192
+  | .cdr    => .ofNat 8193
+  | .atom   => .ofNat 8194
+  | .emit   => .ofNat 8195
+  | .open   => .ofNat 8196
+  | .secret => .ofNat 8197
+  | .commit => .ofNat 8198
+  | .num    => .ofNat 8199
+  | .comm   => .ofNat 8200
+  | .char   => .ofNat 8201
+
+def Op2.hash : Op2 → F
+  | .sum          => .ofNat 12288
+  | .diff         => .ofNat 12289
+  | .product      => .ofNat 12290
+  | .quotient     => .ofNat 12291
+  | .equal        => .ofNat 12292
+  | .numEqual     => .ofNat 12293
+  | .less         => .ofNat 12294
+  | .greater      => .ofNat 12295
+  | .lessEqual    => .ofNat 12296
+  | .greaterEqual => .ofNat 12297
+  | .cons         => .ofNat 12298
+  | .strcons      => .ofNat 12299
+  | .begin        => .ofNat 12300
+  | .hide         => .ofNat 12301
+
+instance : Coe Tag     F := ⟨Tag.hash⟩
+instance : Coe ContTag F := ⟨ContTag.hash⟩
+instance : Coe Op1     F := ⟨Op1.hash⟩
+instance : Coe Op2     F := ⟨Op2.hash⟩
+
+structure ScalarPtr where
+  kind : F
+  val  : F
+  deriving Ord
+
+inductive ScalarExpr
+  | nil
+  | cons (car : ScalarPtr) (cdr : ScalarPtr)
+  | comm (x : F) (ptr : ScalarPtr)
+  | sym (sym : ScalarPtr)
+  | «fun» (arg : ScalarPtr) (body : ScalarPtr) (env : ScalarPtr)
+  | num (val : F)
+  | str (head : ScalarPtr) (tail : ScalarPtr)
+  | char (x : F)
+
+end Lurk
