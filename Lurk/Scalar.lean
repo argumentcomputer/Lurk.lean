@@ -10,10 +10,11 @@ structure ScalarPtr where
 
 inductive ScalarExpr where
   | nil
-  | cons (car: ScalarPtr) (cdr: ScalarPtr)
-  | num (val: F)
-  | char (x : F)
+  | cons (car : ScalarPtr) (cdr : ScalarPtr)
+  | sym (sym : ScalarPtr)
+  | num (val : F)
   | str (head : ScalarPtr) (tail : ScalarPtr)
+  | char (x : F)
 
 def hash4 : F → F → F → F → F := sorry
 
@@ -77,6 +78,9 @@ def hashExpr : Expr → HashM ScalarPtr
   | .lit (.char c) => do
     let ptr ← hashChar c
     addToStore ptr (.char ptr.val)
+  | .sym name => do
+    let ptr ← hashString (name.toString false)
+    do addToStore ⟨.sym, ptr.val⟩ (.sym ptr)
   | .cons car cdr => do
     let carPtr ← hashExpr car
     let cdrPtr ← hashExpr cdr
