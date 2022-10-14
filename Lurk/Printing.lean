@@ -48,7 +48,8 @@ partial def pprint (e : Expr) (pretty := true) : Std.Format :=
     paren <| group ("cons" ++ line ++ pprint e₁ pretty) ++ line ++ pprint e₂ pretty
   | .strcons e₁ e₂ =>
     paren <| group ("strcons" ++ line ++ pprint e₁ pretty) ++ line ++ pprint e₂ pretty
-  | .begin exprs => paren <| "begin" ++ line ++ fmtList exprs
+  | .begin e₁ e₂ =>
+    paren <| group ("begin" ++ line ++ pprint e₁ pretty) ++ line ++ pprint e₂ pretty
   | .currEnv => "current-env"
   | .hide e₁ e₂ =>
     paren <| group ("hide" ++ line ++ pprint e₁ pretty) ++ line ++ pprint e₂ pretty

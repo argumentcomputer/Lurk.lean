@@ -46,7 +46,7 @@ inductive Expr where
   -- `emit <e>`
   | emit     : Expr → Expr
   -- `begin <e1> <e2> ...`
-  | begin    : List Expr → Expr
+  | begin    : Expr → Expr → Expr
   -- `current-env`
   | currEnv  : Expr
   | hide     : Expr → Expr → Expr

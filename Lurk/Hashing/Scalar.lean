@@ -66,6 +66,18 @@ def addToStore (ptr : ScalarPtr) (expr : ScalarExpr) : HashM ScalarPtr :=
   modifyGet fun stt =>
     (ptr, { stt with exprs := stt.exprs.insert ptr expr })
 
+def BinaryOp.toOp2 : BinaryOp → Op2
+  | sum   => .sum
+  | diff  => .diff
+  | prod  => .product
+  | quot  => .quotient
+  | numEq => .numEqual
+  | lt    => .less
+  | gt    => .greater
+  | le    => .lessEqual
+  | ge    => .greaterEqual
+  | eq    => .equal
+
 def hashExpr : Expr → HashM ScalarPtr
   | .lit .nil => do addToStore ⟨Tag.nil, (← hashString "nil").val⟩ .nil
   | .lit .t => do
@@ -76,24 +88,30 @@ def hashExpr : Expr → HashM ScalarPtr
     let headPtr ← hashChar c
     let tailPtr ← hashString ⟨cs⟩
     let ptr := ⟨Tag.str, hashPtrPair headPtr tailPtr⟩
-    let expr := (.str headPtr tailPtr)
+    let expr := .str headPtr tailPtr
     addToStore ptr expr
   | .lit (.char c) => do
     let ptr ← hashChar c
     addToStore ptr (.char ptr.val)
   | .sym name => do
     let ptr ← hashString (name.toString false)
-    do addToStore ⟨Tag.sym, ptr.val⟩ (.sym ptr)
+    addToStore ⟨Tag.sym, ptr.val⟩ (.sym ptr)
+  | .binaryOp op e₁ e₂ => do
+    let ptr₁ ← hashExpr e₁
+    let ptr₂ ← hashExpr e₂
+    let ptr := ⟨op.toOp2, hashPtrPair ptr₁ ptr₂⟩
+    let expr := .cons ptr₁ ptr₂
+    addToStore ptr expr
   | .cons car cdr => do
     let carPtr ← hashExpr car
     let cdrPtr ← hashExpr cdr
-    let ptr := ⟨Op2.cons, (hashPtrPair carPtr cdrPtr)⟩
+    let ptr := ⟨Op2.cons, hashPtrPair carPtr cdrPtr⟩
     let expr := .cons carPtr cdrPtr
     addToStore ptr expr
   | .strcons car cdr => do
     let carPtr ← hashExpr car
     let cdrPtr ← hashExpr cdr
-    let ptr := ⟨Op2.strcons, (hashPtrPair carPtr cdrPtr)⟩
+    let ptr := ⟨Op2.strcons, hashPtrPair carPtr cdrPtr⟩
     let expr := .cons carPtr cdrPtr
     addToStore ptr expr
   | .comm expr => do
@@ -117,8 +135,14 @@ def hashExpr : Expr → HashM ScalarPtr
   | .hide secret target => do
     let secretPtr ← hashExpr secret
     let targetPtr ← hashExpr target
-    let ptr := ⟨Op2.hide, (hashPtrPair secretPtr targetPtr)⟩
+    let ptr := ⟨Op2.hide, hashPtrPair secretPtr targetPtr⟩
     let expr := .cons secretPtr targetPtr
+    addToStore ptr expr
+  | .begin e₁ e₂ => do
+    let ptr₁ ← hashExpr e₁
+    let ptr₂ ← hashExpr e₂
+    let ptr := ⟨Op2.begin, hashPtrPair ptr₁ ptr₂⟩
+    let expr := .cons ptr₁ ptr₂
     addToStore ptr expr
   | .currEnv => do
     let ptr ← hashString "current-env"

@@ -1,4 +1,5 @@
 import LSpec
+import Lurk.DSL
 import Lurk.Eval
 
 open Lurk 

@@ -77,7 +77,10 @@ partial def replace (e : Expr) (target : Expr) (replacement : Expr) : Expr :=
       let e₁ := replace e₁ target replacement
       let e₂ := replace e₂ target replacement
       .strcons e₁ e₂
-    | .begin es => .begin $ es.map fun e => replace e target replacement
+    | .begin e₁ e₂ =>
+      let e₁ := replace e₁ target replacement
+      let e₂ := replace e₂ target replacement
+      .begin e₁ e₂
     | .currEnv => e
     | .hide e₁ e₂ =>
       let e₁ := replace e₁ target replacement
@@ -138,7 +141,10 @@ partial def replaceN (e : Expr) (targets : List (Expr × Expr)) : Expr :=
       let e₁ := replaceN e₁ targets
       let e₂ := replaceN e₂ targets
       .strcons e₁ e₂
-    | .begin es => .begin $ es.map fun e => replaceN e targets
+    | .begin e₁ e₂ =>
+      let e₁ := replaceN e₁ targets
+      let e₂ := replaceN e₂ targets
+      .begin e₁ e₂
     | .currEnv => e
     | .hide e₁ e₂ =>
       let e₁ := replaceN e₁ targets
@@ -200,7 +206,7 @@ partial def replaceFreeVars (map : Std.RBMap Name Lurk.Expr compare) :
   | .car e => .car (replaceFreeVars map e)
   | .cdr e => .cdr (replaceFreeVars map e)
   | .emit e => .emit (replaceFreeVars map e)
-  | .begin es => .begin $ es.map (replaceFreeVars map)
+  | .begin e₁ e₂ => .begin (replaceFreeVars map e₁) (replaceFreeVars map e₂)
   | .hide e₁ e₂ => .hide (replaceFreeVars map e₁) (replaceFreeVars map e₂)
   | .commit e => .commit (replaceFreeVars map e)
   | .comm e => .comm (replaceFreeVars map e)

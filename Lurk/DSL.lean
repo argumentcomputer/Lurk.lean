@@ -1,5 +1,4 @@
 import Lean
-import Lurk.Printing
 import Lurk.Utils
 
 namespace Lurk.DSL
@@ -180,9 +179,12 @@ partial def elabLurkExpr : TSyntax `lurk_expr → TermElabM Lean.Expr
   | `(lurk_expr| (strcons $e₁ $e₂)) => do
     mkAppM ``Lurk.Expr.strcons #[← elabLurkExpr e₁, ← elabLurkExpr e₂]
   | `(lurk_expr| (begin $es*)) => do
-    let es := (← es.mapM elabLurkExpr).toList
-    let type := Lean.mkConst ``Lurk.Expr
-    mkAppM ``Lurk.Expr.begin #[← mkListLit type es]
+    match ← es.mapM elabLurkExpr with
+    | #[] => mkAppM ``Lurk.Expr.lit #[mkConst ``Lurk.Literal.nil]
+    | #[e] => return e
+    | es =>
+      es.foldlM (init := ← mkAppM ``Lurk.Expr.lit #[mkConst ``Lurk.Literal.nil])
+        fun acc e => mkAppM ``Lurk.Expr.begin #[acc, e]
   | `(lurk_expr| current-env) => return mkConst ``Lurk.Expr.currEnv
   | `(lurk_expr| ($e*)) => do
     let e := (← e.mapM elabLurkExpr).toList

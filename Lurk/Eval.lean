@@ -1,4 +1,5 @@
-import Lurk.DSL
+import Lurk.Utils
+import Lurk.Printing
 
 namespace Lurk
 
@@ -212,10 +213,9 @@ partial def evalM (env : Env) (e : Expr) (iter := 0) : EvalM Value := do
     let v ← evalM env e (iter + 1)
     dbg_trace v
     pure v
-  | .begin es => do
-    match es.reverse.head? with
-    | some e => evalM env e (iter + 1)
-    | none => return FALSE
+  | .begin e₁ e₂ => do
+    discard $ evalM env e₁ (iter + 1)
+    evalM env e₂ (iter + 2)
   | .currEnv => do
     throw "floating `current-env`, try `(current-env)` instead"
   -- let t_val : Format := ← match env.find? `getelem with 
