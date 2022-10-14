@@ -55,11 +55,11 @@ partial def replace (e : Expr) (target : Expr) (replacement : Expr) : Expr :=
       let binds := binds.map fun (n, e) => (n, replace e target replacement)
       let body := replace body target replacement
       .mutRecE binds body
-    | .app₀ fn => .app₀ $ replace fn target replacement
-    | .app fn arg =>
+    | .app fn arg? =>
       let fn := replace fn target replacement
-      let arg := replace arg target replacement
-      .app fn arg
+      match arg? with
+      | some arg => .app fn (replace arg target replacement)
+      | none => .app (replace fn target replacement) none
     | .quote _ => e
     | .binaryOp op e₁ e₂ =>
       let e₁ := replace e₁ target replacement
@@ -119,11 +119,11 @@ partial def replaceN (e : Expr) (targets : List (Expr × Expr)) : Expr :=
       let binds := binds.map fun (n, e) => (n, replaceN e targets)
       let body := replaceN body targets
       .mutRecE binds body
-    | .app₀ fn => .app₀ $ replaceN fn targets
-    | .app fn arg =>
+    | .app fn arg? =>
       let fn := replaceN fn targets
-      let arg := replaceN arg targets
-      .app fn arg
+      match arg? with
+      | some arg => .app fn (replaceN arg targets)
+      | none => .app fn none
     | .quote _ => e
     | .binaryOp op e₁ e₂ =>
       let e₁ := replaceN e₁ targets
@@ -197,8 +197,7 @@ partial def replaceFreeVars (map : Std.RBMap Name Lurk.Expr compare) :
   | .mutRecE bindings body =>
     let map' := map.filterOut (.ofList (bindings.map (·.1)))
     .mutRecE (replaceBindersFreeVars map bindings true) $ replaceFreeVars map' body
-  | .app₀ e => .app₀ (replaceFreeVars map e)
-  | .app e₁ e₂ => .app (replaceFreeVars map e₁) (replaceFreeVars map e₂)
+  | .app e₁ e₂? => .app (replaceFreeVars map e₁) $ e₂?.map (replaceFreeVars map)
   | .binaryOp op e₁ e₂ => .binaryOp op (replaceFreeVars map e₁) (replaceFreeVars map e₂)
   | .cons e₁ e₂ => .cons (replaceFreeVars map e₁) (replaceFreeVars map e₂)
   | .strcons e₁ e₂ => .strcons (replaceFreeVars map e₁) (replaceFreeVars map e₂)

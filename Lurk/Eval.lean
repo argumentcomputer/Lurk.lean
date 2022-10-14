@@ -143,7 +143,7 @@ partial def evalM (env : Env) (e : Expr) (iter := 0) : EvalM Value := do
     for (n, e) in bindings do
       env' := env'.insert n $ pure $ ← evalM env' e (iter + 1)
     evalM env' body (iter + 1)
-  | .app₀ fn => do 
+  | .app fn none => do 
     match fn with
     | .currEnv =>
       return .env $ ← env.foldM (init := default)
@@ -153,7 +153,7 @@ partial def evalM (env : Env) (e : Expr) (iter := 0) : EvalM Value := do
       match ← evalM env fn (iter + 1) with
       | .lam [] [] body => evalM env body.2 (iter + 1)
       | _ => throw "application not a procedure"
-  | .app fn arg => do 
+  | .app fn (some arg) => do 
     match ← evalM env fn (iter + 1) with
     | .lam ns patch lb =>
       let (patch', ns') ← bind arg env iter ns

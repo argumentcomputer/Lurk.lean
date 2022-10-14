@@ -130,7 +130,6 @@ partial def elabLurkIdents (i : TSyntax `ident) : TermElabM Lean.Expr := do
     let «nil» ← mkAppOptM ``List.nil #[some (mkConst ``Lean.Name)]
     mkAppM ``List.cons #[← mkNameLit i.getId.toString, «nil»]
 
-
 mutual 
 partial def elabLurkBinding : Syntax → TermElabM Lean.Expr 
   | `(lurk_binding| ($name $body)) => do
@@ -187,12 +186,11 @@ partial def elabLurkExpr : TSyntax `lurk_expr → TermElabM Lean.Expr
         fun acc e => mkAppM ``Lurk.Expr.begin #[acc, e]
   | `(lurk_expr| current-env) => return mkConst ``Lurk.Expr.currEnv
   | `(lurk_expr| ($e*)) => do
-    let e := (← e.mapM elabLurkExpr).toList
-    match e with 
-    | []   => 
-      mkAppM ``Lurk.Expr.lit #[mkConst ``Lurk.Literal.nil]
-    | e::[] => mkAppM ``Lurk.Expr.app₀ #[e]
-    | e::es => es.foldlM (init := e) fun acc e => mkAppM ``Lurk.Expr.app #[acc, e]
+    match ← e.mapM elabLurkExpr with
+    | ⟨[]⟩    => mkAppM ``Lurk.Expr.lit #[mkConst ``Lurk.Literal.nil]
+    | ⟨e::[]⟩ => mkAppM ``Lurk.Expr.mkUnaryApp #[e]
+    | ⟨e::es⟩ => es.foldlM (init := e) fun acc e => do
+      mkAppM ``Lurk.Expr.app #[acc, ← mkAppM ``Option.some #[e]]
   | `(lurk_expr| $i) => do 
     if i.raw.isAntiquot then 
       let stx := i.raw.getAntiquotTerm

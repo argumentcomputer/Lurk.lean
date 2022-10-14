@@ -25,10 +25,8 @@ inductive Expr where
   | letRecE  : List (Name × Expr) → Expr → Expr
   -- `mutrec <bindings> <body>`
   | mutRecE  : List (Name × Expr) → Expr → Expr
-  -- `<fun>`
-  | app₀     : Expr → Expr
   -- `<fun> <arg>`
-  | app      : Expr → Expr → Expr
+  | app      : Expr → Option Expr → Expr
   -- `quote <datum>`
   | quote    : SExpr → Expr
   -- `<binop> <e1> <e2>`
@@ -56,9 +54,12 @@ inductive Expr where
 
 namespace Expr
 
+def mkUnaryApp (f : Expr) : Expr :=
+  .app f none
+
 def mkApp (f : Expr) : List Expr → Expr
-  | a :: as => as.foldl (init := .app f a) fun acc a => .app acc a
-  | [] => .app₀ f
+  | a :: as => as.foldl (init := .app f (some a)) fun acc a => .app acc (some a)
+  | [] => .app f none
 
 def mkListWith (es : List Expr) (tail : Expr) : Expr := 
   es.foldr (init := tail)

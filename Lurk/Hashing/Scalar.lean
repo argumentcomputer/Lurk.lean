@@ -84,9 +84,10 @@ def hashExpr : Expr → HashM ScalarPtr
     let ptr ← hashString "t"
     addToStore ⟨Tag.sym, ptr.val⟩ (.sym ptr)
   | .lit (.num n) => addToStore ⟨Tag.num, n⟩ (.num n)
-  | .lit (.str ⟨c :: cs⟩) => do
-    let headPtr ← hashChar c
-    let tailPtr ← hashString ⟨cs⟩
+  | .lit (.str ⟨s⟩) => do
+    let (headPtr, tailPtr) ← match s with
+      | c :: cs => pure (← hashChar c, ← hashString ⟨cs⟩)
+      | [] => pure (← hashString "", ⟨Tag.str, F.zero⟩)
     let ptr := ⟨Tag.str, hashPtrPair headPtr tailPtr⟩
     let expr := .str headPtr tailPtr
     addToStore ptr expr
