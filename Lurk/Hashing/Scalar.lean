@@ -1,9 +1,25 @@
 import Lurk.AST
-import Lurk.Hashing.Datatypes
+import Lurk.Hashing.Markers
 
 namespace Lurk
 
+/-- Use Poseidon -/
 def hash4 : F → F → F → F → F := sorry
+
+structure ScalarPtr where
+  kind : F
+  val  : F
+  deriving Ord
+
+inductive ScalarExpr
+  | nil
+  | cons (car : ScalarPtr) (cdr : ScalarPtr)
+  | comm (x : F) (ptr : ScalarPtr)
+  | sym (sym : ScalarPtr)
+  | «fun» (arg : ScalarPtr) (body : ScalarPtr) (env : ScalarPtr)
+  | num (val : F)
+  | str (head : ScalarPtr) (tail : ScalarPtr)
+  | char (x : F)
 
 def hashPtrPair (x y : ScalarPtr) : F :=
   hash4 x.kind x.val y.kind y.val

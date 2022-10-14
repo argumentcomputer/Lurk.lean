@@ -122,19 +122,4 @@ instance : Coe ContTag F := ⟨ContTag.hash⟩
 instance : Coe Op1     F := ⟨Op1.hash⟩
 instance : Coe Op2     F := ⟨Op2.hash⟩
 
-structure ScalarPtr where
-  kind : F
-  val  : F
-  deriving Ord
-
-inductive ScalarExpr
-  | nil
-  | cons (car : ScalarPtr) (cdr : ScalarPtr)
-  | comm (x : F) (ptr : ScalarPtr)
-  | sym (sym : ScalarPtr)
-  | «fun» (arg : ScalarPtr) (body : ScalarPtr) (env : ScalarPtr)
-  | num (val : F)
-  | str (head : ScalarPtr) (tail : ScalarPtr)
-  | char (x : F)
-
 end Lurk
