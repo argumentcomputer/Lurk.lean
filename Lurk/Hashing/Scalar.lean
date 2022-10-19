@@ -98,7 +98,7 @@ partial def hashExpr : Expr → HashM ScalarPtr
   | .sym name => do
     let ptr ← hashString (name.toString false)
     addToStore ⟨Tag.sym, ptr.val⟩ (.sym ptr)
-  | .binaryOp op a b => hashExpr $ .mkList [.sym $ .mkSimple op.toString, a, b]
+  | .binaryOp op a b => hashExpr $ .mkList [.sym op.toString, a, b]
   | .cons    a b => hashExpr $ .mkList [.sym `cons,    a, b]
   | .strcons a b => hashExpr $ .mkList [.sym `strcons, a, b]
   | .hide    a b => hashExpr $ .mkList [.sym `hide,    a, b]
@@ -109,9 +109,8 @@ partial def hashExpr : Expr → HashM ScalarPtr
   | .cdr    expr => hashExpr $ .mkList [.sym `cdr,    expr]
   | .emit   expr => hashExpr $ .mkList [.sym `emit,   expr]
   | .commit expr => hashExpr $ .mkList [.sym `commit, expr]
-  | .currEnv => do
-    let ptr ← hashString "current-env"
-    addToStore ⟨Tag.sym, ptr.val⟩ (.sym ptr)
+  | .currEnv => hashExpr $ .sym "current-env"
+  | .ifE a b c => hashExpr $ .mkList [.sym `if, a, b, c]
   | _ => sorry
 
 def Expr.hash (e : Expr) : ScalarStore × ScalarPtr := Id.run do
