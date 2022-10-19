@@ -1,4 +1,5 @@
 import Lurk.AST
+import Lurk.Utils
 import Lurk.Hashing.Markers
 
 namespace Lurk
@@ -9,7 +10,7 @@ def hash4 : F → F → F → F → F := sorry
 structure ScalarPtr where
   kind : F
   val  : F
-  deriving Ord
+  deriving Inhabited, Ord
 
 inductive ScalarExpr
   | nil
@@ -66,19 +67,19 @@ def addToStore (ptr : ScalarPtr) (expr : ScalarExpr) : HashM ScalarPtr :=
   modifyGet fun stt =>
     (ptr, { stt with exprs := stt.exprs.insert ptr expr })
 
-def BinaryOp.toOp2 : BinaryOp → Op2
-  | sum   => .sum
-  | diff  => .diff
-  | prod  => .product
-  | quot  => .quotient
-  | numEq => .numEqual
-  | lt    => .less
-  | gt    => .greater
-  | le    => .lessEqual
-  | ge    => .greaterEqual
-  | eq    => .equal
+def BinaryOp.toString : BinaryOp → String
+  | sum   => "+"
+  | diff  => "-"
+  | prod  => "*"
+  | quot  => "/"
+  | numEq => "="
+  | lt    => "<"
+  | gt    => ">"
+  | le    => "<="
+  | ge    => ">="
+  | eq    => "eq"
 
-def hashExpr : Expr → HashM ScalarPtr
+partial def hashExpr : Expr → HashM ScalarPtr
   | .lit .nil => do addToStore ⟨Tag.nil, (← hashString "nil").val⟩ .nil
   | .lit .t => do
     let ptr ← hashString "t"
@@ -97,54 +98,17 @@ def hashExpr : Expr → HashM ScalarPtr
   | .sym name => do
     let ptr ← hashString (name.toString false)
     addToStore ⟨Tag.sym, ptr.val⟩ (.sym ptr)
-  | .binaryOp op e₁ e₂ => do
-    let ptr₁ ← hashExpr e₁
-    let ptr₂ ← hashExpr e₂
-    let ptr := ⟨op.toOp2, hashPtrPair ptr₁ ptr₂⟩
-    let expr := .cons ptr₁ ptr₂
-    addToStore ptr expr
-  | .cons car cdr => do
-    let carPtr ← hashExpr car
-    let cdrPtr ← hashExpr cdr
-    let ptr := ⟨Op2.cons, hashPtrPair carPtr cdrPtr⟩
-    let expr := .cons carPtr cdrPtr
-    addToStore ptr expr
-  | .strcons car cdr => do
-    let carPtr ← hashExpr car
-    let cdrPtr ← hashExpr cdr
-    let ptr := ⟨Op2.strcons, hashPtrPair carPtr cdrPtr⟩
-    let expr := .cons carPtr cdrPtr
-    addToStore ptr expr
-  | .comm expr => do
-    let ptr ← hashExpr expr
-    addToStore ⟨Op1.comm, ptr.val⟩ (.comm ptr.val ptr)
-  | .atom expr => do
-    let ptr ← hashExpr expr
-    addToStore ⟨Op1.atom, ptr.val⟩ (.comm ptr.val ptr) -- `.comm`?!
-  | .car expr => do
-    let ptr ← hashExpr expr
-    addToStore ⟨Op1.car, ptr.val⟩ (.comm ptr.val ptr) -- `.comm`?!
-  | .cdr expr => do
-    let ptr ← hashExpr expr
-    addToStore ⟨Op1.cdr, ptr.val⟩ (.comm ptr.val ptr) -- `.comm`?!
-  | .emit expr => do
-    let ptr ← hashExpr expr
-    addToStore ⟨Op1.emit, ptr.val⟩ (.comm ptr.val ptr) -- `.comm`?!
-  | .commit expr => do
-    let ptr ← hashExpr expr
-    addToStore ⟨Op1.commit, ptr.val⟩ (.comm ptr.val ptr) -- `.comm`?!
-  | .hide secret target => do
-    let secretPtr ← hashExpr secret
-    let targetPtr ← hashExpr target
-    let ptr := ⟨Op2.hide, hashPtrPair secretPtr targetPtr⟩
-    let expr := .cons secretPtr targetPtr
-    addToStore ptr expr
-  | .begin e₁ e₂ => do
-    let ptr₁ ← hashExpr e₁
-    let ptr₂ ← hashExpr e₂
-    let ptr := ⟨Op2.begin, hashPtrPair ptr₁ ptr₂⟩
-    let expr := .cons ptr₁ ptr₂
-    addToStore ptr expr
+  | .binaryOp op a b => hashExpr $ .mkList [.sym $ .mkSimple op.toString, a, b]
+  | .cons    a b => hashExpr $ .mkList [.sym `cons,    a, b]
+  | .strcons a b => hashExpr $ .mkList [.sym `strcons, a, b]
+  | .hide    a b => hashExpr $ .mkList [.sym `hide,    a, b]
+  | .begin   a b => hashExpr $ .mkList [.sym `begin,   a, b]
+  | .comm   expr => hashExpr $ .mkList [.sym `comm,   expr]
+  | .atom   expr => hashExpr $ .mkList [.sym `atom,   expr]
+  | .car    expr => hashExpr $ .mkList [.sym `car,    expr]
+  | .cdr    expr => hashExpr $ .mkList [.sym `cdr,    expr]
+  | .emit   expr => hashExpr $ .mkList [.sym `emit,   expr]
+  | .commit expr => hashExpr $ .mkList [.sym `commit, expr]
   | .currEnv => do
     let ptr ← hashString "current-env"
     addToStore ⟨Tag.sym, ptr.val⟩ (.sym ptr)
