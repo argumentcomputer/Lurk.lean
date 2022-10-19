@@ -79,6 +79,13 @@ def BinaryOp.toString : BinaryOp → String
   | ge    => ">="
   | eq    => "eq"
 
+def SExpr.toExpr : SExpr → Expr
+  | .lit l => .lit l
+  | .cons a b => .cons a.toExpr (.cons b.toExpr (.lit .nil))
+
+def mkExprFromBinders (binders : List (Name × Expr)) : Expr :=
+  .mkList $ binders.map fun (n, e) => .mkList [.sym n, e]
+
 partial def hashExpr : Expr → HashM ScalarPtr
   | .lit .nil => do addToStore ⟨Tag.nil, (← hashString "nil").val⟩ .nil
   | .lit .t => do
@@ -98,6 +105,7 @@ partial def hashExpr : Expr → HashM ScalarPtr
   | .sym name => do
     let ptr ← hashString (name.toString false)
     addToStore ⟨Tag.sym, ptr.val⟩ (.sym ptr)
+  | .quote se => hashExpr $ .mkList [.sym `quote, se.toExpr]
   | .binaryOp op a b => hashExpr $ .mkList [.sym op.toString, a, b]
   | .cons    a b => hashExpr $ .mkList [.sym `cons,    a, b]
   | .strcons a b => hashExpr $ .mkList [.sym `strcons, a, b]
@@ -111,7 +119,12 @@ partial def hashExpr : Expr → HashM ScalarPtr
   | .commit expr => hashExpr $ .mkList [.sym `commit, expr]
   | .currEnv => hashExpr $ .sym "current-env"
   | .ifE a b c => hashExpr $ .mkList [.sym `if, a, b, c]
-  | _ => sorry
+  | .app fn none => hashExpr $ .mkList [fn]
+  | .app fn (some arg) => hashExpr $ .mkList [fn, arg]
+  | .lam args body => hashExpr $ .mkList [.mkList $ args.map .sym, body]
+  | .letE    binders body => hashExpr $ .mkList [.sym `let,    mkExprFromBinders binders, body]
+  | .letRecE binders body => hashExpr $ .mkList [.sym `letrec, mkExprFromBinders binders, body]
+  | .mutRecE binders body => hashExpr $ .mkList [.sym `mutrec, mkExprFromBinders binders, body]
 
 def Expr.hash (e : Expr) : ScalarStore × ScalarPtr := Id.run do
   match ← StateT.run (hashExpr e) default with
