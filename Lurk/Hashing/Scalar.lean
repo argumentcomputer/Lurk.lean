@@ -10,7 +10,7 @@ def hash4 : F → F → F → F → F := sorry
 structure ScalarPtr where
   kind : F
   val  : F
-  deriving Inhabited, Ord
+  deriving Inhabited, Ord, BEq, Repr
 
 inductive ScalarExpr
   | nil
@@ -21,6 +21,7 @@ inductive ScalarExpr
   | num (val : F)
   | str (head : ScalarPtr) (tail : ScalarPtr)
   | char (x : F)
+  deriving BEq, Repr
 
 def hashPtrPair (x y : ScalarPtr) : F :=
   hash4 x.kind x.val y.kind y.val

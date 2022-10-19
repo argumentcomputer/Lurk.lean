@@ -1,8 +1,9 @@
 import Lurk.SExpr
-import Lurk.FixName
 import YatimaStdLib.Fin
 
 namespace Lurk
+
+scoped notation "Name" => Lean.Name
 
 /-- Binary operations on Lurk numerals -/
 inductive BinaryOp 
@@ -91,10 +92,6 @@ instance : ToExpr (Fin N) where
 
 instance : ToExpr Name where 
   toExpr := .sym
-
-/-- Non-instance version when we want lurk-friendly names -/
-def toExprFix (n : Name) : Expr := 
-  .sym (fixName n false)
 
 instance : ToExpr String where 
   toExpr s := .lit $ .str s

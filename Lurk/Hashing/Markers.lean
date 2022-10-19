@@ -60,7 +60,7 @@ inductive Op2
   | begin
   | hide
 
-def Tag.hash : Tag → F
+def Tag.toF : Tag → F
   | .nil   => .ofNat 0
   | .cons  => .ofNat 1
   | .sym   => .ofNat 2
@@ -71,7 +71,7 @@ def Tag.hash : Tag → F
   | .char  => .ofNat 7
   | .comm  => .ofNat 8
 
-def ContTag.hash : ContTag → F
+def ContTag.toF : ContTag → F
   | .outermost => .ofNat 4096
   | .call0     => .ofNat 4097
   | .call      => .ofNat 4098
@@ -89,7 +89,7 @@ def ContTag.hash : ContTag → F
   | .terminal  => .ofNat 4110
   | .emit      => .ofNat 4111
 
-def Op1.hash : Op1 → F
+def Op1.toF : Op1 → F
   | .car    => .ofNat 8192
   | .cdr    => .ofNat 8193
   | .atom   => .ofNat 8194
@@ -101,7 +101,7 @@ def Op1.hash : Op1 → F
   | .comm   => .ofNat 8200
   | .char   => .ofNat 8201
 
-def Op2.hash : Op2 → F
+def Op2.toF : Op2 → F
   | .sum          => .ofNat 12288
   | .diff         => .ofNat 12289
   | .product      => .ofNat 12290
@@ -117,9 +117,9 @@ def Op2.hash : Op2 → F
   | .begin        => .ofNat 12300
   | .hide         => .ofNat 12301
 
-instance : Coe Tag     F := ⟨Tag.hash⟩
-instance : Coe ContTag F := ⟨ContTag.hash⟩
-instance : Coe Op1     F := ⟨Op1.hash⟩
-instance : Coe Op2     F := ⟨Op2.hash⟩
+instance : Coe Tag     F := ⟨Tag.toF⟩
+instance : Coe ContTag F := ⟨ContTag.toF⟩
+instance : Coe Op1     F := ⟨Op1.toF⟩
+instance : Coe Op2     F := ⟨Op2.toF⟩
 
 end Lurk

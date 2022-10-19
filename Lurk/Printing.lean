@@ -1,4 +1,5 @@
 import Lurk.AST
+import Lurk.FixName
 import YatimaStdLib.String
 
 namespace Lurk.Expr

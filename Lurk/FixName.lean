@@ -2,8 +2,6 @@ import Lean
 
 namespace Lurk 
 
-scoped notation "Name" => Lean.Name
-
 open Std (RBTree) in
 /--
 List of valid characters for Lurk identifiers. The order is shuffled to
@@ -36,7 +34,7 @@ def charToValidChars (c : Char) : List Char :=
 def invalidNames := [`t, `nil, `_, `cons, `car, `cdr, `strcons, .anonymous, `quote]
 
 -- TODO: This is a hack; need to talk to lurk team to add case sensitive names
-def invalidCaptureNames : List Name := [
+def invalidCaptureNames : List Lean.Name := [
   `bEq, 
   `ofNat,
   `le, `lt,
@@ -64,7 +62,7 @@ def invalidCaptureNames : List Name := [
   `monadLift
 ]
 open Std Format in 
-def validate (n : Name) : Std.Format :=
+def validate (n : Lean.Name) : Std.Format :=
   if invalidNames.contains n then
     if n == `_ then format `_x
     else if n == .anonymous then format `anonymous
@@ -72,7 +70,7 @@ def validate (n : Name) : Std.Format :=
   else format n
 
 /-- Turns a `Name` into a valid variable identifier in Lurk. -/
-def fixName (name : Name) (pretty := true) : String :=
+def fixName (name : Lean.Name) (pretty := true) : String :=
   if pretty then
     validate $ Lean.Name.toString name false
   else
@@ -88,7 +86,7 @@ def fixName (name : Name) (pretty := true) : String :=
         else if n == "Eq" then "LEq"
         else "_" ++ n
       else n
-    fixClassNameCapture (n : Name) :=
+    fixClassNameCapture (n : Lean.Name) :=
       if invalidCaptureNames.contains n then
         `_uncap ++ n
       else n
