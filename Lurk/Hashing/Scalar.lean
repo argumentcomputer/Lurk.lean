@@ -19,7 +19,8 @@ inductive ScalarExpr
   | sym (sym : ScalarPtr)
   | «fun» (arg : ScalarPtr) (body : ScalarPtr) (env : ScalarPtr)
   | num (val : F)
-  | str (head : ScalarPtr) (tail : ScalarPtr)
+  | strCons (head : ScalarPtr) (tail : ScalarPtr)
+  | strNil
   | char (x : F)
   deriving BEq, Repr
 
@@ -52,18 +53,6 @@ def hashChar (c : Char) : HashM ScalarPtr := do
     modifyGet fun stt =>
       (ptr, { stt with charCache := stt.charCache.insert c ptr })
 
-def hashString (s : String) : HashM ScalarPtr := do
-  match (← get).stringCache.find? s with
-  | some ptr => pure ptr
-  | none => match s with
-    | ⟨[]⟩ => return ⟨Tag.str, F.zero⟩
-    | ⟨c :: cs⟩ => do
-      let head ← hashChar c
-      let tail ← hashString ⟨cs⟩
-      let ptr := ⟨Tag.str, hashPtrPair head tail⟩
-      modifyGet fun stt =>
-        (ptr, { stt with stringCache := stt.stringCache.insert s ptr })
-
 def addToStore (ptr : ScalarPtr) (expr : ScalarExpr) : HashM ScalarPtr :=
   modifyGet fun stt =>
     (ptr, { stt with exprs := stt.exprs.insert ptr expr })
@@ -78,7 +67,7 @@ def BinaryOp.toString : BinaryOp → String
   | gt    => ">"
   | le    => "<="
   | ge    => ">="
-  | eq    => "eq"
+  | eq    => "EQ"
 
 def SExpr.toExpr : SExpr → Expr
   | .lit l => .lit l
@@ -87,51 +76,65 @@ def SExpr.toExpr : SExpr → Expr
 def mkExprFromBinders (binders : List (Name × Expr)) : Expr :=
   .mkList $ binders.map fun (n, e) => .mkList [.sym n, e]
 
+mutual
+
+partial def hashString (s : String) : HashM ScalarPtr := do
+  match (← get).stringCache.find? s with
+  | some ptr => pure ptr
+  | none =>
+    let ptr ← hashExpr (.lit $ .str s)
+    modifyGet fun stt =>
+      (ptr, { stt with stringCache := stt.stringCache.insert s ptr })
+
 partial def hashExpr : Expr → HashM ScalarPtr
   | .lit .nil => do
-    let ptr ← hashExpr (.sym `nil)
+    let ptr ← hashExpr (.sym `NIL)
     addToStore ⟨Tag.nil, ptr.val⟩ .nil
   | .lit .t => do
     let ptr ← hashString "t"
     addToStore ⟨Tag.sym, ptr.val⟩ (.sym ptr)
   | .lit (.num n) => addToStore ⟨Tag.num, n⟩ (.num n)
   | .lit (.str ⟨s⟩) => do
-    let (headPtr, tailPtr) ← match s with
-      | c :: cs => pure (← hashChar c, ← hashString ⟨cs⟩)
-      | [] => pure (← hashString "", ⟨Tag.str, F.zero⟩)
-    let ptr := ⟨Tag.str, hashPtrPair headPtr tailPtr⟩
-    let expr := .str headPtr tailPtr
-    addToStore ptr expr
+    match s with
+    | c :: cs =>
+      let headPtr ← hashChar c
+      let tailPtr ← hashString ⟨cs⟩
+      let ptr := ⟨Tag.str, hashPtrPair headPtr tailPtr⟩
+      let expr := .strCons headPtr tailPtr
+      addToStore ptr expr
+    | [] => addToStore ⟨Tag.str, F.zero⟩ .strNil
   | .lit (.char c) => do
     let ptr ← hashChar c
     addToStore ptr (.char ptr.val)
   | .sym name => do
     let ptr ← hashString (name.toString false)
     addToStore ⟨Tag.sym, ptr.val⟩ (.sym ptr)
-  | .quote se => hashExpr $ .mkList [.sym `quote, se.toExpr]
-  | .binaryOp op a b => hashExpr $ .mkList [.sym op.toString, a, b]
   | .cons    a b => do
     let aPtr ← hashExpr a
     let bPtr ← hashExpr b
     let ptr := ⟨Tag.cons, hashPtrPair aPtr bPtr⟩
     addToStore ptr (.cons aPtr bPtr)
-  | .strcons a b => hashExpr $ .mkList [.sym `strcons, a, b]
-  | .hide    a b => hashExpr $ .mkList [.sym `hide,    a, b]
-  | .begin   a b => hashExpr $ .mkList [.sym `begin,   a, b]
-  | .comm   expr => hashExpr $ .mkList [.sym `comm,   expr]
-  | .atom   expr => hashExpr $ .mkList [.sym `atom,   expr]
-  | .car    expr => hashExpr $ .mkList [.sym `car,    expr]
-  | .cdr    expr => hashExpr $ .mkList [.sym `cdr,    expr]
-  | .emit   expr => hashExpr $ .mkList [.sym `emit,   expr]
-  | .commit expr => hashExpr $ .mkList [.sym `commit, expr]
-  | .currEnv => hashExpr $ .sym "current-env"
-  | .ifE a b c => hashExpr $ .mkList [.sym `if, a, b, c]
+  | .binaryOp op a b => hashExpr $ .mkList [.sym op.toString, a, b]
+  | .quote se => hashExpr $ .mkList [.sym `QUOTE, se.toExpr]
+  | .strcons a b => hashExpr $ .mkList [.sym `STRCONS, a, b]
+  | .hide    a b => hashExpr $ .mkList [.sym `HIDE,    a, b]
+  | .begin   a b => hashExpr $ .mkList [.sym `BEGIN,   a, b]
+  | .comm   expr => hashExpr $ .mkList [.sym `COMM,   expr]
+  | .atom   expr => hashExpr $ .mkList [.sym `ATOM,   expr]
+  | .car    expr => hashExpr $ .mkList [.sym `CAR,    expr]
+  | .cdr    expr => hashExpr $ .mkList [.sym `CDR,    expr]
+  | .emit   expr => hashExpr $ .mkList [.sym `EMIT,   expr]
+  | .commit expr => hashExpr $ .mkList [.sym `COMMIT, expr]
+  | .currEnv => hashExpr $ .sym "CURRENT-ENV"
+  | .ifE a b c => hashExpr $ .mkList [.sym `IF, a, b, c]
   | .app fn none => hashExpr $ .mkList [fn]
   | .app fn (some arg) => hashExpr $ .mkList [fn, arg]
-  | .lam args body => hashExpr $ .mkList [.sym `lambda, .mkList $ args.map .sym, body]
-  | .letE    binders body => hashExpr $ .mkList [.sym `let,    mkExprFromBinders binders, body]
-  | .letRecE binders body => hashExpr $ .mkList [.sym `letrec, mkExprFromBinders binders, body]
-  | .mutRecE binders body => hashExpr $ .mkList [.sym `mutrec, mkExprFromBinders binders, body]
+  | .lam args body => hashExpr $ .mkList [.sym `LAMBDA, .mkList $ args.map .sym, body]
+  | .letE    binders body => hashExpr $ .mkList [.sym `LET,    mkExprFromBinders binders, body]
+  | .letRecE binders body => hashExpr $ .mkList [.sym `LETREC, mkExprFromBinders binders, body]
+  | .mutRecE binders body => hashExpr $ .mkList [.sym `MUTREC, mkExprFromBinders binders, body]
+
+end
 
 def Expr.hash (e : Expr) : ScalarStore × ScalarPtr := Id.run do
   match ← StateT.run (hashExpr e) default with
