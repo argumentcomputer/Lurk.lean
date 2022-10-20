@@ -13,14 +13,13 @@ structure ScalarPtr where
   deriving Inhabited, Ord, BEq, Repr
 
 inductive ScalarExpr
-  | nil
   | cons (car : ScalarPtr) (cdr : ScalarPtr)
   | comm (x : F) (ptr : ScalarPtr)
   | sym (sym : ScalarPtr)
   | «fun» (arg : ScalarPtr) (body : ScalarPtr) (env : ScalarPtr)
   | num (val : F)
-  | strCons (head : ScalarPtr) (tail : ScalarPtr)
   | strNil
+  | strCons (head : ScalarPtr) (tail : ScalarPtr)
   | char (x : F)
   deriving BEq, Repr
 
@@ -45,14 +44,6 @@ def HashState.store (stt : HashState) : ScalarStore :=
 
 abbrev HashM := StateM HashState
 
-def hashChar (c : Char) : HashM ScalarPtr := do
-  match (← get).charCache.find? c with
-  | some ptr => pure ptr
-  | none =>
-    let ptr := ⟨Tag.char, .ofNat c.val.toNat⟩
-    modifyGet fun stt =>
-      (ptr, { stt with charCache := stt.charCache.insert c ptr })
-
 def addToStore (ptr : ScalarPtr) (expr : ScalarExpr) : HashM ScalarPtr :=
   modifyGet fun stt =>
     (ptr, { stt with exprs := stt.exprs.insert ptr expr })
@@ -76,6 +67,14 @@ def SExpr.toExpr : SExpr → Expr
 def mkExprFromBinders (binders : List (Name × Expr)) : Expr :=
   .mkList $ binders.map fun (n, e) => .mkList [.sym n, e]
 
+def hashChar (c : Char) : HashM ScalarPtr := do
+  match (← get).charCache.find? c with
+  | some ptr => pure ptr
+  | none =>
+    let ptr := ⟨Tag.char, .ofNat c.val.toNat⟩
+    modifyGet fun stt =>
+      (ptr, { stt with charCache := stt.charCache.insert c ptr })
+
 mutual
 
 partial def hashString (s : String) : HashM ScalarPtr := do
@@ -88,15 +87,14 @@ partial def hashString (s : String) : HashM ScalarPtr := do
 
 partial def hashExpr : Expr → HashM ScalarPtr
   | .lit .nil => do
-    let ptr ← hashExpr (.sym `NIL)
-    addToStore ⟨Tag.nil, ptr.val⟩ .nil
+    let ptr ← hashString "NIL"
+    addToStore ⟨Tag.nil, ptr.val⟩ (.sym ptr)
   | .lit .t => do
-    let ptr ← hashString "t"
+    let ptr ← hashString "T"
     addToStore ⟨Tag.sym, ptr.val⟩ (.sym ptr)
   | .lit (.num n) => addToStore ⟨Tag.num, n⟩ (.num n)
-  | .lit (.str ⟨s⟩) => do
-    match s with
-    | c :: cs =>
+  | .lit (.str ⟨s⟩) => match s with
+    | c :: cs => do
       let headPtr ← hashChar c
       let tailPtr ← hashString ⟨cs⟩
       let ptr := ⟨Tag.str, hashPtrPair headPtr tailPtr⟩

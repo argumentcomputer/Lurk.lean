@@ -43,7 +43,7 @@ def expected : Std.RBMap ScalarPtr ScalarExpr compare := .ofList [
   (⟨Tag.num, .ofNat 3⟩, .num (.ofNat 3)),
   (⟨Tag.num, .ofNat 4⟩, .num (.ofNat 4)),
   (⟨Tag.nil, .ofNat 0x02e1314a79caf97ee88842647fe82bb88f5f795845cd3ed258ff172dae38cdb2⟩,
-    .nil)
+    .sym ⟨Tag.str, .ofNat 0x02e1314a79caf97ee88842647fe82bb88f5f795845cd3ed258ff172dae38cdb2⟩)
 ]
 
 open LSpec in
@@ -54,4 +54,5 @@ def main := do
       tSeq ++ test s!"Expected ({repr expectedExpr}) equals resulting expression ({repr gotExpr})"
           (expectedExpr == gotExpr)
   lspecIO tSeq
+#eval got
 #eval ⟦nil⟧.hash.1.exprs
