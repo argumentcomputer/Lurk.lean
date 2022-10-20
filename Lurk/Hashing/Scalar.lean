@@ -1,11 +1,11 @@
 import Lurk.AST
 import Lurk.Utils
 import Lurk.Hashing.Markers
+import Poseidon.ForLurk
 
 namespace Lurk
 
-/-- Use Poseidon -/
-def hash4 : F → F → F → F → F := sorry
+instance : Coe F' F := ⟨.ofInt⟩
 
 structure ScalarPtr where
   kind : F
@@ -24,7 +24,7 @@ inductive ScalarExpr
   deriving BEq, Repr
 
 def hashPtrPair (x y : ScalarPtr) : F :=
-  hash4 x.kind x.val y.kind y.val
+  Hash x.kind x.val y.kind y.val
 
 open Std in
 structure ScalarStore where
@@ -88,7 +88,9 @@ def mkExprFromBinders (binders : List (Name × Expr)) : Expr :=
   .mkList $ binders.map fun (n, e) => .mkList [.sym n, e]
 
 partial def hashExpr : Expr → HashM ScalarPtr
-  | .lit .nil => do addToStore ⟨Tag.nil, (← hashString "nil").val⟩ .nil
+  | .lit .nil => do
+    let ptr ← hashExpr (.sym `nil)
+    addToStore ⟨Tag.nil, ptr.val⟩ .nil
   | .lit .t => do
     let ptr ← hashString "t"
     addToStore ⟨Tag.sym, ptr.val⟩ (.sym ptr)
@@ -108,7 +110,11 @@ partial def hashExpr : Expr → HashM ScalarPtr
     addToStore ⟨Tag.sym, ptr.val⟩ (.sym ptr)
   | .quote se => hashExpr $ .mkList [.sym `quote, se.toExpr]
   | .binaryOp op a b => hashExpr $ .mkList [.sym op.toString, a, b]
-  | .cons    a b => hashExpr $ .mkList [.sym `cons,    a, b]
+  | .cons    a b => do
+    let aPtr ← hashExpr a
+    let bPtr ← hashExpr b
+    let ptr := ⟨Tag.cons, hashPtrPair aPtr bPtr⟩
+    addToStore ptr (.cons aPtr bPtr)
   | .strcons a b => hashExpr $ .mkList [.sym `strcons, a, b]
   | .hide    a b => hashExpr $ .mkList [.sym `hide,    a, b]
   | .begin   a b => hashExpr $ .mkList [.sym `begin,   a, b]
@@ -122,7 +128,7 @@ partial def hashExpr : Expr → HashM ScalarPtr
   | .ifE a b c => hashExpr $ .mkList [.sym `if, a, b, c]
   | .app fn none => hashExpr $ .mkList [fn]
   | .app fn (some arg) => hashExpr $ .mkList [fn, arg]
-  | .lam args body => hashExpr $ .mkList [.mkList $ args.map .sym, body]
+  | .lam args body => hashExpr $ .mkList [.sym `lambda, .mkList $ args.map .sym, body]
   | .letE    binders body => hashExpr $ .mkList [.sym `let,    mkExprFromBinders binders, body]
   | .letRecE binders body => hashExpr $ .mkList [.sym `letrec, mkExprFromBinders binders, body]
   | .mutRecE binders body => hashExpr $ .mkList [.sym `mutrec, mkExprFromBinders binders, body]
