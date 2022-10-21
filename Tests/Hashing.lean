@@ -1,6 +1,6 @@
 import LSpec
 import Lurk.Syntax.DSL
-import Lurk.Hashing.Scalar
+import Lurk.Hashing.StoreDSL
 
 def got := ⟦
   (letrec (
@@ -11,14 +11,6 @@ def got := ⟦
     (f 0))⟧.hash.1
 
 open Lurk Hashing Syntax
-
-def doesthiswork : ScalarStore := ⟨Std.RBMap.ofList [
-  (⟨.nil, mkF 0x02e1314a79caf97ee88842647fe82bb88f5f795845cd3ed258ff172dae38cdb2⟩, .sym ⟨.str, mkF 0x02e1314a79caf97ee88842647fe82bb88f5f795845cd3ed258ff172dae38cdb2⟩),
-  (⟨.str, mkF 0⟩, .strNil),
-  (⟨.str, mkF 0x02e1314a79caf97ee88842647fe82bb88f5f795845cd3ed258ff172dae38cdb2⟩, .strCons ⟨.char, 'N'⟩ ⟨.str, mkF 0x2a7575c0facca35dc32adee47b9cdf5584f18b6e9d00a8c229b83e8815a4ba09⟩),
-  (⟨.str, mkF 0x18118519a123348a6b31a86f2688156dc236615cff46dfa0f013496f4bc18570⟩, .strCons ⟨.char, 'L'⟩ ⟨.str, mkF 0⟩),
-  (⟨.str, mkF 0x2a7575c0facca35dc32adee47b9cdf5584f18b6e9d00a8c229b83e8815a4ba09⟩, .strCons ⟨.char, 'I'⟩ ⟨.str, mkF 0x18118519a123348a6b31a86f2688156dc236615cff46dfa0f013496f4bc18570⟩)
-]⟩
 
 def expected : Std.RBMap ScalarPtr ScalarExpr compare := Std.RBMap.ofList [
   (⟨.nil, mkF 0x02e1314a79caf97ee88842647fe82bb88f5f795845cd3ed258ff172dae38cdb2⟩, .sym ⟨.str, mkF 0x02e1314a79caf97ee88842647fe82bb88f5f795845cd3ed258ff172dae38cdb2⟩),
@@ -88,49 +80,44 @@ def main := do
       tSeq ++ test s!"Expression for key {ptr} matches"
         (expectedExpr == gotExpr)
 
--- def got' := ⟦(f a)⟧.hash.1
+def got' := ⟦(lambda (x) (+ x x))⟧.hash.1
 
--- def expected' : Std.RBMap ScalarPtr ScalarExpr compare := .ofList [
---   (⟨.nil, .ofNat 0x02e1314a79caf97ee88842647fe82bb88f5f795845cd3ed258ff172dae38cdb2⟩,
---     .sym ⟨.str, .ofNat 0x02e1314a79caf97ee88842647fe82bb88f5f795845cd3ed258ff172dae38cdb2⟩),
+open DSL in
+def out := [store| 
+-- BEGIN INPUT BELOW 
+scalar_store: {
+  (nil, Scalar(0x02e1314a79caf97ee88842647fe82bb88f5f795845cd3ed258ff172dae38cdb2)): Sym((str, Scalar(0x02e1314a79caf97ee88842647fe82bb88f5f795845cd3ed258ff172dae38cdb2))),
+  (cons, Scalar(0x428c75e9b1613a9a4054c52b18e0fbd5b95d04101b34a0728806aa4ac8014110)): Cons((sym, Scalar(0x6ec5d213885296267978e92a3da46608e05b99d10f279dd91ff72c44a1901600)), (nil, Scalar(0x02e1314a79caf97ee88842647fe82bb88f5f795845cd3ed258ff172dae38cdb2))),
+  (cons, Scalar(0x0540fc0449f56bc7a3d5c3df87c139a09ed8f94fa5801c9664a009b19f766369)): Cons((cons, Scalar(0x428c75e9b1613a9a4054c52b18e0fbd5b95d04101b34a0728806aa4ac8014110)), (cons, Scalar(0x350a36ba3d46e278ca108cd94008ffe38d47a1665eb137bd7e724e9f4560e0f1))),
+  (cons, Scalar(0x2f54a6df362aeab331aaef0be4860c25002db6a2d06d5adbb2f89b21f435d28f)): Cons((sym, Scalar(0x3f1a96056e0c9f204c79a44ebb177feeecac5436e784fa6652d905969db63bfa)), (cons, Scalar(0x0540fc0449f56bc7a3d5c3df87c139a09ed8f94fa5801c9664a009b19f766369))),
+  (cons, Scalar(0x6235f2d4900b2a1ab2cbcfa6a38c4f5768516220c51f7a83158919f67b9c27cf)): Cons((sym, Scalar(0x09584b74a1bc019ffa64a74fe874135e1443fc6c58fd3fd44c756c56ec34bbdc)), (cons, Scalar(0x49b8f1a3ab095e3f85518e41aaf4cba9990ea6c9a11d1c4fbdad741ebb2dc7ed))),
+  (cons, Scalar(0x49b8f1a3ab095e3f85518e41aaf4cba9990ea6c9a11d1c4fbdad741ebb2dc7ed)): Cons((sym, Scalar(0x6ec5d213885296267978e92a3da46608e05b99d10f279dd91ff72c44a1901600)), (cons, Scalar(0x428c75e9b1613a9a4054c52b18e0fbd5b95d04101b34a0728806aa4ac8014110))),
+  (cons, Scalar(0x350a36ba3d46e278ca108cd94008ffe38d47a1665eb137bd7e724e9f4560e0f1)): Cons((cons, Scalar(0x6235f2d4900b2a1ab2cbcfa6a38c4f5768516220c51f7a83158919f67b9c27cf)), (nil, Scalar(0x02e1314a79caf97ee88842647fe82bb88f5f795845cd3ed258ff172dae38cdb2))),
+  (sym, Scalar(0x6ec5d213885296267978e92a3da46608e05b99d10f279dd91ff72c44a1901600)): Sym((str, Scalar(0x6ec5d213885296267978e92a3da46608e05b99d10f279dd91ff72c44a1901600))),
+  (sym, Scalar(0x09584b74a1bc019ffa64a74fe874135e1443fc6c58fd3fd44c756c56ec34bbdc)): Sym((str, Scalar(0x09584b74a1bc019ffa64a74fe874135e1443fc6c58fd3fd44c756c56ec34bbdc))),
+  (sym, Scalar(0x3f1a96056e0c9f204c79a44ebb177feeecac5436e784fa6652d905969db63bfa)): Sym((str, Scalar(0x3f1a96056e0c9f204c79a44ebb177feeecac5436e784fa6652d905969db63bfa))),
+  (str, Scalar(0x0000000000000000000000000000000000000000000000000000000000000000)): StrNil,
+  (str, Scalar(0x6ec5d213885296267978e92a3da46608e05b99d10f279dd91ff72c44a1901600)): StrCons((char, 'X'), (str, Scalar(0x0000000000000000000000000000000000000000000000000000000000000000))),
+  (str, Scalar(0x2a7575c0facca35dc32adee47b9cdf5584f18b6e9d00a8c229b83e8815a4ba09)): StrCons((char, 'I'), (str, Scalar(0x18118519a123348a6b31a86f2688156dc236615cff46dfa0f013496f4bc18570))),
+  (str, Scalar(0x579392079baf4f51f8ad999a9c3a03a53ad27817b7246808f0665211a9109f36)): StrCons((char, 'A'), (str, Scalar(0x0000000000000000000000000000000000000000000000000000000000000000))),
+  (str, Scalar(0x18118519a123348a6b31a86f2688156dc236615cff46dfa0f013496f4bc18570)): StrCons((char, 'L'), (str, Scalar(0x0000000000000000000000000000000000000000000000000000000000000000))),
+  (str, Scalar(0x02e1314a79caf97ee88842647fe82bb88f5f795845cd3ed258ff172dae38cdb2)): StrCons((char, 'N'), (str, Scalar(0x2a7575c0facca35dc32adee47b9cdf5584f18b6e9d00a8c229b83e8815a4ba09))),
+  (str, Scalar(0x454cd67d0033680754a96ebb6f8844c35be1332dad1bfedf26f6c3c1256147b9)): StrCons((char, 'A'), (str, Scalar(0x4d6ef30d61392956b7c6de65e98b4d1ae39dd60ec21aa51c116a17e9d34f5dd1))),
+  (str, Scalar(0x4d6ef30d61392956b7c6de65e98b4d1ae39dd60ec21aa51c116a17e9d34f5dd1)): StrCons((char, 'M'), (str, Scalar(0x71d61cb05f8baceceec13a1565f4fea70316094b632ff5b2a7c2a2be8be099da))),
+  (str, Scalar(0x71d61cb05f8baceceec13a1565f4fea70316094b632ff5b2a7c2a2be8be099da)): StrCons((char, 'B'), (str, Scalar(0x6992424b87ef822525fe6564e8b2364b79ddd9b4a6ca84fdc8436d4258b306fe))),
+  (str, Scalar(0x09584b74a1bc019ffa64a74fe874135e1443fc6c58fd3fd44c756c56ec34bbdc)): StrCons((char, '+'), (str, Scalar(0x0000000000000000000000000000000000000000000000000000000000000000))),
+  (str, Scalar(0x3f1a96056e0c9f204c79a44ebb177feeecac5436e784fa6652d905969db63bfa)): StrCons((char, 'L'), (str, Scalar(0x454cd67d0033680754a96ebb6f8844c35be1332dad1bfedf26f6c3c1256147b9))),
+  (str, Scalar(0x6992424b87ef822525fe6564e8b2364b79ddd9b4a6ca84fdc8436d4258b306fe)): StrCons((char, 'D'), (str, Scalar(0x579392079baf4f51f8ad999a9c3a03a53ad27817b7246808f0665211a9109f36))),
+}
+-- END OF INPUT
+]
 
---   (⟨.cons, .ofNat 0x2fdd37cb19ebaca2fbce69de18c7369d42040034079af6c69a346f9a8a893028⟩, .cons
---     ⟨.sym, .ofNat 0x3423b95b8f4e1261de40b112021cb26cb30f7afdcde861d0d5bd9610472520dc⟩
---     ⟨.cons, .ofNat 0x6774a9faca6980bb8766e64b450c912c7387b40ee23c293a0f3bc3d6e1394554⟩),
+def expected' : Std.RBMap ScalarPtr ScalarExpr compare := out.exprs
 
---   (⟨.cons, .ofNat 0x6774a9faca6980bb8766e64b450c912c7387b40ee23c293a0f3bc3d6e1394554⟩, .cons
---     ⟨.sym, .ofNat 0x579392079baf4f51f8ad999a9c3a03a53ad27817b7246808f0665211a9109f36⟩
---     ⟨.nil, .ofNat 0x02e1314a79caf97ee88842647fe82bb88f5f795845cd3ed258ff172dae38cdb2⟩),
-
---   (⟨.sym, .ofNat 0x579392079baf4f51f8ad999a9c3a03a53ad27817b7246808f0665211a9109f36⟩, .sym
---     ⟨.str,.ofNat 0x579392079baf4f51f8ad999a9c3a03a53ad27817b7246808f0665211a9109f36⟩),
-
---   (⟨.sym, .ofNat 0x3423b95b8f4e1261de40b112021cb26cb30f7afdcde861d0d5bd9610472520dc⟩, .sym
---     ⟨.str,.ofNat 0x3423b95b8f4e1261de40b112021cb26cb30f7afdcde861d0d5bd9610472520dc⟩),
-
---   (⟨.str, .ofNat 0⟩, .strNil),
-
---   (⟨.str, .ofNat 0x579392079baf4f51f8ad999a9c3a03a53ad27817b7246808f0665211a9109f36⟩, .strCons
---     'A' ⟨.str, .ofNat 0x0000000000000000000000000000000000000000000000000000000000000000⟩),
-
---   (⟨.str, .ofNat 0x3423b95b8f4e1261de40b112021cb26cb30f7afdcde861d0d5bd9610472520dc⟩, .strCons
---     'F' ⟨.str, .ofNat 0x0000000000000000000000000000000000000000000000000000000000000000⟩),
-
---   (⟨.str, .ofNat 0x18118519a123348a6b31a86f2688156dc236615cff46dfa0f013496f4bc18570⟩, .strCons
---     'L' ⟨.str, .ofNat 0x0000000000000000000000000000000000000000000000000000000000000000⟩),
-
---   (⟨.str, .ofNat 0x2a7575c0facca35dc32adee47b9cdf5584f18b6e9d00a8c229b83e8815a4ba09⟩, .strCons
---     'I' ⟨.str, .ofNat 0x18118519a123348a6b31a86f2688156dc236615cff46dfa0f013496f4bc18570⟩),
-
---   (⟨.str, .ofNat 0x02e1314a79caf97ee88842647fe82bb88f5f795845cd3ed258ff172dae38cdb2⟩, .strCons
---     'N' ⟨.str, .ofNat 0x2a7575c0facca35dc32adee47b9cdf5584f18b6e9d00a8c229b83e8815a4ba09⟩)
-
--- ]
-
--- open LSpec in
--- #lspec
---   let tSeq := test "Stores have the same size" (got'.exprs.size == expected'.size)
---   expected'.fold (init := tSeq) fun tSeq ptr expectedExpr =>
---     withOptionSome s!"{ptr} is found" (got'.exprs.find? ptr) fun gotExpr =>
---       tSeq ++ test s!"Expression for key {ptr} matches"
---         (expectedExpr == gotExpr)
+open LSpec in
+#lspec
+  let tSeq := test "Stores have the same size" (got'.exprs.size == expected'.size)
+  expected'.fold (init := tSeq) fun tSeq ptr expectedExpr =>
+    withOptionSome s!"{ptr} is found" (got'.exprs.find? ptr) fun gotExpr =>
+      tSeq ++ test s!"Expression for key {ptr} matches"
+        (expectedExpr == gotExpr)
