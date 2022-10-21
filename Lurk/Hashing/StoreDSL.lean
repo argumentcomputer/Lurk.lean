@@ -1,7 +1,7 @@
 import Lean
 import Lurk.Hashing.Scalar 
 
-open Lean Elab Meta Term Lurk
+open Lean Elab Meta Term Lurk Hashing
 
 declare_syntax_cat                  scalar_ptr
 syntax "(nil, Scalar(" num "))"   : scalar_ptr
@@ -31,7 +31,7 @@ declare_syntax_cat lurk_store
 syntax "scalar_store: { " store_entry,*,? " }" : lurk_store
 
 def mkF (n : Nat) : TermElabM Lean.Expr := do
-  mkAppM ``Lurk.mkF #[mkNatLit n]
+  mkAppM ``Lurk.Syntax.mkF #[mkNatLit n]
 
 def mkScalarPtr (tag : Name) (n : Nat) : TermElabM Lean.Expr := do
   mkAppM ``ScalarPtr.mk #[mkConst tag, ← mkF n]
@@ -107,14 +107,14 @@ elab "[store| " e:lurk_store "]" : term =>
 -- (str, Scalar(0x2a7575c0facca35dc32adee47b9cdf5584f18b6e9d00a8c229b83e8815a4ba09)): StrCons((char, 'I'), (str, Scalar(0x18118519a123348a6b31a86f2688156dc236615cff46dfa0f013496f4bc18570)))
 -- ]
 
-#eval [store| 
+-- #eval [store| 
 
-scalar_store: {
-  (nil, Scalar(0x02e1314a79caf97ee88842647fe82bb88f5f795845cd3ed258ff172dae38cdb2)): Sym((str, Scalar(0x02e1314a79caf97ee88842647fe82bb88f5f795845cd3ed258ff172dae38cdb2))),
-  (str, Scalar(0x0000000000000000000000000000000000000000000000000000000000000000)): StrNil,
-  (str, Scalar(0x2a7575c0facca35dc32adee47b9cdf5584f18b6e9d00a8c229b83e8815a4ba09)): StrCons((char, 'I'), (str, Scalar(0x18118519a123348a6b31a86f2688156dc236615cff46dfa0f013496f4bc18570))),
-  (str, Scalar(0x18118519a123348a6b31a86f2688156dc236615cff46dfa0f013496f4bc18570)): StrCons((char, 'L'), (str, Scalar(0x0000000000000000000000000000000000000000000000000000000000000000))),
-  (str, Scalar(0x02e1314a79caf97ee88842647fe82bb88f5f795845cd3ed258ff172dae38cdb2)): StrCons((char, 'N'), (str, Scalar(0x2a7575c0facca35dc32adee47b9cdf5584f18b6e9d00a8c229b83e8815a4ba09))),
-}
+-- scalar_store: {
+--   (nil, Scalar(0x02e1314a79caf97ee88842647fe82bb88f5f795845cd3ed258ff172dae38cdb2)): Sym((str, Scalar(0x02e1314a79caf97ee88842647fe82bb88f5f795845cd3ed258ff172dae38cdb2))),
+--   (str, Scalar(0x0000000000000000000000000000000000000000000000000000000000000000)): StrNil,
+--   (str, Scalar(0x2a7575c0facca35dc32adee47b9cdf5584f18b6e9d00a8c229b83e8815a4ba09)): StrCons((char, 'I'), (str, Scalar(0x18118519a123348a6b31a86f2688156dc236615cff46dfa0f013496f4bc18570))),
+--   (str, Scalar(0x18118519a123348a6b31a86f2688156dc236615cff46dfa0f013496f4bc18570)): StrCons((char, 'L'), (str, Scalar(0x0000000000000000000000000000000000000000000000000000000000000000))),
+--   (str, Scalar(0x02e1314a79caf97ee88842647fe82bb88f5f795845cd3ed258ff172dae38cdb2)): StrCons((char, 'N'), (str, Scalar(0x2a7575c0facca35dc32adee47b9cdf5584f18b6e9d00a8c229b83e8815a4ba09))),
+-- }
 
 ]

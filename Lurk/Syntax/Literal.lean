@@ -9,7 +9,7 @@ def Nat.asHex (n : Nat) : String :=
     let pad := List.replicate (64 - tail.length) '0'
     "0x" ++  List.asString (pad ++ tail)
 
-namespace Lurk
+namespace Lurk.Syntax
 
 def N := 0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001
 

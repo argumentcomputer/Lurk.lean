@@ -1,6 +1,6 @@
 import LSpec
 import Lurk.Syntax.DSL
-import Lurk.Hashing.Scalar
+import Lurk.Hashing.StoreDSL
 
 def got := ⟦
   (letrec (
