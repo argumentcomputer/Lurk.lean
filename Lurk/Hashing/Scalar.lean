@@ -86,9 +86,6 @@ def destructSExpr : SExpr → List Expr
   | .lit l => [.lit l]
   | .cons a b => destructSExpr a ++ destructSExpr b
 
-def mkExprFromBinders (binders : List (Name × Expr)) : Expr :=
-  .mkList $ binders.map fun (n, e) => .mkList [.sym n, e]
-
 def hashChar (c : Char) : HashM ScalarPtr := do
   match (← get).charCache.find? c with
   | some ptr => pure ptr
@@ -107,9 +104,22 @@ partial def hashString (s : String) : HashM ScalarPtr := do
     modifyGet fun stt =>
       (ptr, { stt with stringCache := stt.stringCache.insert s ptr })
 
+partial def hashPtrList (ps : List ScalarPtr) : HashM ScalarPtr := do
+  ps.foldrM (init := ← hashExpr $ .lit .nil) fun ptr acc =>
+    addToStore ⟨.cons, hashPtrPair ptr acc⟩ (.cons ptr acc)
+
 partial def hashExprList (es : List Expr) : HashM ScalarPtr := do
-  (← es.mapM hashExpr).foldrM (init := ← hashExpr $ .lit .nil)
-    fun ptr acc => addToStore ⟨.cons, hashPtrPair ptr acc⟩ (.cons ptr acc)
+  hashPtrList (← es.mapM hashExpr)
+
+partial def hashBinder (binder : Name × Expr) : HashM ScalarPtr :=
+  hashExprList [.sym binder.1, binder.2]
+
+partial def hashBlock (kind : Name) (binders : List (Name × Expr)) (body : Expr) :
+    HashM ScalarPtr := do
+  let bodyPtr ← hashExpr body
+  let bindersPtr ← hashPtrList (← binders.mapM hashBinder)
+  let headPtr ← hashExpr $ .sym kind
+  hashPtrList [headPtr, bindersPtr, bodyPtr]
 
 partial def hashExpr : Expr → HashM ScalarPtr
   | .lit .nil => do
@@ -151,9 +161,9 @@ partial def hashExpr : Expr → HashM ScalarPtr
   | .lam args body => hashExprList $
     -- the `.lit .nil` compensates for the last cons element that should be in `args`
     (.sym `lambda) :: (args.map .sym) ++ [.lit .nil, body]
-  | .letE    binders body => hashExprList [.sym `let,    mkExprFromBinders binders, body]
-  | .letRecE binders body => hashExprList [.sym `letrec, mkExprFromBinders binders, body]
-  | .mutRecE binders body => hashExprList [.sym `mutrec, mkExprFromBinders binders, body]
+  | .letE    binders body => hashBlock `let    binders body
+  | .letRecE binders body => hashBlock `letrec binders body
+  | .mutRecE binders body => hashBlock `mutrec binders body
 
 end
 

@@ -56,4 +56,4 @@ def main := do
   lspecIO tSeq
 
 #eval got
-#eval ⟦(lambda (a b c ) 1)⟧.hash.1
+#eval ⟦(let ((a 1) (b 2)) a)⟧.hash.1
