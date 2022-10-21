@@ -2,7 +2,7 @@ import LSpec
 import Lurk.DSL
 import Lurk.Hashing.Scalar
 
-def got := ⟦(cons (+ 1 (* 3 4)) "aa")⟧.hash.1.exprs
+def got := ⟦(cons (+ 1 (* 3 4)) "aa")⟧.hash.1
 /-
 scalar_store: {
   (nil, Scalar(0x02e1314a79caf97ee88842647fe82bb88f5f795845cd3ed258ff172dae38cdb2)): Sym((str, Scalar(0x02e1314a79caf97ee88842647fe82bb88f5f795845cd3ed258ff172dae38cdb2))),
@@ -50,9 +50,10 @@ open LSpec in
 def main := do
   -- this should be replaced by a complete equality of RBMaps
   let tSeq : TestSeq := expected.fold (init := .done) fun tSeq ptr expectedExpr =>
-    withOptionSome s!"{ptr} is found" (got.find? ptr) fun gotExpr =>
+    withOptionSome s!"{ptr} is found" (got.exprs.find? ptr) fun gotExpr =>
       tSeq ++ test s!"Expected ({expectedExpr}) equals resulting expression ({gotExpr})"
         (expectedExpr == gotExpr)
   lspecIO tSeq
 
+#eval got
 #eval ⟦nil⟧.hash.1
