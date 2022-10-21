@@ -1,15 +1,8 @@
 open Std
 
-namespace Lurk
+namespace Lurk.Syntax
 
 def N := 0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001
-
-abbrev F := Fin N
-
-instance : Inhabited F := ⟨.ofNat 0⟩
-
-def F.zero : F :=
-  .ofNat 0
 
 /-- Basic Lurk primitives -/
 inductive Literal
@@ -40,4 +33,4 @@ end Literal
 def mkNumLit (n : Nat) : Literal :=
   .num (Fin.ofNat n)
 
-end Lurk
+end Lurk.Syntax

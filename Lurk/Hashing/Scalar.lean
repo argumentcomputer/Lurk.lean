@@ -1,9 +1,10 @@
-import Lurk.AST
-import Lurk.Utils
+import Lurk.Syntax.ExprUtils
 import Lurk.Hashing.Markers
 import Poseidon.ForLurk
 
-namespace Lurk
+namespace Lurk.Hashing
+
+open Lurk.Syntax
 
 structure ScalarPtr where
   tag : Tag
@@ -68,21 +69,21 @@ abbrev HashM := StateM HashState
 def addToStore (ptr : ScalarPtr) (expr : ScalarExpr) : HashM ScalarPtr :=
   modifyGet fun stt => (ptr, { stt with exprs := stt.exprs.insert ptr expr })
 
-def BinaryOp.toString : BinaryOp → String
-  | sum   => "+"
-  | diff  => "-"
-  | prod  => "*"
-  | quot  => "/"
-  | numEq => "="
-  | lt    => "<"
-  | gt    => ">"
-  | le    => "<="
-  | ge    => ">="
-  | eq    => "EQ"
+def binOpToString : BinaryOp → String
+  | .sum   => "+"
+  | .diff  => "-"
+  | .prod  => "*"
+  | .quot  => "/"
+  | .numEq => "="
+  | .lt    => "<"
+  | .gt    => ">"
+  | .le    => "<="
+  | .ge    => ">="
+  | .eq    => "EQ"
 
-def SExpr.toExpr : SExpr → Expr
+def SExprToExpr : SExpr → Expr
   | .lit l => .lit l
-  | .cons a b => .cons a.toExpr (.cons b.toExpr (.lit .nil))
+  | .cons a b => .cons (SExprToExpr a) (.cons (SExprToExpr b) (.lit .nil))
 
 def mkExprFromBinders (binders : List (Name × Expr)) : Expr :=
   .mkList $ binders.map fun (n, e) => .mkList [.sym n, e]
@@ -134,8 +135,8 @@ partial def hashExpr : Expr → HashM ScalarPtr
     addToStore ptr (.cons aPtr bPtr)
   | .app fn none       => hashExpr $ .mkList [fn]
   | .app fn (some arg) => hashExpr $ .mkList [fn, arg]
-  | .binaryOp op a b => hashExpr $ .mkList [.sym op.toString, a, b]
-  | .quote se => hashExpr $ .mkList [.sym `QUOTE, se.toExpr]
+  | .binaryOp op a b => hashExpr $ .mkList [.sym (binOpToString op), a, b]
+  | .quote se => hashExpr $ .mkList [.sym `QUOTE, (SExprToExpr se)]
   | .strcons a b => hashExpr $ .mkList [.sym `STRCONS, a, b]
   | .hide    a b => hashExpr $ .mkList [.sym `HIDE,    a, b]
   | .begin   a b => hashExpr $ .mkList [.sym `BEGIN,   a, b]
@@ -154,8 +155,9 @@ partial def hashExpr : Expr → HashM ScalarPtr
 
 end
 
-def Expr.hash (e : Expr) : ScalarStore × ScalarPtr := Id.run do
+end Lurk.Hashing
+
+open Lurk.Hashing in
+def Lurk.Syntax.Expr.hash (e : Expr) : ScalarStore × ScalarPtr := Id.run do
   match ← StateT.run (hashExpr e) default with
   | (ptr, stt) => (stt.store, ptr)
-
-end Lurk

@@ -1,8 +1,8 @@
-import Lurk.AST
-import Lurk.FixName
-import YatimaStdLib.String
+import Lurk.Syntax.Expr
+import Lurk.Syntax.FixName
 
-namespace Lurk.Expr
+namespace Lurk.Syntax.Expr
+
 open Std
 
 instance : ToFormat BinaryOp where format
@@ -79,4 +79,4 @@ where
 instance : ToFormat Expr where
   format := pprint
 
-end Lurk.Expr
+end Lurk.Syntax.Expr

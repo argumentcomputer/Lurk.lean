@@ -1,6 +1,6 @@
 import Lean
 
-namespace Lurk 
+namespace Lurk.Syntax
 
 open Std (RBTree) in
 /--
@@ -90,3 +90,5 @@ def fixName (name : Lean.Name) (pretty := true) : String :=
       if invalidCaptureNames.contains n then
         `_uncap ++ n
       else n
+
+end Lurk.Syntax

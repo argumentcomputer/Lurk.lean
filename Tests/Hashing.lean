@@ -1,5 +1,5 @@
 import LSpec
-import Lurk.DSL
+import Lurk.Syntax.DSL
 import Lurk.Hashing.Scalar
 
 def got := ⟦(cons (+ 1 (* 3 4)) "aa")⟧.hash.1
@@ -36,7 +36,7 @@ scalar_store: {
 }
 -/
 
-open Lurk
+open Lurk.Hashing
 
 def expected : Std.RBMap ScalarPtr ScalarExpr compare := .ofList [
   (⟨Tag.num, .ofNat 1⟩, .num (.ofNat 1)),

@@ -1,9 +1,9 @@
-import Lurk.Utils
-import Lurk.Printing
+import Lurk.Syntax.ExprUtils
+import Lurk.Syntax.Printing
 
-namespace Lurk
+namespace Lurk.Evaluation
 
-open Std
+open Lurk.Syntax Std
 
 inductive Value where
   | lit  : Literal → Value
@@ -96,9 +96,9 @@ def evalBinaryOp (v₁ v₂ : Value) : BinaryOp → EvalM Value
   | .ge    => return if (← num! v₁) >= (← num! v₂) then TRUE else FALSE
   | .eq    => return if v₁ == v₂ then TRUE else FALSE
 
-def SExpr.toValue : SExpr → Value 
+def SExprToValue : SExpr → Value 
   | .lit l => .lit l
-  | .cons e₁ e₂ => .cons e₁.toValue e₂.toValue
+  | .cons e₁ e₂ => .cons (SExprToValue e₁) (SExprToValue e₂)
 
 mutual
 
@@ -181,7 +181,7 @@ partial def evalM (env : Env) (e : Expr) (iter := 0) : EvalM Value := do
         -- -- dbg_trace s!"[.app] not enough args {fn.pprint}: {ns'}, {patch.map fun (n, (_, e)) => (n, e.pprint)}"
         return .lam ns' patch lb
     | v => throw s!"expected lambda value, got\n {v}"
-  | .quote s => do return s.toValue
+  | .quote s => return SExprToValue s
   | .binaryOp op e₁ e₂ => do 
     evalBinaryOp (← evalM env e₁ (iter + 1)) (← evalM env e₂ (iter + 1)) op
   | .atom e => do 
@@ -257,6 +257,4 @@ def Value.mkList (vs : List Value) : Value :=
 
 infix:75 " .ᵥ " => Value.cons
 
-abbrev Test := Except String Value × Expr 
-
-end Lurk
+end Lurk.Evaluation

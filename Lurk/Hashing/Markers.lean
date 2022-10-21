@@ -1,6 +1,13 @@
-import Lurk.Literal
+import Lurk.Syntax.Literal
 
-namespace Lurk
+namespace Lurk.Hashing
+
+abbrev F := Fin Lurk.Syntax.N
+
+instance : Inhabited F := ⟨.ofNat 0⟩
+
+def F.zero : F :=
+  .ofNat 0
 
 inductive Tag
   | nil
@@ -135,4 +142,4 @@ instance : Coe ContTag F := ⟨ContTag.toF⟩
 instance : Coe Op1     F := ⟨Op1.toF⟩
 instance : Coe Op2     F := ⟨Op2.toF⟩
 
-end Lurk
+end Lurk.Hashing
