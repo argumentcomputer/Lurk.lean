@@ -50,7 +50,8 @@ structure ScalarStore where
   deriving Inhabited
 
 def ScalarStore.toString (s : ScalarStore) : String :=
-  "\n\n".intercalate $ s.exprs.toList.map fun (k, v) => s!"{k}\n  ↳{v}"
+  "\n------------------------------------------\n".intercalate $
+    s.exprs.toList.map fun (k, v) => s!"{k}\n  ↳{v}"
 
 instance : ToString ScalarStore := ⟨ScalarStore.toString⟩
 
@@ -79,11 +80,11 @@ def binOpToString : BinaryOp → String
   | .gt    => ">"
   | .le    => "<="
   | .ge    => ">="
-  | .eq    => "EQ"
+  | .eq    => "eq"
 
-def SExprToExpr : SExpr → Expr
-  | .lit l => .lit l
-  | .cons a b => .cons (SExprToExpr a) (.cons (SExprToExpr b) (.lit .nil))
+def destructSExpr : SExpr → List Expr
+  | .lit l => [.lit l]
+  | .cons a b => destructSExpr a ++ destructSExpr b
 
 def mkExprFromBinders (binders : List (Name × Expr)) : Expr :=
   .mkList $ binders.map fun (n, e) => .mkList [.sym n, e]
@@ -106,13 +107,16 @@ partial def hashString (s : String) : HashM ScalarPtr := do
     modifyGet fun stt =>
       (ptr, { stt with stringCache := stt.stringCache.insert s ptr })
 
+partial def hashExprList (es : List Expr) : HashM ScalarPtr := do
+  (← es.mapM hashExpr).foldrM (init := ← hashExpr $ .lit .nil)
+    fun ptr acc => addToStore ⟨.cons, hashPtrPair ptr acc⟩ (.cons ptr acc)
+
 partial def hashExpr : Expr → HashM ScalarPtr
   | .lit .nil => do
+    -- `nil` has its own tag instead of `.sym`
     let ptr ← hashString "NIL"
     addToStore ⟨Tag.nil, ptr.val⟩ (.sym ptr)
-  | .lit .t => do
-    let ptr ← hashString "T"
-    addToStore ⟨Tag.sym, ptr.val⟩ (.sym ptr)
+  | .lit .t => hashExpr $ .sym `t
   | .lit (.num n) => addToStore ⟨Tag.num, n⟩ (.num n)
   | .lit (.str ⟨s⟩) => match s with
     | c :: cs => do
@@ -126,32 +130,30 @@ partial def hashExpr : Expr → HashM ScalarPtr
     let ptr ← hashChar c
     addToStore ptr (.char ptr.val)
   | .sym name => do
-    let ptr ← hashString (name.toString false)
+    let ptr ← hashString (name.toString false).toUpper
     addToStore ⟨Tag.sym, ptr.val⟩ (.sym ptr)
-  | .cons    a b => do
-    let aPtr ← hashExpr a
-    let bPtr ← hashExpr b
-    let ptr := ⟨Tag.cons, hashPtrPair aPtr bPtr⟩
-    addToStore ptr (.cons aPtr bPtr)
-  | .app fn none       => hashExpr $ .mkList [fn]
-  | .app fn (some arg) => hashExpr $ .mkList [fn, arg]
-  | .binaryOp op a b => hashExpr $ .mkList [.sym (binOpToString op), a, b]
-  | .quote se => hashExpr $ .mkList [.sym `QUOTE, (SExprToExpr se)]
-  | .strcons a b => hashExpr $ .mkList [.sym `STRCONS, a, b]
-  | .hide    a b => hashExpr $ .mkList [.sym `HIDE,    a, b]
-  | .begin   a b => hashExpr $ .mkList [.sym `BEGIN,   a, b]
-  | .comm   expr => hashExpr $ .mkList [.sym `COMM,   expr]
-  | .atom   expr => hashExpr $ .mkList [.sym `ATOM,   expr]
-  | .car    expr => hashExpr $ .mkList [.sym `CAR,    expr]
-  | .cdr    expr => hashExpr $ .mkList [.sym `CDR,    expr]
-  | .emit   expr => hashExpr $ .mkList [.sym `EMIT,   expr]
-  | .commit expr => hashExpr $ .mkList [.sym `COMMIT, expr]
-  | .currEnv => hashExpr $ .sym "CURRENT-ENV"
-  | .ifE a b c => hashExpr $ .mkList [.sym `IF, a, b, c]
-  | .lam args body => hashExpr $ .mkList [.sym `LAMBDA, .mkList $ args.map .sym, body]
-  | .letE    binders body => hashExpr $ .mkList [.sym `LET,    mkExprFromBinders binders, body]
-  | .letRecE binders body => hashExpr $ .mkList [.sym `LETREC, mkExprFromBinders binders, body]
-  | .mutRecE binders body => hashExpr $ .mkList [.sym `MUTREC, mkExprFromBinders binders, body]
+  | .currEnv => hashExpr $ .sym "current-env"
+  | .app fn none       => hashExprList [fn]
+  | .app fn (some arg) => hashExprList [fn, arg]
+  | .quote    se => hashExprList $ (.sym `quote) :: (destructSExpr se)
+  | .cons    a b => hashExprList [.sym `cons,    a, b]
+  | .strcons a b => hashExprList [.sym `strcons, a, b]
+  | .hide    a b => hashExprList [.sym `hide,    a, b]
+  | .begin   a b => hashExprList [.sym `begin,   a, b]
+  | .ifE   a b c => hashExprList [.sym `if,   a, b, c]
+  | .comm   expr => hashExprList [.sym `comm,   expr]
+  | .atom   expr => hashExprList [.sym `atom,   expr]
+  | .car    expr => hashExprList [.sym `car,    expr]
+  | .cdr    expr => hashExprList [.sym `cdr,    expr]
+  | .emit   expr => hashExprList [.sym `emit,   expr]
+  | .commit expr => hashExprList [.sym `commit, expr]
+  | .binaryOp op a b => hashExprList [.sym (binOpToString op), a, b]
+  | .lam args body => hashExprList $
+    -- the `.lit .nil` compensates for the last cons element that should be in `args`
+    (.sym `lambda) :: (args.map .sym) ++ [.lit .nil, body]
+  | .letE    binders body => hashExprList [.sym `let,    mkExprFromBinders binders, body]
+  | .letRecE binders body => hashExprList [.sym `letrec, mkExprFromBinders binders, body]
+  | .mutRecE binders body => hashExprList [.sym `mutrec, mkExprFromBinders binders, body]
 
 end
 
