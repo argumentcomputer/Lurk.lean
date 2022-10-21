@@ -184,9 +184,11 @@ partial def hashExpr : Expr → HashM ScalarPtr
   | .emit   expr => hashExprList [.sym `emit,   expr]
   | .commit expr => hashExprList [.sym `commit, expr]
   | .binaryOp op a b => hashExprList [.sym (binOpToString op), a, b]
-  | .lam args body => hashExprList $
-    -- the `.lit .nil` compensates for the last cons element that should be in `args`
-    (.sym `lambda) :: (args.map .sym) ++ [.lit .nil, body]
+  | .lam args body => do 
+    let lambda ← hashExpr $ .sym `lambda
+    let args ← hashExprList (args.map .sym)
+    let ptr ← hashExpr body
+    hashPtrList [lambda, args, ptr]
   | .letE    binders body => hashBlock `let    binders body
   | .letRecE binders body => hashBlock `letrec binders body
   | .mutRecE binders body => hashBlock `mutrec binders body
