@@ -211,3 +211,50 @@ def main := do
     withOptionSome s!"{ptr} is found" (got.exprs.find? ptr) fun gotExpr =>
       tSeq ++ test s!"Expression for key {ptr} matches"
         (expectedExpr == gotExpr)
+
+def got' := ⟦(f a)⟧.hash.1
+
+def expected' : Std.RBMap ScalarPtr ScalarExpr compare := .ofList [
+  (⟨.nil, .ofNat 0x02e1314a79caf97ee88842647fe82bb88f5f795845cd3ed258ff172dae38cdb2⟩,
+    .sym ⟨.str, .ofNat 0x02e1314a79caf97ee88842647fe82bb88f5f795845cd3ed258ff172dae38cdb2⟩),
+
+  (⟨.cons, .ofNat 0x2fdd37cb19ebaca2fbce69de18c7369d42040034079af6c69a346f9a8a893028⟩, .cons
+    ⟨.sym, .ofNat 0x3423b95b8f4e1261de40b112021cb26cb30f7afdcde861d0d5bd9610472520dc⟩
+    ⟨.cons, .ofNat 0x6774a9faca6980bb8766e64b450c912c7387b40ee23c293a0f3bc3d6e1394554⟩),
+
+  (⟨.cons, .ofNat 0x6774a9faca6980bb8766e64b450c912c7387b40ee23c293a0f3bc3d6e1394554⟩, .cons
+    ⟨.sym, .ofNat 0x579392079baf4f51f8ad999a9c3a03a53ad27817b7246808f0665211a9109f36⟩
+    ⟨.nil, .ofNat 0x02e1314a79caf97ee88842647fe82bb88f5f795845cd3ed258ff172dae38cdb2⟩),
+
+  (⟨.sym, .ofNat 0x579392079baf4f51f8ad999a9c3a03a53ad27817b7246808f0665211a9109f36⟩, .sym
+    ⟨.str,.ofNat 0x579392079baf4f51f8ad999a9c3a03a53ad27817b7246808f0665211a9109f36⟩),
+
+  (⟨.sym, .ofNat 0x3423b95b8f4e1261de40b112021cb26cb30f7afdcde861d0d5bd9610472520dc⟩, .sym
+    ⟨.str,.ofNat 0x3423b95b8f4e1261de40b112021cb26cb30f7afdcde861d0d5bd9610472520dc⟩),
+
+  (⟨.str, .ofNat 0⟩, .strNil),
+
+  (⟨.str, .ofNat 0x579392079baf4f51f8ad999a9c3a03a53ad27817b7246808f0665211a9109f36⟩, .strCons
+    'A' ⟨.str, .ofNat 0x0000000000000000000000000000000000000000000000000000000000000000⟩),
+
+  (⟨.str, .ofNat 0x3423b95b8f4e1261de40b112021cb26cb30f7afdcde861d0d5bd9610472520dc⟩, .strCons
+    'F' ⟨.str, .ofNat 0x0000000000000000000000000000000000000000000000000000000000000000⟩),
+
+  (⟨.str, .ofNat 0x18118519a123348a6b31a86f2688156dc236615cff46dfa0f013496f4bc18570⟩, .strCons
+    'L' ⟨.str, .ofNat 0x0000000000000000000000000000000000000000000000000000000000000000⟩),
+
+  (⟨.str, .ofNat 0x2a7575c0facca35dc32adee47b9cdf5584f18b6e9d00a8c229b83e8815a4ba09⟩, .strCons
+    'I' ⟨.str, .ofNat 0x18118519a123348a6b31a86f2688156dc236615cff46dfa0f013496f4bc18570⟩),
+
+  (⟨.str, .ofNat 0x02e1314a79caf97ee88842647fe82bb88f5f795845cd3ed258ff172dae38cdb2⟩, .strCons
+    'N' ⟨.str, .ofNat 0x2a7575c0facca35dc32adee47b9cdf5584f18b6e9d00a8c229b83e8815a4ba09⟩)
+
+]
+
+open LSpec in
+#lspec
+  let tSeq := test "Stores have the same size" (got'.exprs.size == expected'.size)
+  expected'.fold (init := tSeq) fun tSeq ptr expectedExpr =>
+    withOptionSome s!"{ptr} is found" (got'.exprs.find? ptr) fun gotExpr =>
+      tSeq ++ test s!"Expression for key {ptr} matches"
+        (expectedExpr == gotExpr)
