@@ -103,6 +103,12 @@ def elabLurkStore : Syntax → TermElabM Lean.Expr
 elab "[store| " e:lurk_store "]" : term =>
   elabLurkStore e
 
+/-! # Instructions 
+1. Add the desired input below
+2. Uncomment the last `#eval` line and copy the output directly.
+   The output is already structured as valid Lean code. 
+-/
+
 def out := [store| 
 -- BEGIN INPUT BELOW 
 scalar_store: {
