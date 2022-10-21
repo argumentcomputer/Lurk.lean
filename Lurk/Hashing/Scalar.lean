@@ -8,9 +8,15 @@ namespace Lurk
 instance : Coe F' F := ⟨.ofInt⟩
 
 structure ScalarPtr where
-  kind : F
-  val  : F
-  deriving Inhabited, Ord, BEq, Repr
+  tag : Tag
+  val : F
+  deriving Inhabited, Ord, BEq
+
+def ScalarPtr.toString : ScalarPtr → String
+  | ⟨.char, val⟩ => s!"⟪Char|{Char.ofNat val}⟫"
+  | ptr => s!"⟪{ptr.tag}|{ptr.val}⟫"
+
+instance : ToString ScalarPtr := ⟨ScalarPtr.toString⟩
 
 inductive ScalarExpr
   | cons (car : ScalarPtr) (cdr : ScalarPtr)
@@ -21,16 +27,34 @@ inductive ScalarExpr
   | strNil
   | strCons (head : ScalarPtr) (tail : ScalarPtr)
   | char (x : F)
-  deriving BEq, Repr
+  deriving BEq
+
+def ScalarExpr.toString : ScalarExpr → String
+  | .cons car cdr => s!"Cons {car} {cdr}"
+  | .comm x   ptr => s!"Comm {x} {ptr}"
+  | .sym ptr => s!"Sym {ptr}"
+  | .fun arg body env => s!"Fun {arg} {body} {env}"
+  | .num x => s!"Num {x}"
+  | .strNil => "StrNil"
+  | .strCons head tail => s!"StrCons {head} {tail}"
+  | .char x => s!"Char {x}"
+
+instance : ToString ScalarExpr := ⟨ScalarExpr.toString⟩
 
 def hashPtrPair (x y : ScalarPtr) : F :=
-  Hash x.kind x.val y.kind y.val
+  Hash x.tag x.val y.tag y.val
 
 open Std in
 structure ScalarStore where
   exprs : RBMap ScalarPtr ScalarExpr compare
   -- conts : RBMap ScalarContPtr ScalarCont compare
   deriving Inhabited
+
+def ScalarStore.toString (s : ScalarStore) : String :=
+  "\n-----\n".intercalate $ s.exprs.toList.map fun (k, v) =>
+    s!"{k}\n  ↳{v}"
+
+instance : ToString ScalarStore := ⟨ScalarStore.toString⟩
 
 open Std in
 structure HashState where

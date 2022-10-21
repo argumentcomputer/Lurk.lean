@@ -50,9 +50,9 @@ open LSpec in
 def main := do
   -- this should be replaced by a complete equality of RBMaps
   let tSeq : TestSeq := expected.fold (init := .done) fun tSeq ptr expectedExpr =>
-    withOptionSome s!"{repr ptr} is found" (got.find? ptr) fun gotExpr =>
-      tSeq ++ test s!"Expected ({repr expectedExpr}) equals resulting expression ({repr gotExpr})"
-          (expectedExpr == gotExpr)
+    withOptionSome s!"{ptr} is found" (got.find? ptr) fun gotExpr =>
+      tSeq ++ test s!"Expected ({expectedExpr}) equals resulting expression ({gotExpr})"
+        (expectedExpr == gotExpr)
   lspecIO tSeq
-#eval got
-#eval ⟦nil⟧.hash.1.exprs
+
+#eval ⟦nil⟧.hash.1

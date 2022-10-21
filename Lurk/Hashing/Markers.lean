@@ -12,7 +12,20 @@ inductive Tag
   | str
   | char
   | comm
-  deriving Ord
+  deriving Ord, Inhabited, BEq, Repr
+
+def Tag.toString : Tag → String
+  | nil   => "Nil"
+  | cons  => "Cons"
+  | sym   => "Sym"
+  | .fun  => "Fun"
+  | num   => "Num"
+  | thunk => "Thunk"
+  | str   => "Str"
+  | char  => "Char"
+  | comm  => "Comm"
+
+instance : ToString Tag := ⟨Tag.toString⟩
 
 inductive ContTag
   | outermost
