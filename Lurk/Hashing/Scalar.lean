@@ -11,8 +11,9 @@ structure ScalarPtr where
   deriving Inhabited, Ord, BEq
 
 def ScalarPtr.toString : ScalarPtr → String
-  | ⟨.char, val⟩ => s!"⟪Char|{Char.ofNat val}⟫"
-  | ptr => s!"⟪{ptr.tag}|{ptr.val}⟫"
+  | ⟨.num, n⟩ => s!"(num, {n.asHex})"
+  | ⟨.char, val⟩ => s!"(char, \'{Char.ofNat val}\')"
+  | ⟨tag, val⟩ => s!"({tag}, Scalar({val.asHex}))"
 
 instance : ToString ScalarPtr := ⟨ScalarPtr.toString⟩
 
@@ -28,14 +29,14 @@ inductive ScalarExpr
   deriving BEq
 
 def ScalarExpr.toString : ScalarExpr → String
-  | .cons car cdr => s!"Cons {car} {cdr}"
-  | .comm x   ptr => s!"Comm {x} {ptr}"
-  | .sym ptr => s!"Sym {ptr}"
-  | .fun arg body env => s!"Fun {arg} {body} {env}"
-  | .num x => s!"Num {x}"
+  | .cons car cdr => s!"Cons({car}, {cdr})"
+  | .comm x   ptr => s!"Comm({x}, {ptr})"
+  | .sym ptr => s!"Sym({ptr})"
+  | .fun arg body env => s!"Fun({arg}, {body}, {env})"
+  | .num x => s!"Num({x.asHex})"
   | .strNil => "StrNil"
-  | .strCons head tail => s!"StrCons {head} {tail}"
-  | .char x => s!"Char {x}"
+  | .strCons head tail => s!"StrCons({head}, {tail})"
+  | .char x => s!"Char({x})"
 
 instance : ToString ScalarExpr := ⟨ScalarExpr.toString⟩
 
@@ -48,8 +49,11 @@ structure ScalarStore where
   -- conts : RBMap ScalarContPtr ScalarCont compare
   deriving Inhabited
 
+def ScalarStore.ofList (exprs : List (ScalarPtr × ScalarExpr)) : ScalarStore := 
+  ⟨.ofList exprs⟩
+
 def ScalarStore.toString (s : ScalarStore) : String :=
-  "\n\n".intercalate $ s.exprs.toList.map fun (k, v) => s!"{k}\n  ↳{v}"
+  "\n".intercalate $ s.exprs.toList.map fun (k, v) => s!"{k}: {v}"
 
 instance : ToString ScalarStore := ⟨ScalarStore.toString⟩
 
@@ -157,5 +161,8 @@ end
 def Expr.hash (e : Expr) : ScalarStore × ScalarPtr := Id.run do
   match ← StateT.run (hashExpr e) default with
   | (ptr, stt) => (stt.store, ptr)
+
+#eval Lurk.Hash Tag.char.toF Tag.char.toF Tag.char.toF Tag.char.toF
+#eval Lurk.Hash (.ofNat 7) (.ofNat 76) (.ofNat 6) (.ofNat 0)
 
 end Lurk

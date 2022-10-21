@@ -15,15 +15,15 @@ inductive Tag
   deriving Ord, Inhabited, BEq, Repr
 
 def Tag.toString : Tag → String
-  | nil   => "Nil"
-  | cons  => "Cons"
-  | sym   => "Sym"
-  | .fun  => "Fun"
-  | num   => "Num"
-  | thunk => "Thunk"
-  | str   => "Str"
-  | char  => "Char"
-  | comm  => "Comm"
+  | nil   => "nil"
+  | cons  => "cons"
+  | sym   => "sym"
+  | .fun  => "fun"
+  | num   => "num"
+  | thunk => "thunk"
+  | str   => "str"
+  | char  => "char"
+  | comm  => "comm"
 
 instance : ToString Tag := ⟨Tag.toString⟩
 
