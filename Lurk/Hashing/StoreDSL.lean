@@ -1,6 +1,14 @@
 import Lean
 import Lurk.Hashing.Scalar 
 
+/-!
+# Helper DSL for generating test stores
+
+Look below for how to do this -- it's a bit awkward.
+
+**Do not import this file into any other!**.
+-/
+
 open Lean Elab Meta Term Lurk Hashing
 
 declare_syntax_cat                  scalar_ptr
@@ -99,22 +107,26 @@ def elabLurkStore : Syntax → TermElabM Lean.Expr
 elab "[store| " e:lurk_store "]" : term =>
   elabLurkStore e
 
--- #eval [expr| 
--- StrCons((char, 'I'), (str, Scalar(0x18118519a123348a6b31a86f2688156dc236615cff46dfa0f013496f4bc18570)))
--- ]
+/-! # Instructions 
 
--- #eval [entry| 
--- (str, Scalar(0x2a7575c0facca35dc32adee47b9cdf5584f18b6e9d00a8c229b83e8815a4ba09)): StrCons((char, 'I'), (str, Scalar(0x18118519a123348a6b31a86f2688156dc236615cff46dfa0f013496f4bc18570)))
--- ]
+1. Add the desired input below
+2. Uncomment the last `#eval` line and copy the output directly.
+   The output is already structured as valid Lean code. 
 
--- #eval [store| 
+## Warning!
 
--- scalar_store: {
---   (nil, Scalar(0x02e1314a79caf97ee88842647fe82bb88f5f795845cd3ed258ff172dae38cdb2)): Sym((str, Scalar(0x02e1314a79caf97ee88842647fe82bb88f5f795845cd3ed258ff172dae38cdb2))),
---   (str, Scalar(0x0000000000000000000000000000000000000000000000000000000000000000)): StrNil,
---   (str, Scalar(0x2a7575c0facca35dc32adee47b9cdf5584f18b6e9d00a8c229b83e8815a4ba09)): StrCons((char, 'I'), (str, Scalar(0x18118519a123348a6b31a86f2688156dc236615cff46dfa0f013496f4bc18570))),
---   (str, Scalar(0x18118519a123348a6b31a86f2688156dc236615cff46dfa0f013496f4bc18570)): StrCons((char, 'L'), (str, Scalar(0x0000000000000000000000000000000000000000000000000000000000000000))),
---   (str, Scalar(0x02e1314a79caf97ee88842647fe82bb88f5f795845cd3ed258ff172dae38cdb2)): StrCons((char, 'N'), (str, Scalar(0x2a7575c0facca35dc32adee47b9cdf5584f18b6e9d00a8c229b83e8815a4ba09))),
--- }
+We have to do this copy/paste because we have to avoid 
+importing this file anywhere. Because of how `declare_syntax_cat` 
+works in Lean, the syntax defined in this file pollutes other syntax spaces
+and leads to very annoying bugs. 
 
--- ]
+-/
+
+def out := [store| 
+-- BEGIN INPUT BELOW 
+scalar_store: {}
+-- END OF INPUT
+]
+
+-- uncomment this line and copy the output directly
+-- #eval IO.println out.repr

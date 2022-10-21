@@ -32,6 +32,17 @@ def Tag.toString : Tag → String
   | char  => "char"
   | comm  => "comm"
 
+def Tag.repr : Tag → String 
+  | nil   => ".nil"
+  | cons  => ".cons"
+  | sym   => ".sym"
+  | .fun  => ".fun"
+  | num   => ".num"
+  | thunk => ".thunk"
+  | str   => ".str"
+  | char  => ".char"
+  | comm  => ".comm"
+
 instance : ToString Tag := ⟨Tag.toString⟩
 
 inductive ContTag

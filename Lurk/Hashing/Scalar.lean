@@ -9,7 +9,7 @@ open Lurk.Syntax
 structure ScalarPtr where
   tag : Tag
   val : F
-  deriving Inhabited, Ord, BEq
+  deriving Inhabited, Ord, BEq, Repr
 
 def ScalarPtr.toString : ScalarPtr → String
   | ⟨.num, n⟩ => s!"(num, {n.asHex})"
@@ -17,6 +17,14 @@ def ScalarPtr.toString : ScalarPtr → String
   | ⟨tag, val⟩ => s!"({tag}, Scalar({val.asHex}))"
 
 instance : ToString ScalarPtr := ⟨ScalarPtr.toString⟩
+
+instance : Coe Char F where
+  coe x := Syntax.mkF x.toNat
+
+def ScalarPtr.repr : ScalarPtr → String
+  | ⟨.num, n⟩ => s!"⟨.num, mkF {n.asHex}⟩"
+  | ⟨.char, val⟩ => s!"⟨.char, \'{Char.ofNat val}\'⟩"
+  | ⟨tag, val⟩ => s!"⟨{tag.repr}, mkF {val.asHex}⟩"
 
 inductive ScalarExpr
   | cons (car : ScalarPtr) (cdr : ScalarPtr)
@@ -27,7 +35,7 @@ inductive ScalarExpr
   | strNil
   | strCons (head : ScalarPtr) (tail : ScalarPtr)
   | char (x : F)
-  deriving BEq
+  deriving BEq, Repr
 
 def ScalarExpr.toString : ScalarExpr → String
   | .cons car cdr => s!"Cons({car}, {cdr})"
@@ -38,6 +46,16 @@ def ScalarExpr.toString : ScalarExpr → String
   | .strNil => "StrNil"
   | .strCons head tail => s!"StrCons({head}, {tail})"
   | .char x => s!"Char({x})"
+
+def ScalarExpr.repr : ScalarExpr → String 
+  | .cons car cdr => s!".cons {car.repr} {cdr.repr}"
+  | .comm x   ptr => s!".comm (mkF {x}) {ptr.repr}"
+  | .sym ptr => s!".sym {ptr.repr}"
+  | .fun arg body env => s!".fun {arg.repr} {body.repr} {env.repr}"
+  | .num x => s!".num (mkF {x})"
+  | .strNil => ".strNil"
+  | .strCons head tail => s!".strCons {head.repr} {tail.repr}"
+  | .char x => s!".char \'{x}\'"
 
 instance : ToString ScalarExpr := ⟨ScalarExpr.toString⟩
 
@@ -54,9 +72,14 @@ def ScalarStore.ofList (exprs : List (ScalarPtr × ScalarExpr)) : ScalarStore :=
   ⟨.ofList exprs⟩
 
 def ScalarStore.toString (s : ScalarStore) : String :=
-  "\n".intercalate $ s.exprs.toList.map fun (k, v) => s!"{k}: {v}"
+  let body := ",\n".intercalate $ s.exprs.toList.map fun (k, v) => s!"  {k}: {v}"
+  "scalar_store: {\n" ++ body ++ "\n}"
 
 instance : ToString ScalarStore := ⟨ScalarStore.toString⟩
+
+def ScalarStore.repr (s : ScalarStore) : String := 
+  let body := ",\n".intercalate $ s.exprs.toList.map fun (k, v) => s!"  ({k.repr}, {v.repr})"
+  "⟨Std.RBMap.ofList [\n" ++ body ++ "\n]⟩"
 
 open Std in
 structure HashState where
