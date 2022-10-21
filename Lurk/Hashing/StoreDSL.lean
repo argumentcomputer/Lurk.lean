@@ -117,4 +117,4 @@ elab "[store| " e:lurk_store "]" : term =>
 --   (str, Scalar(0x02e1314a79caf97ee88842647fe82bb88f5f795845cd3ed258ff172dae38cdb2)): StrCons((char, 'N'), (str, Scalar(0x2a7575c0facca35dc32adee47b9cdf5584f18b6e9d00a8c229b83e8815a4ba09))),
 -- }
 
-]
+-- ]
