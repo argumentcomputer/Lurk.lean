@@ -1,9 +1,10 @@
-import Lurk.AST
-import Lurk.Utils
+import Lurk.Syntax.ExprUtils
 import Lurk.Hashing.Markers
 import Poseidon.ForLurk
 
-namespace Lurk
+namespace Lurk.Hashing
+
+open Lurk.Syntax
 
 structure ScalarPtr where
   tag : Tag
@@ -72,24 +73,21 @@ abbrev HashM := StateM HashState
 def addToStore (ptr : ScalarPtr) (expr : ScalarExpr) : HashM ScalarPtr :=
   modifyGet fun stt => (ptr, { stt with exprs := stt.exprs.insert ptr expr })
 
-def BinaryOp.toString : BinaryOp → String
-  | sum   => "+"
-  | diff  => "-"
-  | prod  => "*"
-  | quot  => "/"
-  | numEq => "="
-  | lt    => "<"
-  | gt    => ">"
-  | le    => "<="
-  | ge    => ">="
-  | eq    => "EQ"
+def binOpToString : BinaryOp → String
+  | .sum   => "+"
+  | .diff  => "-"
+  | .prod  => "*"
+  | .quot  => "/"
+  | .numEq => "="
+  | .lt    => "<"
+  | .gt    => ">"
+  | .le    => "<="
+  | .ge    => ">="
+  | .eq    => "eq"
 
-def SExpr.toExpr : SExpr → Expr
-  | .lit l => .lit l
-  | .cons a b => .cons a.toExpr (.cons b.toExpr (.lit .nil))
-
-def mkExprFromBinders (binders : List (Name × Expr)) : Expr :=
-  .mkList $ binders.map fun (n, e) => .mkList [.sym n, e]
+def destructSExpr : SExpr → List Expr
+  | .lit l => [.lit l]
+  | .cons a b => destructSExpr a ++ destructSExpr b
 
 def hashChar (c : Char) : HashM ScalarPtr := do
   match (← get).charCache.find? c with
@@ -109,13 +107,29 @@ partial def hashString (s : String) : HashM ScalarPtr := do
     modifyGet fun stt =>
       (ptr, { stt with stringCache := stt.stringCache.insert s ptr })
 
+partial def hashPtrList (ps : List ScalarPtr) : HashM ScalarPtr := do
+  ps.foldrM (init := ← hashExpr $ .lit .nil) fun ptr acc =>
+    addToStore ⟨.cons, hashPtrPair ptr acc⟩ (.cons ptr acc)
+
+partial def hashExprList (es : List Expr) : HashM ScalarPtr := do
+  hashPtrList (← es.mapM hashExpr)
+
+partial def hashBinder (binder : Name × Expr) : HashM ScalarPtr :=
+  hashExprList [.sym binder.1, binder.2]
+
+partial def hashBlock (kind : Name) (binders : List (Name × Expr)) (body : Expr) :
+    HashM ScalarPtr := do
+  let bodyPtr ← hashExpr body
+  let bindersPtr ← hashPtrList (← binders.mapM hashBinder)
+  let headPtr ← hashExpr $ .sym kind
+  hashPtrList [headPtr, bindersPtr, bodyPtr]
+
 partial def hashExpr : Expr → HashM ScalarPtr
   | .lit .nil => do
+    -- `nil` has its own tag instead of `.sym`
     let ptr ← hashString "NIL"
     addToStore ⟨Tag.nil, ptr.val⟩ (.sym ptr)
-  | .lit .t => do
-    let ptr ← hashString "T"
-    addToStore ⟨Tag.sym, ptr.val⟩ (.sym ptr)
+  | .lit .t => hashExpr $ .sym `t
   | .lit (.num n) => addToStore ⟨Tag.num, n⟩ (.num n)
   | .lit (.str ⟨s⟩) => match s with
     | c :: cs => do
@@ -129,40 +143,36 @@ partial def hashExpr : Expr → HashM ScalarPtr
     let ptr ← hashChar c
     addToStore ptr (.char ptr.val)
   | .sym name => do
-    let ptr ← hashString (name.toString false)
+    let ptr ← hashString (name.toString false).toUpper
     addToStore ⟨Tag.sym, ptr.val⟩ (.sym ptr)
-  | .cons    a b => do
-    let aPtr ← hashExpr a
-    let bPtr ← hashExpr b
-    let ptr := ⟨Tag.cons, hashPtrPair aPtr bPtr⟩
-    addToStore ptr (.cons aPtr bPtr)
-  | .app fn none       => hashExpr $ .mkList [fn]
-  | .app fn (some arg) => hashExpr $ .mkList [fn, arg]
-  | .binaryOp op a b => hashExpr $ .mkList [.sym op.toString, a, b]
-  | .quote se => hashExpr $ .mkList [.sym `QUOTE, se.toExpr]
-  | .strcons a b => hashExpr $ .mkList [.sym `STRCONS, a, b]
-  | .hide    a b => hashExpr $ .mkList [.sym `HIDE,    a, b]
-  | .begin   a b => hashExpr $ .mkList [.sym `BEGIN,   a, b]
-  | .comm   expr => hashExpr $ .mkList [.sym `COMM,   expr]
-  | .atom   expr => hashExpr $ .mkList [.sym `ATOM,   expr]
-  | .car    expr => hashExpr $ .mkList [.sym `CAR,    expr]
-  | .cdr    expr => hashExpr $ .mkList [.sym `CDR,    expr]
-  | .emit   expr => hashExpr $ .mkList [.sym `EMIT,   expr]
-  | .commit expr => hashExpr $ .mkList [.sym `COMMIT, expr]
-  | .currEnv => hashExpr $ .sym "CURRENT-ENV"
-  | .ifE a b c => hashExpr $ .mkList [.sym `IF, a, b, c]
-  | .lam args body => hashExpr $ .mkList [.sym `LAMBDA, .mkList $ args.map .sym, body]
-  | .letE    binders body => hashExpr $ .mkList [.sym `LET,    mkExprFromBinders binders, body]
-  | .letRecE binders body => hashExpr $ .mkList [.sym `LETREC, mkExprFromBinders binders, body]
-  | .mutRecE binders body => hashExpr $ .mkList [.sym `MUTREC, mkExprFromBinders binders, body]
+  | .currEnv => hashExpr $ .sym "current-env"
+  | .app fn none       => hashExprList [fn]
+  | .app fn (some arg) => hashExprList [fn, arg]
+  | .quote    se => hashExprList $ (.sym `quote) :: (destructSExpr se)
+  | .cons    a b => hashExprList [.sym `cons,    a, b]
+  | .strcons a b => hashExprList [.sym `strcons, a, b]
+  | .hide    a b => hashExprList [.sym `hide,    a, b]
+  | .begin   a b => hashExprList [.sym `begin,   a, b]
+  | .ifE   a b c => hashExprList [.sym `if,   a, b, c]
+  | .comm   expr => hashExprList [.sym `comm,   expr]
+  | .atom   expr => hashExprList [.sym `atom,   expr]
+  | .car    expr => hashExprList [.sym `car,    expr]
+  | .cdr    expr => hashExprList [.sym `cdr,    expr]
+  | .emit   expr => hashExprList [.sym `emit,   expr]
+  | .commit expr => hashExprList [.sym `commit, expr]
+  | .binaryOp op a b => hashExprList [.sym (binOpToString op), a, b]
+  | .lam args body => hashExprList $
+    -- the `.lit .nil` compensates for the last cons element that should be in `args`
+    (.sym `lambda) :: (args.map .sym) ++ [.lit .nil, body]
+  | .letE    binders body => hashBlock `let    binders body
+  | .letRecE binders body => hashBlock `letrec binders body
+  | .mutRecE binders body => hashBlock `mutrec binders body
 
 end
 
-def Expr.hash (e : Expr) : ScalarStore × ScalarPtr := Id.run do
+end Lurk.Hashing
+
+open Lurk.Hashing in
+def Lurk.Syntax.Expr.hash (e : Expr) : ScalarStore × ScalarPtr := Id.run do
   match ← StateT.run (hashExpr e) default with
   | (ptr, stt) => (stt.store, ptr)
-
-#eval Lurk.Hash Tag.char.toF Tag.char.toF Tag.char.toF Tag.char.toF
-#eval Lurk.Hash (.ofNat 7) (.ofNat 76) (.ofNat 6) (.ofNat 0)
-
-end Lurk

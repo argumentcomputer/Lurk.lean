@@ -1,7 +1,7 @@
-import Lurk.SExpr
+import Lurk.Syntax.SExpr
 import YatimaStdLib.Fin
 
-namespace Lurk
+namespace Lurk.Syntax
 
 scoped notation "Name" => Lean.Name
 
@@ -104,4 +104,4 @@ instance : ToExpr Expr where
 
 end Expr
 
-end Lurk
+end Lurk.Syntax

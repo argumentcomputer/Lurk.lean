@@ -54,4 +54,4 @@ def mkF (n : Nat) : F :=
 def mkNumLit (n : Nat) : Literal :=
   .num (Fin.ofNat n)
 
-end Lurk
+end Lurk.Syntax

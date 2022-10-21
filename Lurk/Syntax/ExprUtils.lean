@@ -1,8 +1,8 @@
-import Lurk.AST
+import Lurk.Syntax.Expr
 import YatimaStdLib.Lean
 import YatimaStdLib.RBMap
 
-namespace Lurk.Expr
+namespace Lurk.Syntax.Expr
 
 def mkNum (n : Nat) : Expr :=
   .lit $ .num (Fin.ofNat n)
@@ -155,9 +155,8 @@ partial def replaceN (e : Expr) (targets : List (Expr × Expr)) : Expr :=
 
 mutual
 
-partial def replaceBindersFreeVars (map : Std.RBMap Name Lurk.Expr compare)
-  (bindings : List (Name × Lurk.Expr))
-    (rec : Bool) : List (Name × Lurk.Expr) := Id.run do
+partial def replaceBindersFreeVars (map : Std.RBMap Name Expr compare)
+    (bindings : List (Name × Expr)) (rec : Bool) : List (Name × Expr) := Id.run do
   let mut ret := #[]
   -- `map'` will keep track of the free vars that will be replaced if found.
   let mut map' := map
@@ -177,8 +176,7 @@ partial def replaceBindersFreeVars (map : Std.RBMap Name Lurk.Expr compare)
       map' := map'.erase n
   return ret.data
 
-partial def replaceFreeVars (map : Std.RBMap Name Lurk.Expr compare) :
-    Lurk.Expr → Lurk.Expr
+partial def replaceFreeVars (map : Std.RBMap Name Expr compare) : Expr → Expr
   | x@(.lit _)   => x
   | x@(.quote _) => x
   | x@(.currEnv) => x
@@ -212,4 +210,4 @@ partial def replaceFreeVars (map : Std.RBMap Name Lurk.Expr compare) :
 
 end
 
-end Lurk.Expr
+end Lurk.Syntax.Expr

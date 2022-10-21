@@ -1,9 +1,9 @@
 import Lean
-import Lurk.Literal
+import Lurk.Syntax.Literal
 
 open Std 
 
-namespace Lurk 
+namespace Lurk.Syntax
 
 inductive SExpr where
   | lit : Literal → SExpr
@@ -62,4 +62,4 @@ instance : ToSExpr SExpr where
 
 end SExpr
 
-end Lurk 
+end Lurk.Syntax
