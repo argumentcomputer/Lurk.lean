@@ -3,10 +3,6 @@ import Lurk.Hashing.Scalar
 
 /-!
 # Helper DSL for generating test stores
-
-Look below for how to do this -- it's a bit awkward.
-
-**Do not import this file into any other!**.
 -/
 
 open Lean Elab Meta Term Lurk Hashing
@@ -106,21 +102,6 @@ def elabLurkStore : Syntax → TermElabM Lean.Expr
 
 elab "[store| " e:lurk_store "]" : term =>
   elabLurkStore e
-
-/-! # Instructions 
-
-1. Add the desired input below
-2. Uncomment the last `#eval` line and copy the output directly.
-   The output is already structured as valid Lean code. 
-
-## Warning!
-
-We have to do this copy/paste because we have to avoid 
-importing this file anywhere. Because of how `declare_syntax_cat` 
-works in Lean, the syntax defined in this file pollutes other syntax spaces
-and leads to very annoying bugs. 
-
--/
 
 def out := [store| 
 -- BEGIN INPUT BELOW 
