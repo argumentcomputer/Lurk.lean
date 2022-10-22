@@ -4,7 +4,7 @@ import Poseidon.ForLurk
 
 namespace Lurk.Hashing
 
-open Lurk.Syntax
+open Syntax
 
 structure ScalarPtr where
   tag : Tag
@@ -17,9 +17,6 @@ def ScalarPtr.toString : ScalarPtr → String
   | ⟨tag, val⟩ => s!"({tag}, Scalar({val.asHex}))"
 
 instance : ToString ScalarPtr := ⟨ScalarPtr.toString⟩
-
-instance : Coe Char F where
-  coe x := Syntax.mkF x.toNat
 
 def ScalarPtr.repr : ScalarPtr → String
   | ⟨.num, n⟩ => s!"⟨.num, mkF {n.asHex}⟩"
@@ -47,7 +44,7 @@ def ScalarExpr.toString : ScalarExpr → String
   | .strCons head tail => s!"StrCons({head}, {tail})"
   | .char x => s!"Char({x})"
 
-def ScalarExpr.repr : ScalarExpr → String 
+def ScalarExpr.repr : ScalarExpr → String
   | .cons car cdr => s!".cons {car.repr} {cdr.repr}"
   | .comm x   ptr => s!".comm (mkF {x}) {ptr.repr}"
   | .sym ptr => s!".sym {ptr.repr}"
@@ -68,7 +65,10 @@ structure ScalarStore where
   -- conts : RBMap ScalarContPtr ScalarCont compare
   deriving Inhabited
 
-def ScalarStore.ofList (exprs : List (ScalarPtr × ScalarExpr)) : ScalarStore := 
+instance : BEq ScalarStore where
+  beq x y := x.exprs.toList == y.exprs.toList
+
+def ScalarStore.ofList (exprs : List (ScalarPtr × ScalarExpr)) : ScalarStore :=
   ⟨.ofList exprs⟩
 
 def ScalarStore.toString (s : ScalarStore) : String :=
@@ -77,7 +77,7 @@ def ScalarStore.toString (s : ScalarStore) : String :=
 
 instance : ToString ScalarStore := ⟨ScalarStore.toString⟩
 
-def ScalarStore.repr (s : ScalarStore) : String := 
+def ScalarStore.repr (s : ScalarStore) : String :=
   let body := ",\n".intercalate $ s.exprs.toList.map fun (k, v) => s!"  ({k.repr}, {v.repr})"
   "⟨Std.RBMap.ofList [\n" ++ body ++ "\n]⟩"
 
@@ -137,24 +137,22 @@ partial def hashPtrList (ps : List ScalarPtr) : HashM ScalarPtr := do
 partial def hashExprList (es : List Expr) : HashM ScalarPtr := do
   hashPtrList (← es.mapM hashExpr)
 
-partial def hashBinder (binder : Name × Expr) : HashM ScalarPtr :=
-  hashExprList [.sym binder.1, binder.2]
-
 partial def hashBlock (kind : Name) (binders : List (Name × Expr)) (body : Expr) :
     HashM ScalarPtr := do
   let bodyPtr ← hashExpr body
-  let bindersPtr ← hashPtrList (← binders.mapM hashBinder)
+  let bindersPtr ← hashPtrList (← binders.mapM fun b => hashExprList [.sym b.1, b.2])
   let headPtr ← hashExpr $ .sym kind
   hashPtrList [headPtr, bindersPtr, bodyPtr]
 
 partial def hashExpr : Expr → HashM ScalarPtr
   | .lit .nil => do
-    -- `nil` has its own tag instead of `.sym`
+    -- `nil` has its own tag instead of `.sym`. Thus we need to manually hash it
+    -- as a string and make a `.nil` pointer with it
     let ptr ← hashString "NIL"
     addToStore ⟨Tag.nil, ptr.val⟩ (.sym ptr)
   | .lit .t => hashExpr $ .sym `t
   | .lit (.num n) => addToStore ⟨Tag.num, n⟩ (.num n)
-  | .lit (.str ⟨s⟩) => match s with
+  | .lit (.str s) => match s.data with
     | c :: cs => do
       let headPtr ← hashChar c
       let tailPtr ← hashString ⟨cs⟩
@@ -184,7 +182,7 @@ partial def hashExpr : Expr → HashM ScalarPtr
   | .emit   expr => hashExprList [.sym `emit,   expr]
   | .commit expr => hashExprList [.sym `commit, expr]
   | .binaryOp op a b => hashExprList [.sym (binOpToString op), a, b]
-  | .lam args body => do 
+  | .lam args body => do
     let lambda ← hashExpr $ .sym `lambda
     let args ← hashExprList (args.map .sym)
     let ptr ← hashExpr body
