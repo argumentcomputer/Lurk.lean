@@ -4,8 +4,22 @@ import YatimaStdLib.RBMap
 
 namespace Lurk.Syntax.Expr
 
+def mkUnaryApp (f : Expr) : Expr :=
+  .app f none
+
+def mkApp (f : Expr) : List Expr → Expr
+  | a :: as => as.foldl (init := .app f (some a)) fun acc a => .app acc (some a)
+  | [] => .app f none
+
+def mkListWith (es : List Expr) (tail : Expr) : Expr := 
+  es.foldr (init := tail)
+    fun n acc => .cons n acc
+
+def mkList (es : List Expr) : Expr :=   
+  mkListWith es (.lit .nil)
+
 def mkNum (n : Nat) : Expr :=
-  .lit $ .num (Fin.ofNat n)
+  .lit $ .num (.ofNat n)
 
 def isNum (e : Expr) : Bool :=
   match e with | .lit $ .num _ => true | _ => false

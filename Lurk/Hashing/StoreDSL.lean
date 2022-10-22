@@ -1,5 +1,5 @@
 import Lean
-import Lurk.Hashing.Scalar
+import Lurk.Hashing.HashM
 
 /-!
 # Helper DSL for generating test stores

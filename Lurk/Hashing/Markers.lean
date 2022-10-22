@@ -2,13 +2,6 @@ import Lurk.Syntax.Literal
 
 namespace Lurk.Hashing
 
-abbrev F := Fin Lurk.Syntax.N
-
-instance : Inhabited F := ⟨.ofNat 0⟩
-
-def F.zero : F :=
-  .ofNat 0
-
 inductive Tag
   | nil
   | cons
@@ -19,7 +12,7 @@ inductive Tag
   | str
   | char
   | comm
-  deriving Ord, Inhabited, BEq, Repr
+  deriving Ord, Inhabited, BEq
 
 def Tag.toString : Tag → String
   | nil   => "nil"
@@ -31,17 +24,6 @@ def Tag.toString : Tag → String
   | str   => "str"
   | char  => "char"
   | comm  => "comm"
-
-def Tag.repr : Tag → String 
-  | nil   => ".nil"
-  | cons  => ".cons"
-  | sym   => ".sym"
-  | .fun  => ".fun"
-  | num   => ".num"
-  | thunk => ".thunk"
-  | str   => ".str"
-  | char  => ".char"
-  | comm  => ".comm"
 
 instance : ToString Tag := ⟨Tag.toString⟩
 
@@ -147,10 +129,5 @@ def Op2.toF : Op2 → F
   | .strcons      => .ofNat 12299
   | .begin        => .ofNat 12300
   | .hide         => .ofNat 12301
-
-instance : Coe Tag     F := ⟨Tag.toF⟩
-instance : Coe ContTag F := ⟨ContTag.toF⟩
-instance : Coe Op1     F := ⟨Op1.toF⟩
-instance : Coe Op2     F := ⟨Op2.toF⟩
 
 end Lurk.Hashing

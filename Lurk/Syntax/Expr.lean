@@ -1,5 +1,8 @@
 import Lurk.Syntax.SExpr
 import YatimaStdLib.Fin
+import YatimaStdLib.Lean
+import YatimaStdLib.List
+import Lurk.ForYatimaStdLib.Ord
 
 namespace Lurk.Syntax
 
@@ -8,7 +11,7 @@ scoped notation "Name" => Lean.Name
 /-- Binary operations on Lurk numerals -/
 inductive BinaryOp 
   | sum | diff | prod | quot | numEq | lt | gt | le | ge | eq
-  deriving Repr, BEq
+  deriving Repr, BEq, Ord
 
 /-- Basic Lurk expression AST -/
 inductive Expr where
@@ -51,32 +54,9 @@ inductive Expr where
   | hide     : Expr → Expr → Expr
   | commit   : Expr → Expr
   | comm     : Expr → Expr
-  deriving Repr, BEq, Inhabited
+  deriving Repr, BEq, Inhabited, Ord
 
 namespace Expr
-
-def mkUnaryApp (f : Expr) : Expr :=
-  .app f none
-
-def mkApp (f : Expr) : List Expr → Expr
-  | a :: as => as.foldl (init := .app f (some a)) fun acc a => .app acc (some a)
-  | [] => .app f none
-
-def mkListWith (es : List Expr) (tail : Expr) : Expr := 
-  es.foldr (init := tail)
-    fun n acc => .cons n acc
-
-def mkList (es : List Expr) : Expr :=   
-  mkListWith es (.lit .nil)
-
-/--
-Remove all binders from an expression, converting a lambda into
-an "implicit lambda". This is useful for constructing the `rhs` of
-recursor rules.
--/
-def toImplicitLambda : Expr → Expr
-  | .lam _ body => toImplicitLambda body
-  | x => x
 
 class ToExpr (α : Type u) where 
   toExpr : α → Expr 

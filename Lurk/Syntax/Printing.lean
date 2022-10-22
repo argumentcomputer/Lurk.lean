@@ -5,7 +5,7 @@ namespace Lurk.Syntax.Expr
 
 open Std
 
-instance : ToFormat BinaryOp where format
+instance : ToString BinaryOp where toString
   | .sum   => "+"
   | .diff  => "-"
   | .prod  => "*"
@@ -17,59 +17,63 @@ instance : ToFormat BinaryOp where format
   | .ge    => ">="
   | .eq    => "eq"
 
-open Std.Format Std.ToFormat in
-partial def pprint (e : Expr) (pretty := true) : Std.Format :=
+open Std.Format Std.ToFormat
+
+def escName (name : Name) (pipes := true) : Format :=
+  if pipes then bracket "|" (validate name) "|" else validate name
+
+partial def pprint (e : Expr) (pretty := true) (pipes := true) : Std.Format :=
   match e with
   | .lit l => format l
-  | .sym n => bracket "|" (validate n) "|"
+  | .sym n => escName n pipes
   | .ifE test con alt =>
-    paren <| group ("if" ++ line ++ pprint test pretty) ++ line ++ pprint con pretty ++ line ++ pprint alt pretty
+    paren <| group ("if" ++ line ++ pprint test pretty pipes) ++ line ++
+      pprint con pretty pipes ++ line ++ pprint alt pretty pipes
   | .lam formals body =>
-    paren <| "lambda" ++ line ++ paren (fmtNames formals) ++ indentD (pprint body pretty)
+    paren <| "lambda" ++ line ++ paren (fmtNames formals) ++ indentD (pprint body pretty pipes)
   | .letE bindings body =>
-    paren <| "let" ++ line ++ paren (fmtBinds bindings) ++ line ++ pprint body pretty
+    paren <| "let" ++ line ++ paren (fmtBinds bindings) ++ line ++ pprint body pretty pipes
   | .letRecE bindings body =>
-    paren <| "letrec" ++ line ++ paren (fmtBinds bindings) ++ line ++ pprint body pretty
+    paren <| "letrec" ++ line ++ paren (fmtBinds bindings) ++ line ++ pprint body pretty pipes
   | .mutRecE bindings body =>
-    paren <| "mutrec" ++ line ++ paren (fmtBinds bindings) ++ line ++ pprint body pretty
+    paren <| "mutrec" ++ line ++ paren (fmtBinds bindings) ++ line ++ pprint body pretty pipes
   | e@(.app ..) =>
     let (fn, args) := telescopeApp e []
     let args := if args.length == 0 then .nil else indentD (fmtList args)
-    paren <| pprint fn pretty ++ args
+    paren <| pprint fn pretty pipes ++ args
   | .quote datum =>
     paren <| "quote" ++ line ++ datum.pprint pretty
   | .binaryOp op expr₁ expr₂ =>
-    paren <| format op ++ line ++ pprint expr₁ pretty ++ line ++ pprint expr₂ pretty
-  | .atom expr => paren <| "atom" ++ line ++ pprint expr pretty
-  | .cdr expr => paren <| "cdr" ++ line ++ pprint expr pretty
-  | .car expr => paren <| "car" ++ line ++ pprint expr pretty
-  | .emit expr => paren <| "emit" ++ line ++ pprint expr pretty
+    paren <| format op ++ line ++ pprint expr₁ pretty pipes ++ line ++ pprint expr₂ pretty pipes
+  | .atom expr => paren <| "atom" ++ line ++ pprint expr pretty pipes
+  | .cdr expr => paren <| "cdr" ++ line ++ pprint expr pretty pipes
+  | .car expr => paren <| "car" ++ line ++ pprint expr pretty pipes
+  | .emit expr => paren <| "emit" ++ line ++ pprint expr pretty pipes
   | .cons e₁ e₂ =>
-    paren <| group ("cons" ++ line ++ pprint e₁ pretty) ++ line ++ pprint e₂ pretty
+    paren <| group ("cons" ++ line ++ pprint e₁ pretty pipes) ++ line ++ pprint e₂ pretty pipes
   | .strcons e₁ e₂ =>
-    paren <| group ("strcons" ++ line ++ pprint e₁ pretty) ++ line ++ pprint e₂ pretty
+    paren <| group ("strcons" ++ line ++ pprint e₁ pretty pipes) ++ line ++ pprint e₂ pretty pipes
   | .begin e₁ e₂ =>
-    paren <| group ("begin" ++ line ++ pprint e₁ pretty) ++ line ++ pprint e₂ pretty
+    paren <| group ("begin" ++ line ++ pprint e₁ pretty pipes) ++ line ++ pprint e₂ pretty pipes
   | .currEnv => "current-env"
   | .hide e₁ e₂ =>
-    paren <| group ("hide" ++ line ++ pprint e₁ pretty) ++ line ++ pprint e₂ pretty
-  | .commit e => paren $ "commit" ++ line ++ (pprint e pretty)
-  | .comm e => paren $ "comm" ++ line ++ (pprint e pretty)
+    paren <| group ("hide" ++ line ++ pprint e₁ pretty pipes) ++ line ++ pprint e₂ pretty pipes
+  | .commit e => paren $ "commit" ++ line ++ (pprint e pretty pipes)
+  | .comm e => paren $ "comm" ++ line ++ (pprint e pretty pipes)
 where
   fmtNames (xs : List Name) := match xs with
     | [] => Format.nil
-    | [n]  => bracket "|" (validate n) "|"
-    | n::ns => bracket "|" (validate n) "|" ++ line ++ fmtNames ns
+    | [n]  => escName n pipes
+    | n::ns => escName n pipes ++ line ++ fmtNames ns
   fmtList (xs : List Expr) := match xs with
     | [] => Format.nil
     | [e]  => pprint e pretty
     | e::es => pprint e pretty ++ line ++ fmtList es
   fmtBinds (xs : List (Name × Expr)) := match xs with
     | [] => Format.nil
-    | [(n, e)]  => paren <| bracket "|" (validate n) "|" ++ line ++ pprint e pretty
+    | [(n, e)]  => paren <| escName n pipes ++ line ++ pprint e pretty
     | (n, e)::xs =>
-      (paren $ bracket "|" (validate n) "|" ++ line ++ pprint e pretty)
-        ++ line ++ fmtBinds xs
+      (paren $ escName n pipes ++ line ++ pprint e pretty) ++ line ++ fmtBinds xs
   telescopeApp (e : Expr) (args : List Expr) := match e with 
     | .app fn arg? => match arg? with
       | some arg => telescopeApp fn <| arg :: args

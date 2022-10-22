@@ -7,22 +7,16 @@ open Lean Elab Meta Term
 def mkNameLit (name : String) :=
   mkAppM ``Name.mkSimple #[mkStrLit name]
 
-declare_syntax_cat    lurk_literal
-syntax "t"          : lurk_literal
-syntax "nil"        : lurk_literal
-syntax num          : lurk_literal
--- syntax "-" noWs num : lurk_literal
-syntax str          : lurk_literal
-syntax char         : lurk_literal
+declare_syntax_cat lurk_literal
+syntax "t"       : lurk_literal
+syntax "nil"     : lurk_literal
+syntax num       : lurk_literal
+syntax str       : lurk_literal
+syntax char      : lurk_literal
 
 def elabLiteral : Syntax → TermElabM Lean.Expr
   | `(lurk_literal| t)   => return mkConst ``Lurk.Syntax.Literal.t
   | `(lurk_literal| nil) => return mkConst ``Lurk.Syntax.Literal.nil
-  -- | `(lurk_literal| -$n) => match n.getNat with
-  --   | 0     => do
-  --     mkAppM ``Lurk.Syntax.Literal.num #[← mkAppM ``Fin.ofNat #[mkConst ``Nat.zero]]
-  --   | n + 1 => do
-  --     mkAppM ``Lurk.Syntax.Literal.num #[← mkAppM ``Fin.ofInt #[← mkAppM ``Int.negSucc #[mkNatLit n]]]
   | `(lurk_literal| $n:num) => do
     mkAppM ``Lurk.Syntax.mkNumLit #[mkNatLit n.getNat]
   | `(lurk_literal| $s:str) =>
@@ -32,10 +26,10 @@ def elabLiteral : Syntax → TermElabM Lean.Expr
     mkAppM ``Lurk.Syntax.Literal.char #[c]
   | _ => throwUnsupportedSyntax
 
-declare_syntax_cat           sexpr
-syntax lurk_literal        : sexpr
-syntax "(" sexpr* ")"      : sexpr
-syntax sexpr " . " sexpr   : sexpr
+declare_syntax_cat         sexpr
+syntax lurk_literal      : sexpr
+syntax "(" sexpr* ")"    : sexpr
+syntax sexpr " . " sexpr : sexpr
 
 open Lurk SExpr in 
 partial def elabSExpr : Syntax → TermElabM Lean.Expr
@@ -59,29 +53,29 @@ elab "[SExpr| " e:sexpr "]" : term =>
   elabSExpr e
 
 
-declare_syntax_cat  lurk_bin_op
-syntax "+ "       : lurk_bin_op
-syntax "- "       : lurk_bin_op
-syntax "* "       : lurk_bin_op
-syntax "/ "       : lurk_bin_op
-syntax "= "       : lurk_bin_op
-syntax "< "       : lurk_bin_op
-syntax "> "       : lurk_bin_op
-syntax "<= "      : lurk_bin_op
-syntax ">= "      : lurk_bin_op
-syntax "eq "      : lurk_bin_op
+declare_syntax_cat lurk_bin_op
+syntax "+ "      : lurk_bin_op
+syntax "- "      : lurk_bin_op
+syntax "* "      : lurk_bin_op
+syntax "/ "      : lurk_bin_op
+syntax "= "      : lurk_bin_op
+syntax "< "      : lurk_bin_op
+syntax "> "      : lurk_bin_op
+syntax "<= "     : lurk_bin_op
+syntax ">= "     : lurk_bin_op
+syntax "eq "     : lurk_bin_op
 
 def elabLurkBinOp : Syntax → TermElabM Lean.Expr
-  | `(lurk_bin_op| +)    => return mkConst ``Lurk.Syntax.BinaryOp.sum
-  | `(lurk_bin_op| -)    => return mkConst ``Lurk.Syntax.BinaryOp.diff
-  | `(lurk_bin_op| *)    => return mkConst ``Lurk.Syntax.BinaryOp.prod
-  | `(lurk_bin_op| /)    => return mkConst ``Lurk.Syntax.BinaryOp.quot
-  | `(lurk_bin_op| =)    => return mkConst ``Lurk.Syntax.BinaryOp.numEq
-  | `(lurk_bin_op| <)    => return mkConst ``Lurk.Syntax.BinaryOp.lt
-  | `(lurk_bin_op| >)    => return mkConst ``Lurk.Syntax.BinaryOp.gt
-  | `(lurk_bin_op| <=)   => return mkConst ``Lurk.Syntax.BinaryOp.le
-  | `(lurk_bin_op| >=)   => return mkConst ``Lurk.Syntax.BinaryOp.ge
-  | `(lurk_bin_op| eq)   => return mkConst ``Lurk.Syntax.BinaryOp.eq
+  | `(lurk_bin_op| +)  => return mkConst ``Lurk.Syntax.BinaryOp.sum
+  | `(lurk_bin_op| -)  => return mkConst ``Lurk.Syntax.BinaryOp.diff
+  | `(lurk_bin_op| *)  => return mkConst ``Lurk.Syntax.BinaryOp.prod
+  | `(lurk_bin_op| /)  => return mkConst ``Lurk.Syntax.BinaryOp.quot
+  | `(lurk_bin_op| =)  => return mkConst ``Lurk.Syntax.BinaryOp.numEq
+  | `(lurk_bin_op| <)  => return mkConst ``Lurk.Syntax.BinaryOp.lt
+  | `(lurk_bin_op| >)  => return mkConst ``Lurk.Syntax.BinaryOp.gt
+  | `(lurk_bin_op| <=) => return mkConst ``Lurk.Syntax.BinaryOp.le
+  | `(lurk_bin_op| >=) => return mkConst ``Lurk.Syntax.BinaryOp.ge
+  | `(lurk_bin_op| eq) => return mkConst ``Lurk.Syntax.BinaryOp.eq
   | _ => throwUnsupportedSyntax
 
 declare_syntax_cat lurk_expr
@@ -111,9 +105,7 @@ syntax "(" "begin" lurk_expr*  ")"                : lurk_expr
 syntax "current-env"                              : lurk_expr
 syntax "(" lurk_expr* ")"                         : lurk_expr
 
-/-- 
-There are no type guarentees. 
--/
+/-- There are no type guarentees. -/
 partial def elabLurkIdents (i : TSyntax `ident) : TermElabM Lean.Expr := do 
   if i.raw.isAntiquot then 
     let stx := i.raw.getAntiquotTerm

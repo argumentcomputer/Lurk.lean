@@ -18,7 +18,9 @@ partial def BEqVal : Value → Value → Bool
   | .lam ns₁ [] ([], b₁), .lam ns₂ [] ([], b₂) => ns₁ == ns₂ && b₁ == b₂
   | .lam .., .lam .. => false
   | .cons v₁ v₁', .cons v₂ v₂' => BEqVal v₁ v₂ && BEqVal v₁' v₂'
-  | .env l₁ , .env l₂ => (l₁.zip l₂).foldl (init := true) (fun acc ((n₁, v₁), (n₂, v₂)) => acc && n₁ == n₂ && BEqVal v₁ v₂)
+  | .env l₁ , .env l₂ =>
+    (l₁.zip l₂).foldl (init := true) fun acc ((n₁, v₁), (n₂, v₂)) =>
+      acc && n₁ == n₂ && BEqVal v₁ v₂
   | _, _ => false
 
 instance : BEq Value where beq := BEqVal

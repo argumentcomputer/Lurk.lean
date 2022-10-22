@@ -8,7 +8,7 @@ namespace Lurk.Syntax
 inductive SExpr where
   | lit : Literal → SExpr
   | cons : SExpr → SExpr → SExpr
-  deriving Repr, BEq, Inhabited
+  deriving Repr, BEq, Inhabited, Ord
 
 namespace SExpr
 

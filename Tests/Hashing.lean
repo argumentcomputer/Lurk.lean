@@ -2,6 +2,7 @@ import LSpec
 import Lurk.Syntax.DSL
 import Lurk.Syntax.Printing
 import Lurk.Hashing.StoreDSL
+import Lurk.Hashing.Hashing
 
 open Lurk Hashing Syntax
 
@@ -56,5 +57,5 @@ open LSpec in
 def main := do
   lspecIO $ tuples.foldl (init := .done)
     fun tSeq (tuple : Expr × ScalarStore) => match tuple with
-      | (expr, s) => tSeq ++ test s!"Stores {expr.pprint} correctly"
+      | (expr, s) => tSeq ++ test s!"Stores {expr.pprint true false} correctly"
         (expr.hash.1 == s)
