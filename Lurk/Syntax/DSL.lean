@@ -37,7 +37,7 @@ partial def elabSExpr : Syntax → TermElabM Lean.Expr
     mkAppM ``SExpr.lit #[← elabLiteral l]
   | `(sexpr| ($es*)) => do
     let es ← (es.mapM fun e => elabSExpr e)
-    mkAppM ``mkList #[← mkListLit (mkConst ``SExpr) es.toList]
+    mkAppM ``mkList #[← mkListLit (mkConst ``SExpr) es.data]
   | `(sexpr| $e1 . $e2) => do
     mkAppM ``SExpr.cons #[← elabSExpr e1, ← elabSExpr e2]
   | `(sexpr| $i) => do 
@@ -169,16 +169,15 @@ partial def elabLurkExpr : TSyntax `lurk_expr → TermElabM Lean.Expr
   | `(lurk_expr| (strcons $e₁ $e₂)) => do
     mkAppM ``Lurk.Syntax.Expr.strcons #[← elabLurkExpr e₁, ← elabLurkExpr e₂]
   | `(lurk_expr| (begin $es*)) => do
+    let nilE ← mkConst ``Lurk.Syntax.Expr.mkNil
     match ← es.mapM elabLurkExpr with
-    | #[] => mkAppM ``Lurk.Syntax.Expr.lit #[mkConst ``Lurk.Syntax.Literal.nil]
-    | #[e] => return e
-    | es =>
-      es.foldlM (init := ← mkAppM ``Lurk.Syntax.Expr.lit #[mkConst ``Lurk.Syntax.Literal.nil])
-        fun acc e => mkAppM ``Lurk.Syntax.Expr.begin #[acc, e]
+    | #[] => mkAppM ``Lurk.Syntax.Expr.begin #[nilE, nilE]
+    | #[e] => mkAppM ``Lurk.Syntax.Expr.begin #[nilE, e]
+    | es => es.foldlM (init := nilE) fun acc e => mkAppM ``Lurk.Syntax.Expr.begin #[acc, e]
   | `(lurk_expr| current-env) => return mkConst ``Lurk.Syntax.Expr.currEnv
   | `(lurk_expr| ($e*)) => do
     match ← e.mapM elabLurkExpr with
-    | ⟨[]⟩    => mkAppM ``Lurk.Syntax.Expr.lit #[mkConst ``Lurk.Syntax.Literal.nil]
+    | ⟨[]⟩    => mkConst ``Lurk.Syntax.Expr.mkNil
     | ⟨e::[]⟩ => mkAppM ``Lurk.Syntax.Expr.mkUnaryApp #[e]
     | ⟨e::es⟩ => es.foldlM (init := e) fun acc e => do
       mkAppM ``Lurk.Syntax.Expr.app #[acc, ← mkAppM ``Option.some #[e]]

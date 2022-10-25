@@ -78,7 +78,6 @@ partial def hashExpr (e : Expr) : HashM ScalarPtr := do
       | .cons    a b => hashExprList [.sym `cons,    a, b]
       | .strcons a b => hashExprList [.sym `strcons, a, b]
       | .hide    a b => hashExprList [.sym `hide,    a, b]
-      | .begin   a b => hashExprList [.sym `begin,   a, b]
       | .ifE   a b c => hashExprList [.sym `if,   a, b, c]
       | .comm   expr => hashExprList [.sym `comm,   expr]
       | .atom   expr => hashExprList [.sym `atom,   expr]
@@ -86,6 +85,7 @@ partial def hashExpr (e : Expr) : HashM ScalarPtr := do
       | .cdr    expr => hashExprList [.sym `cdr,    expr]
       | .emit   expr => hashExprList [.sym `emit,   expr]
       | .commit expr => hashExprList [.sym `commit, expr]
+      | e@(.begin ..) => hashExprList $ (.sym `begin) :: e.beginTelescope
       | .binaryOp op a b => hashExprList [.sym (toString op), a, b]
       | .lam args body => do
         let lambda ← hashExpr $ .sym `lambda

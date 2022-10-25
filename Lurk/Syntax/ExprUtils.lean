@@ -4,6 +4,9 @@ import YatimaStdLib.RBMap
 
 namespace Lurk.Syntax.Expr
 
+def mkNil : Expr :=
+  .lit .nil
+
 def mkUnaryApp (f : Expr) : Expr :=
   .app f none
 
@@ -223,5 +226,12 @@ partial def replaceFreeVars (map : Std.RBMap Name Expr compare) : Expr → Expr
   | .comm e => .comm (replaceFreeVars map e)
 
 end
+
+def beginTelescope : Expr → List Expr
+  | .begin (.lit .nil) (.lit .nil) => []
+  | .begin e (.lit .nil) => beginTelescope e
+  | .begin (.lit .nil) e => beginTelescope e
+  | .begin e₁ e₂ => beginTelescope e₁ ++ beginTelescope e₂
+  | e => [e]
 
 end Lurk.Syntax.Expr
