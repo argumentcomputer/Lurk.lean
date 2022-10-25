@@ -1,9 +1,12 @@
 import LSpec
-import Lurk.Eval
+import Lurk.Syntax.DSL
+import Lurk.Evaluation.Eval
 
-open Lurk 
+open Lurk.Syntax
 
 -- TODO FIXME: bettter error handling, `.error ""` needs to be replaced
+
+abbrev Test := Except String Lurk.Evaluation.Value × Expr
 
 def outer_evaluate : Test := (.ok 99, ⟦((lambda (x) x) 99)⟧)
 
@@ -504,6 +507,8 @@ def strcons_char_str : Test :=
 def strcons_char_empty : Test := 
 (.ok "z", ⟦(strcons 'z' "")⟧)
 
+infix:75 " .ᵥ " => Lurk.Evaluation.Value.cons
+
 -- Construct a pair from a character and another string.
 -- should be `'(#\d . "og")`
 def cons_char_str : Test := 
@@ -660,7 +665,7 @@ open LSpec in
 def main := do
   let tSeq : TestSeq ← pairs.foldlM (init := .done) fun tSeq pair => do
     let e := Prod.snd pair
-    let res := eval e
+    let res := Lurk.Evaluation.eval e
     return match Prod.fst pair with
     | Except.ok v => withExceptOk s!"Evaluation of {e.pprint} succeeds" res
       fun v' => tSeq ++ test s!"Evaluation of {e.pprint} yields {v}" (v == v')

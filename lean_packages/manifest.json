@@ -5,5 +5,10 @@
    "name": "LSpec",
    "inputRev": "a8dc2f38fc38f16efcc877ca8a4c7b37d3965db0"},
   {"url": "https://github.com/yatima-inc/YatimaStdLib.lean",
-   "rev": "dd565ffec739f9ee0a79a3bf47ab5e1e0db0d8e2",
-   "name": "YatimaStdLib"}]}
+   "rev": "11336e502174b1449f525b1e44d76f6a44fbd274",
+   "name": "YatimaStdLib",
+   "inputRev": "11336e502174b1449f525b1e44d76f6a44fbd274"},
+  {"url": "https://github.com/yatima-inc/Poseidon.lean",
+   "rev": "c8996dde8d9b00ce487e53d02234efd1c2a062b2",
+   "name": "Poseidon",
+   "inputRev": "c8996dde8d9b00ce487e53d02234efd1c2a062b2"}]}

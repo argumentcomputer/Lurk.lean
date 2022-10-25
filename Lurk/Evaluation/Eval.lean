@@ -1,8 +1,9 @@
-import Lurk.DSL
+import Lurk.Syntax.ExprUtils
+import Lurk.Syntax.Printing
 
-namespace Lurk
+namespace Lurk.Evaluation
 
-open Std
+open Lurk.Syntax Std
 
 inductive Value where
   | lit  : Literal → Value
@@ -17,7 +18,9 @@ partial def BEqVal : Value → Value → Bool
   | .lam ns₁ [] ([], b₁), .lam ns₂ [] ([], b₂) => ns₁ == ns₂ && b₁ == b₂
   | .lam .., .lam .. => false
   | .cons v₁ v₁', .cons v₂ v₂' => BEqVal v₁ v₂ && BEqVal v₁' v₂'
-  | .env l₁ , .env l₂ => (l₁.zip l₂).foldl (init := true) (fun acc ((n₁, v₁), (n₂, v₂)) => acc && n₁ == n₂ && BEqVal v₁ v₂)
+  | .env l₁ , .env l₂ =>
+    (l₁.zip l₂).foldl (init := true) fun acc ((n₁, v₁), (n₂, v₂)) =>
+      acc && n₁ == n₂ && BEqVal v₁ v₂
   | _, _ => false
 
 instance : BEq Value where beq := BEqVal
@@ -95,9 +98,9 @@ def evalBinaryOp (v₁ v₂ : Value) : BinaryOp → EvalM Value
   | .ge    => return if (← num! v₁) >= (← num! v₂) then TRUE else FALSE
   | .eq    => return if v₁ == v₂ then TRUE else FALSE
 
-def SExpr.toValue : SExpr → Value 
+def Value.ofSExpr : SExpr → Value 
   | .lit l => .lit l
-  | .cons e₁ e₂ => .cons e₁.toValue e₂.toValue
+  | .cons e₁ e₂ => .cons (Value.ofSExpr e₁) (Value.ofSExpr e₂)
 
 mutual
 
@@ -142,7 +145,7 @@ partial def evalM (env : Env) (e : Expr) (iter := 0) : EvalM Value := do
     for (n, e) in bindings do
       env' := env'.insert n $ pure $ ← evalM env' e (iter + 1)
     evalM env' body (iter + 1)
-  | .app₀ fn => do 
+  | .app fn none => do 
     match fn with
     | .currEnv =>
       return .env $ ← env.foldM (init := default)
@@ -152,7 +155,7 @@ partial def evalM (env : Env) (e : Expr) (iter := 0) : EvalM Value := do
       match ← evalM env fn (iter + 1) with
       | .lam [] [] body => evalM env body.2 (iter + 1)
       | _ => throw "application not a procedure"
-  | .app fn arg => do 
+  | .app fn (some arg) => do 
     match ← evalM env fn (iter + 1) with
     | .lam ns patch lb =>
       let (patch', ns') ← bind arg env iter ns
@@ -180,7 +183,7 @@ partial def evalM (env : Env) (e : Expr) (iter := 0) : EvalM Value := do
         -- -- dbg_trace s!"[.app] not enough args {fn.pprint}: {ns'}, {patch.map fun (n, (_, e)) => (n, e.pprint)}"
         return .lam ns' patch lb
     | v => throw s!"expected lambda value, got\n {v}"
-  | .quote s => do return s.toValue
+  | .quote s => return .ofSExpr s
   | .binaryOp op e₁ e₂ => do 
     evalBinaryOp (← evalM env e₁ (iter + 1)) (← evalM env e₂ (iter + 1)) op
   | .atom e => do 
@@ -212,10 +215,9 @@ partial def evalM (env : Env) (e : Expr) (iter := 0) : EvalM Value := do
     let v ← evalM env e (iter + 1)
     dbg_trace v
     pure v
-  | .begin es => do
-    match es.reverse.head? with
-    | some e => evalM env e (iter + 1)
-    | none => return FALSE
+  | .begin e₁ e₂ => do
+    discard $ evalM env e₁ (iter + 1)
+    evalM env e₂ (iter + 2)
   | .currEnv => do
     throw "floating `current-env`, try `(current-env)` instead"
   -- let t_val : Format := ← match env.find? `getelem with 
@@ -252,11 +254,4 @@ instance : Coe String Value where
 instance : Coe (List (Name × Nat)) Value where
   coe l := .env $ l.map fun (name, n) => (name, .lit $ .num $ Fin.ofNat n)
 
-def Value.mkList (vs : List Value) : Value := 
-  vs.foldr (fun acc v => .cons acc v) FALSE
-
-infix:75 " .ᵥ " => Value.cons
-
-abbrev Test := Except String Value × Expr 
-
-end Lurk
+end Lurk.Evaluation

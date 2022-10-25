@@ -1,40 +1,28 @@
-import Lurk.AST
+import Lurk.Syntax.Expr
+import YatimaStdLib.Lean
 import YatimaStdLib.RBMap
 
-def Std.RBMap.filterOut [BEq α] [Ord α]
-  (map : Std.RBMap α β compare) (s : Std.RBTree α compare) :
-    Std.RBMap α β compare :=
-  map.fold (init := default) fun acc n e' =>
-    if s.contains n then acc else acc.insert n e'
+namespace Lurk.Syntax.Expr
 
-namespace Lurk
+def mkNil : Expr :=
+  .lit .nil
 
-def compareNames : Name → Name → Ordering
-  | .anonymous, .anonymous => .eq
-  | .num namₗ nₗ, .num namᵣ nᵣ =>
-    if nₗ < nᵣ then .lt
-    else
-      if nₗ > nᵣ then .gt
-      else compareNames namₗ namᵣ
-  | .str namₗ sₗ, .str namᵣ sᵣ =>
-    if sₗ < sᵣ then .lt
-    else
-      if sₗ > sᵣ then .gt
-      else compareNames namₗ namᵣ
-  | .anonymous, .num .. => .lt
-  | .anonymous, .str .. => .lt
-  | .num .., .str .. => .lt
-  | .num .., .anonymous => .gt
-  | .str .., .anonymous => .gt
-  | .str .., .num .. => .gt
+def mkUnaryApp (f : Expr) : Expr :=
+  .app f none
 
-scoped instance : Ord Name where
-  compare := compareNames
+def mkApp (f : Expr) : List Expr → Expr
+  | a :: as => as.foldl (init := .app f (some a)) fun acc a => .app acc (some a)
+  | [] => .app f none
 
-namespace Expr
+def mkListWith (es : List Expr) (tail : Expr) : Expr := 
+  es.foldr (init := tail)
+    fun n acc => .cons n acc
+
+def mkList (es : List Expr) : Expr :=   
+  mkListWith es (.lit .nil)
 
 def mkNum (n : Nat) : Expr :=
-  .lit $ .num (Fin.ofNat n)
+  .lit $ .num (.ofNat n)
 
 def isNum (e : Expr) : Bool :=
   match e with | .lit $ .num _ => true | _ => false
@@ -84,11 +72,11 @@ partial def replace (e : Expr) (target : Expr) (replacement : Expr) : Expr :=
       let binds := binds.map fun (n, e) => (n, replace e target replacement)
       let body := replace body target replacement
       .mutRecE binds body
-    | .app₀ fn => .app₀ $ replace fn target replacement
-    | .app fn arg =>
+    | .app fn arg? =>
       let fn := replace fn target replacement
-      let arg := replace arg target replacement
-      .app fn arg
+      match arg? with
+      | some arg => .app fn (replace arg target replacement)
+      | none => .app (replace fn target replacement) none
     | .quote _ => e
     | .binaryOp op e₁ e₂ =>
       let e₁ := replace e₁ target replacement
@@ -106,7 +94,10 @@ partial def replace (e : Expr) (target : Expr) (replacement : Expr) : Expr :=
       let e₁ := replace e₁ target replacement
       let e₂ := replace e₂ target replacement
       .strcons e₁ e₂
-    | .begin es => .begin $ es.map fun e => replace e target replacement
+    | .begin e₁ e₂ =>
+      let e₁ := replace e₁ target replacement
+      let e₂ := replace e₂ target replacement
+      .begin e₁ e₂
     | .currEnv => e
     | .hide e₁ e₂ =>
       let e₁ := replace e₁ target replacement
@@ -145,11 +136,11 @@ partial def replaceN (e : Expr) (targets : List (Expr × Expr)) : Expr :=
       let binds := binds.map fun (n, e) => (n, replaceN e targets)
       let body := replaceN body targets
       .mutRecE binds body
-    | .app₀ fn => .app₀ $ replaceN fn targets
-    | .app fn arg =>
+    | .app fn arg? =>
       let fn := replaceN fn targets
-      let arg := replaceN arg targets
-      .app fn arg
+      match arg? with
+      | some arg => .app fn (replaceN arg targets)
+      | none => .app fn none
     | .quote _ => e
     | .binaryOp op e₁ e₂ =>
       let e₁ := replaceN e₁ targets
@@ -167,7 +158,10 @@ partial def replaceN (e : Expr) (targets : List (Expr × Expr)) : Expr :=
       let e₁ := replaceN e₁ targets
       let e₂ := replaceN e₂ targets
       .strcons e₁ e₂
-    | .begin es => .begin $ es.map fun e => replaceN e targets
+    | .begin e₁ e₂ =>
+      let e₁ := replaceN e₁ targets
+      let e₂ := replaceN e₂ targets
+      .begin e₁ e₂
     | .currEnv => e
     | .hide e₁ e₂ =>
       let e₁ := replaceN e₁ targets
@@ -178,10 +172,9 @@ partial def replaceN (e : Expr) (targets : List (Expr × Expr)) : Expr :=
 
 mutual
 
-partial def replaceBindersFreeVars (map : Std.RBMap Name Lurk.Expr compare)
-  (bindings : List (Name × Lurk.Expr))
-    (rec : Bool) : List (Name × Lurk.Expr) := Id.run do
-  let mut ret := []
+partial def replaceBindersFreeVars (map : Std.RBMap Name Expr compare)
+    (bindings : List (Name × Expr)) (rec : Bool) : List (Name × Expr) := Id.run do
+  let mut ret := #[]
   -- `map'` will keep track of the free vars that will be replaced if found.
   let mut map' := map
   -- as we iterate on binders, occurrences of what looked like a free variable
@@ -192,16 +185,15 @@ partial def replaceBindersFreeVars (map : Std.RBMap Name Lurk.Expr compare)
       -- an occurrence of `n` in `e` can be a recursion, so we can't replace it
       -- right away
       map' := map'.erase n
-      ret := (n, replaceFreeVars map' e) :: ret
+      ret := ret.push (n, replaceFreeVars map' e)
     else
       -- any occurrence of `n` in `e` is definitely a free variable, so we first
       -- try to replace it
-      ret := (n, replaceFreeVars map' e) :: ret
+      ret := ret.push (n, replaceFreeVars map' e)
       map' := map'.erase n
-  return ret.reverse
+  return ret.data
 
-partial def replaceFreeVars (map : Std.RBMap Name Lurk.Expr compare) :
-    Lurk.Expr → Lurk.Expr
+partial def replaceFreeVars (map : Std.RBMap Name Expr compare) : Expr → Expr
   | x@(.lit _)   => x
   | x@(.quote _) => x
   | x@(.currEnv) => x
@@ -220,8 +212,7 @@ partial def replaceFreeVars (map : Std.RBMap Name Lurk.Expr compare) :
   | .mutRecE bindings body =>
     let map' := map.filterOut (.ofList (bindings.map (·.1)))
     .mutRecE (replaceBindersFreeVars map bindings true) $ replaceFreeVars map' body
-  | .app₀ e => .app₀ (replaceFreeVars map e)
-  | .app e₁ e₂ => .app (replaceFreeVars map e₁) (replaceFreeVars map e₂)
+  | .app e₁ e₂? => .app (replaceFreeVars map e₁) $ e₂?.map (replaceFreeVars map)
   | .binaryOp op e₁ e₂ => .binaryOp op (replaceFreeVars map e₁) (replaceFreeVars map e₂)
   | .cons e₁ e₂ => .cons (replaceFreeVars map e₁) (replaceFreeVars map e₂)
   | .strcons e₁ e₂ => .strcons (replaceFreeVars map e₁) (replaceFreeVars map e₂)
@@ -229,36 +220,22 @@ partial def replaceFreeVars (map : Std.RBMap Name Lurk.Expr compare) :
   | .car e => .car (replaceFreeVars map e)
   | .cdr e => .cdr (replaceFreeVars map e)
   | .emit e => .emit (replaceFreeVars map e)
-  | .begin es => .begin $ es.map (replaceFreeVars map)
+  | .begin e₁ e₂ => .begin (replaceFreeVars map e₁) (replaceFreeVars map e₂)
   | .hide e₁ e₂ => .hide (replaceFreeVars map e₁) (replaceFreeVars map e₂)
   | .commit e => .commit (replaceFreeVars map e)
   | .comm e => .comm (replaceFreeVars map e)
 
 end
 
-end Lurk.Expr
+def appTelescope : Expr → List Expr
+  | .app fn (some arg) => appTelescope fn ++ appTelescope arg
+  | e => [e]
 
-namespace Lean.Expr
+def beginTelescope : Expr → List Expr
+  | .begin (.lit .nil) (.lit .nil) => []
+  | .begin e (.lit .nil) => beginTelescope e
+  | .begin (.lit .nil) e => beginTelescope e
+  | .begin e₁ e₂ => beginTelescope e₁ ++ beginTelescope e₂
+  | e => [e]
 
-def constName (e : Expr) : Name :=
-  e.constName?.getD Name.anonymous
-
-def getAppFnArgs (e : Expr) : Name × Array Expr :=
-  withApp e λ e a => (e.constName, a)
-
-/-- Converts a `Expr` of a list to a list of `Expr`s -/
-partial def toListExpr (e : Expr) : List Expr :=
-  match e.getAppFnArgs with
-  | (``List.nil, #[_]) => []
-  | (``List.cons, #[_, x, xs]) => x :: toListExpr xs
-  | _ => []
-
-end Lean.Expr
-
-namespace Array
-
-@[inline]
-def concat {α : Type u} (ars : Array $ Array α) : Array α :=
-  ars.foldl (init := empty) fun acc ar => acc ++ ar
-
-end Array
+end Lurk.Syntax.Expr

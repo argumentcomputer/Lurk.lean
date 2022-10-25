@@ -1,12 +1,17 @@
-import Lurk.SExpr
-import Lurk.PreUtils
-import Lurk.FixName
+import Lurk.Syntax.SExpr
+import YatimaStdLib.Fin
+import YatimaStdLib.Lean
+import YatimaStdLib.List
+import YatimaStdLib.Ord
 
-namespace Lurk
+namespace Lurk.Syntax
+
+scoped notation "Name" => Lean.Name
 
 /-- Binary operations on Lurk numerals -/
-inductive BinaryOp | sum | diff | prod | quot | numEq | lt | gt | le | ge | eq
-deriving Repr, BEq
+inductive BinaryOp 
+  | sum | diff | prod | quot | numEq | lt | gt | le | ge | eq
+  deriving Repr, BEq, Ord
 
 /-- Basic Lurk expression AST -/
 inductive Expr where
@@ -24,10 +29,8 @@ inductive Expr where
   | letRecE  : List (Name × Expr) → Expr → Expr
   -- `mutrec <bindings> <body>`
   | mutRecE  : List (Name × Expr) → Expr → Expr
-  -- `<fun>`
-  | app₀     : Expr → Expr
   -- `<fun> <arg>`
-  | app      : Expr → Expr → Expr
+  | app      : Expr → Option Expr → Expr
   -- `quote <datum>`
   | quote    : SExpr → Expr
   -- `<binop> <e1> <e2>`
@@ -45,35 +48,15 @@ inductive Expr where
   -- `emit <e>`
   | emit     : Expr → Expr
   -- `begin <e1> <e2> ...`
-  | begin    : List Expr → Expr
+  | begin    : Expr → Expr → Expr
   -- `current-env`
   | currEnv  : Expr
   | hide     : Expr → Expr → Expr
   | commit   : Expr → Expr
   | comm     : Expr → Expr
-  deriving Repr, BEq, Inhabited
+  deriving Repr, BEq, Inhabited, Ord
 
 namespace Expr
-
-def mkApp (f : Expr) : List Expr → Expr
-  | a :: as => as.foldl (init := .app f a) fun acc a => .app acc a
-  | [] => .app₀ f
-
-def mkListWith (es : List Expr) (tail : Expr) : Expr := 
-  es.foldr (init := tail)
-    fun n acc => .cons n acc
-
-def mkList (es : List Expr) : Expr :=   
-  mkListWith es (.lit .nil)
-
-/--
-Remove all binders from an expression, converting a lambda into
-an "implicit lambda". This is useful for constructing the `rhs` of
-recursor rules.
--/
-def toImplicitLambda : Expr → Expr
-  | .lam _ body => toImplicitLambda body
-  | x => x
 
 class ToExpr (α : Type u) where 
   toExpr : α → Expr 
@@ -90,10 +73,6 @@ instance : ToExpr (Fin N) where
 instance : ToExpr Name where 
   toExpr := .sym
 
-/-- Non-instance version when we want lurk-friendly names -/
-def toExprFix (n : Name) : Expr := 
-  .sym (fixName n false)
-
 instance : ToExpr String where 
   toExpr s := .lit $ .str s
 
@@ -102,3 +81,7 @@ instance : ToExpr Char where
 
 instance : ToExpr Expr where 
   toExpr s := s
+
+end Expr
+
+end Lurk.Syntax
