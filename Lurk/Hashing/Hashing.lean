@@ -10,6 +10,7 @@ def hashPtrPair (x y : ScalarPtr) : F :=
 
 def destructSExpr : SExpr → List Expr
   | .lit  l   => [.lit l]
+  | .cons a (.lit .nil) => destructSExpr a
   | .cons a b => destructSExpr a ++ destructSExpr b
 
 def hashChar (c : Char) : HashM ScalarPtr := do
@@ -74,7 +75,11 @@ partial def hashExpr (e : Expr) : HashM ScalarPtr := do
       | .currEnv => hashExpr $ .sym "current-env"
       | .app fn none       => hashExprList [fn]
       | .app fn (some arg) => hashExprList [fn, arg]
-      | .quote    se => hashExprList $ (.sym `quote) :: (destructSExpr se)
+      | .quote se => do
+        let quote ← hashExpr $ .sym `quote
+        let sexpr ← hashExprList $ destructSExpr se
+        hashPtrList [quote, sexpr]
+        -- hashExprList $ (.sym `quote) :: (destructSExpr se)
       | .cons    a b => hashExprList [.sym `cons,    a, b]
       | .strcons a b => hashExprList [.sym `strcons, a, b]
       | .hide    a b => hashExprList [.sym `hide,    a, b]

@@ -19,7 +19,7 @@ instance : ToString BinaryOp where toString
 
 open Std.Format Std.ToFormat
 
-def escName (name : Name) (pipes := true) : Format :=
+def escName (name : Name) (pipes : Bool) : Format :=
   if pipes then bracket "|" (validate name) "|" else validate name
 
 partial def pprint (e : Expr) (pretty := true) (pipes := true) : Std.Format :=
@@ -67,8 +67,8 @@ where
     | n::ns => escName n pipes ++ line ++ fmtNames ns
   fmtList (xs : List Expr) := match xs with
     | [] => Format.nil
-    | [e]  => pprint e pretty
-    | e::es => pprint e pretty ++ line ++ fmtList es
+    | [e]  => pprint e pretty pipes
+    | e::es => pprint e pretty pipes ++ line ++ fmtList es
   fmtBinds (xs : List (Name × Expr)) := match xs with
     | [] => Format.nil
     | [(n, e)]  => paren <| escName n pipes ++ line ++ pprint e pretty
