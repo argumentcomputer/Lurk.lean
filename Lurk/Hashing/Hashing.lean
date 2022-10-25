@@ -74,12 +74,12 @@ partial def hashExpr (e : Expr) : HashM ScalarPtr := do
         addToStore ⟨Tag.sym, ptr.val⟩ (.sym ptr)
       | .currEnv => hashExpr $ .sym "current-env"
       | .app fn none       => hashExprList [fn]
-      | .app fn (some arg) => hashExprList [fn, arg]
+      | e@(.app ..) => hashExprList e.appTelescope
+      | .quote (.lit l) => hashExprList [.sym `quote, .lit l]
       | .quote se => do
         let quote ← hashExpr $ .sym `quote
         let sexpr ← hashExprList $ destructSExpr se
         hashPtrList [quote, sexpr]
-        -- hashExprList $ (.sym `quote) :: (destructSExpr se)
       | .cons    a b => hashExprList [.sym `cons,    a, b]
       | .strcons a b => hashExprList [.sym `strcons, a, b]
       | .hide    a b => hashExprList [.sym `hide,    a, b]

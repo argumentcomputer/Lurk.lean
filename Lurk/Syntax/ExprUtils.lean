@@ -227,6 +227,10 @@ partial def replaceFreeVars (map : Std.RBMap Name Expr compare) : Expr → Expr
 
 end
 
+def appTelescope : Expr → List Expr
+  | .app fn (some arg) => appTelescope fn ++ appTelescope arg
+  | e => [e]
+
 def beginTelescope : Expr → List Expr
   | .begin (.lit .nil) (.lit .nil) => []
   | .begin e (.lit .nil) => beginTelescope e
