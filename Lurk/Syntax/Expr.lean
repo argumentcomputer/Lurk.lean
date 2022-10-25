@@ -2,7 +2,7 @@ import Lurk.Syntax.SExpr
 import YatimaStdLib.Fin
 import YatimaStdLib.Lean
 import YatimaStdLib.List
-import Lurk.ForYatimaStdLib.Ord
+import YatimaStdLib.Ord
 
 namespace Lurk.Syntax
 

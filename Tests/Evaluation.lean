@@ -507,6 +507,8 @@ def strcons_char_str : Test :=
 def strcons_char_empty : Test := 
 (.ok "z", ⟦(strcons 'z' "")⟧)
 
+infix:75 " .ᵥ " => Lurk.Evaluation.Value.cons
+
 -- Construct a pair from a character and another string.
 -- should be `'(#\d . "og")`
 def cons_char_str : Test := 

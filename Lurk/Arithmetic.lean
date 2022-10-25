@@ -1,4 +1,4 @@
-import Lurk.ForYatimaStdLib.Nat
+import YatimaStdLib.Nat
 
 namespace Lurk
 

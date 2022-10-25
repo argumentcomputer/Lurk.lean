@@ -98,9 +98,9 @@ def evalBinaryOp (v₁ v₂ : Value) : BinaryOp → EvalM Value
   | .ge    => return if (← num! v₁) >= (← num! v₂) then TRUE else FALSE
   | .eq    => return if v₁ == v₂ then TRUE else FALSE
 
-def SExprToValue : SExpr → Value 
+def Value.ofSExpr : SExpr → Value 
   | .lit l => .lit l
-  | .cons e₁ e₂ => .cons (SExprToValue e₁) (SExprToValue e₂)
+  | .cons e₁ e₂ => .cons (Value.ofSExpr e₁) (Value.ofSExpr e₂)
 
 mutual
 
@@ -183,7 +183,7 @@ partial def evalM (env : Env) (e : Expr) (iter := 0) : EvalM Value := do
         -- -- dbg_trace s!"[.app] not enough args {fn.pprint}: {ns'}, {patch.map fun (n, (_, e)) => (n, e.pprint)}"
         return .lam ns' patch lb
     | v => throw s!"expected lambda value, got\n {v}"
-  | .quote s => return SExprToValue s
+  | .quote s => return .ofSExpr s
   | .binaryOp op e₁ e₂ => do 
     evalBinaryOp (← evalM env e₁ (iter + 1)) (← evalM env e₂ (iter + 1)) op
   | .atom e => do 
@@ -253,10 +253,5 @@ instance : Coe String Value where
 
 instance : Coe (List (Name × Nat)) Value where
   coe l := .env $ l.map fun (name, n) => (name, .lit $ .num $ Fin.ofNat n)
-
-def Value.mkList (vs : List Value) : Value := 
-  vs.foldr (fun acc v => .cons acc v) FALSE
-
-infix:75 " .ᵥ " => Value.cons
 
 end Lurk.Evaluation

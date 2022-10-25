@@ -6,7 +6,7 @@ namespace Lurk.Hashing
 open Lurk.Syntax
 
 def hashPtrPair (x y : ScalarPtr) : F :=
-  .ofInt $ Hash x.tag.toF x.val y.tag.toF y.val
+  .ofInt $ Poseidon.Lurk.hash x.tag.toF x.val y.tag.toF y.val
 
 def destructSExpr : SExpr → List Expr
   | .lit  l   => [.lit l]

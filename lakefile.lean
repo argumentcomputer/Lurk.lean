@@ -11,10 +11,10 @@ lean_exe lurk {
 }
 
 require Poseidon from git
-  "https://github.com/yatima-inc/Poseidon.lean" @ "e5b3e06ed3a98cf67a70ce2e2a0f757153f19419"
+  "https://github.com/yatima-inc/Poseidon.lean" @ "c8996dde8d9b00ce487e53d02234efd1c2a062b2"
 
 require YatimaStdLib from git
-  "https://github.com/yatima-inc/YatimaStdLib.lean" @ "cbf5cd7c098c4369d93b9b8399a323bf0a28c107"
+  "https://github.com/yatima-inc/YatimaStdLib.lean" @ "11336e502174b1449f525b1e44d76f6a44fbd274"
 
 require LSpec from git
   "https://github.com/yatima-inc/LSpec.git" @ "a8dc2f38fc38f16efcc877ca8a4c7b37d3965db0"
