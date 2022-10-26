@@ -158,4 +158,4 @@ def main := do
   lspecIO $ tuples.foldl (init := .done)
     fun tSeq (tuple : Expr × ScalarStore) => match tuple with
       | (expr, s) => tSeq ++ test s!"Stores {expr.pprint true false} correctly"
-        (expr.hash.1 == s)
+        (expr.hash.2 == s)
