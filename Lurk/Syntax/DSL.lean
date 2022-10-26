@@ -26,20 +26,24 @@ def elabLiteral : Syntax → TermElabM Lean.Expr
     mkAppM ``Lurk.Syntax.Literal.char #[c]
   | _ => throwUnsupportedSyntax
 
-declare_syntax_cat         sexpr
-syntax lurk_literal      : sexpr
-syntax "(" sexpr* ")"    : sexpr
-syntax sexpr " . " sexpr : sexpr
+declare_syntax_cat                        sexpr
+scoped syntax lurk_literal              : sexpr
+scoped syntax ident                     : sexpr
+scoped syntax "(" sexpr* ")"            : sexpr
+scoped syntax "(" sexpr+ " . " sexpr ")" : sexpr
 
 open Lurk SExpr in 
 partial def elabSExpr : Syntax → TermElabM Lean.Expr
   | `(sexpr| $l:lurk_literal) => do
     mkAppM ``SExpr.lit #[← elabLiteral l]
+  | `(sexpr| $i:ident) => do
+    mkAppM ``SExpr.sym #[← mkNameLit i.getId.toString]
   | `(sexpr| ($es*)) => do
-    let es ← (es.mapM fun e => elabSExpr e)
+    let es ← es.mapM fun e => elabSExpr e
     mkAppM ``mkList #[← mkListLit (mkConst ``SExpr) es.data]
-  | `(sexpr| $e1 . $e2) => do
-    mkAppM ``SExpr.cons #[← elabSExpr e1, ← elabSExpr e2]
+  | `(sexpr| ($es* . $tail)) => do
+    let es ← es.mapM fun e => elabSExpr e
+    mkAppM ``mkListWith #[← mkListLit (mkConst ``SExpr) es.data, ← elabSExpr tail]
   | `(sexpr| $i) => do 
     if i.raw.isAntiquot then 
       let stx := i.raw.getAntiquotTerm
@@ -51,7 +55,6 @@ partial def elabSExpr : Syntax → TermElabM Lean.Expr
 
 elab "[SExpr| " e:sexpr "]" : term =>
   elabSExpr e
-
 
 declare_syntax_cat lurk_bin_op
 syntax "+ "      : lurk_bin_op
