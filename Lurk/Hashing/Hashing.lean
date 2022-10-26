@@ -10,6 +10,7 @@ def hashPtrPair (x y : ScalarPtr) : F :=
 
 def destructSExpr : SExpr → List Expr
   | .lit  l   => [.lit l]
+  | .sym  s   => [.sym s]
   | .cons a (.lit .nil) => destructSExpr a
   | .cons a b => destructSExpr a ++ destructSExpr b
 

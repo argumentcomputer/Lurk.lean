@@ -4,8 +4,9 @@ import Lurk.Syntax.Printing
 import Lurk.Hashing.StoreDSL
 import Lurk.Hashing.Hashing
 
-open Lurk Hashing Syntax
+open Lurk
 
+open Syntax.DSL in 
 def expression := ⟦
   (begin
     (lambda (x y) (+ x y))
@@ -23,7 +24,7 @@ def expression := ⟦
     (quote (1 2 3)))
 ⟧
 
-open DSL in def expectedStore := [store| scalar_store: {
+open Hashing.DSL in def expectedStore := [store| scalar_store: {
   (nil, Scalar(0x02e1314a79caf97ee88842647fe82bb88f5f795845cd3ed258ff172dae38cdb2)): Sym((str, Scalar(0x02e1314a79caf97ee88842647fe82bb88f5f795845cd3ed258ff172dae38cdb2))),
   (cons, Scalar(0x72c45f2dc94b8f4e9508f8375ac423fa6b75d2230498d79b4240c072c319d711)): Cons((sym, Scalar(0x68200f6adcca84aba50d43afe7d34b1d9424efadee7702f37734f460b833fd57)), (cons, Scalar(0x7395bf2464ad008016e56384226a6c7f568f5f16d30312277c2cb1b504848a6f))),
   (cons, Scalar(0x5509d114dd51ee04483e1bed0d56c07259025bbc65d54ad49dc75ee2ac295117)): Cons((num, 1), (cons, Scalar(0x66b06a2ce9063b31894e7ae3d445b16b4b7eaa0129cde9b265f6f51138891319))),
@@ -148,6 +149,7 @@ open DSL in def expectedStore := [store| scalar_store: {
   (str, Scalar(0x3a0eacecf3e379c8c152fb390a8a4aa2ad40737411230fb7253378fb9c92eaff)): StrCons((char, 'C'), (str, Scalar(0x16507e8d322113e024b96229c8cd6bab88ecd5df04afd04414fce2fbc9c9ebdc))),
 }]
 
+open Syntax Hashing
 
 def tuples : List (Expr × ScalarStore) := [
   (expression, expectedStore)
