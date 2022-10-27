@@ -2,7 +2,7 @@ import LSpec
 import Lurk.Syntax.DSL
 import Lurk.Evaluation.Eval
 
-open Lurk.Syntax
+open Lurk.Syntax DSL
 
 -- TODO FIXME: bettter error handling, `.error ""` needs to be replaced
 
