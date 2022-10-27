@@ -87,20 +87,39 @@ partial def decodeExpr (ptr : ScalarPtr) : DecodeM Expr := do
       else throw s!"Invalid pointer for empty string:\n  {ptr}"
     | (.cons, .cons car cdr) => match ctx.memo.find? car with
       | some sym => decodeExprOf sym cdr
-      | none => throw s!"Pointer not found on memo:\n {car}"
+      | none =>
+        (← unfoldCons cdr).foldlM (init := ← getOrDecodeExpr car) fun fn argPtr =>
+          return .app fn (← getOrDecodeExpr argPtr)
     | _ => throw s!"Pointer tag {ptr.tag} incompatible with expression:\n  {expr}"
+
+partial def decodeBinders (binders : ScalarPtr) : DecodeM $ List (Name × Expr) := do
+  let binders ← unfoldCons binders
+  binders.data.mapM fun ptr => do match ← unfoldCons ptr with
+    | #[name, value] => do
+      let name : Name ← match ← getOrDecodeExpr name with
+        | .sym name => pure name
+        | e => throw s!"Expected a sym for a binder name but got {e.pprint true false}"
+      let value ← getOrDecodeExpr value
+      pure (name, value)
+    | x => throw s!"Expected a pair of name/value for a binder but got {x.size} elements"
 
 partial def decodeExprOf (carSym : String) (cdrPtr : ScalarPtr) : DecodeM Expr := do
   match (carSym, ← unfoldCons cdrPtr) with
   | ("nil", #[]) => return .lit .nil
   | ("t", #[]) => return .lit .t
   | ("quote", _) => sorry
-  | ("lambda", #[args, body]) => sorry
-  | ("let", _) => sorry
-  | ("letrec", _) => sorry
-  | ("mutrec", _) => sorry
+  | ("lambda", #[args, body]) =>
+    let args ← unfoldCons args
+    let args ← args.data.mapM getOrDecodeExpr
+    let args ← args.mapM fun e => match e with
+      | .sym name => pure name
+      | e => throw s!"Expected a sym for lambda arg but got {e.pprint true false}"
+    return .lam args (← getOrDecodeExpr body)
+  | ("let",    #[binders, body]) => return .letE (← decodeBinders binders) (← getOrDecodeExpr body)
+  | ("letrec", #[binders, body]) => return .letRecE (← decodeBinders binders) (← getOrDecodeExpr body)
+  | ("mutrec", #[binders, body]) => return .mutRecE (← decodeBinders binders) (← getOrDecodeExpr body)
   | ("begin", es) =>
-    es.foldlM (init := .lit .nil) fun acc e => return .begin acc (← getOrDecodeExpr e)
+    es.foldlM (init := .lit .nil) fun acc e => do pure $ .begin acc (← getOrDecodeExpr e)
   | ("hide", #[a, b]) => return .hide (← getOrDecodeExpr a) (← getOrDecodeExpr b)
   | ("cons", #[a, b]) => return .cons (← getOrDecodeExpr a) (← getOrDecodeExpr b)
   | ("strcons", #[a, b]) => return .strcons (← getOrDecodeExpr a) (← getOrDecodeExpr b)
