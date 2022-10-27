@@ -21,3 +21,4 @@ require LSpec from git
 
 lean_exe Tests.Evaluation
 lean_exe Tests.Hashing
+lean_exe Tests.Decoding
