@@ -55,7 +55,10 @@ structure Context where
   store : ScalarStore
   memo  : Std.RBMap ScalarPtr String compare
 
-abbrev State := Std.RBMap ScalarPtr Expr compare
+structure State where 
+  exprs : Std.RBMap ScalarPtr Expr compare
+  sexprs : Std.RBMap ScalarPtr SExpr compare
+deriving Inhabited
 
 abbrev DecodeM := ReaderT Context $ ExceptT String $ StateM State
 
@@ -67,6 +70,40 @@ partial def unfoldCons (ptr : ScalarPtr) (acc : Array ScalarPtr := #[]) :
   | some (.sym s) => return acc.push s
   | some x => throw s!"Invalid expression on a cons chain:\n  {x}"
   | none => throw s!"Pointer not found on the store:\n  {ptr}"
+
+mutual 
+
+partial def decodeSExpr (ptr : ScalarPtr) : DecodeM SExpr := do
+  let ctx ← read
+  match ctx.store.exprs.find? ptr with
+  | none => throw s!"Pointer not found on the store:\n  {ptr}"
+  | some expr => match (ptr.tag, expr) with
+    | (.nil, .sym ptr') => match ctx.memo.find? ptr' with
+      | some "nil" => return .lit .nil
+      | _ => throw s!"Pointer incompatible with nil:\n  {ptr'}"
+    | (.num, .num x) => return .lit $ .num x
+    | (.char, .char x) => return .lit $ .char (Char.ofNat x)
+    | (.sym, .sym x) => match ← getOrDecodeSExpr x with
+      | .lit $ .str s => return .sym s
+      | _ => throw s!"Invalid pointer for a symbol:\n  {x}"
+    | (.str, .strCons h t) => match (h.tag, ← getOrDecodeSExpr t) with
+      | (.char, .lit $ .str t) => return .lit $ .str ⟨Char.ofNat h.val :: t.data⟩
+      | _ => throw "Error when decoding string"
+    | (.str, .strNil) =>
+      if ptr.val == F.zero then return .lit $ .str ""
+      else throw s!"Invalid pointer for empty string:\n  {ptr}"
+    | (.cons, .cons car cdr) => 
+      return .cons (← getOrDecodeSExpr car) (← getOrDecodeSExpr cdr)
+    | _ => throw s!"Pointer tag {ptr.tag} incompatible with expression:\n  {expr}"
+
+partial def getOrDecodeSExpr (ptr : ScalarPtr) : DecodeM SExpr := do
+  match (← get).sexprs.find? ptr with
+  | some sexpr => pure sexpr
+  | none =>
+    let sexpr ← decodeSExpr ptr
+    modifyGet fun stt => (sexpr, {stt with sexprs := stt.sexprs.insert ptr sexpr})
+
+end
 
 mutual
 
@@ -111,7 +148,7 @@ partial def decodeExprOf (carSym : String) (cdrPtr : ScalarPtr) : DecodeM Expr :
   match (carSym, ← unfoldCons cdrPtr) with
   | ("nil", #[]) => return .lit .nil
   | ("t", #[]) => return .lit .t
-  | ("quote", _) => sorry
+  | ("quote", #[body]) => return .quote (← getOrDecodeSExpr body)
   | ("lambda", #[args, body]) =>
     let args ← unfoldCons args
     let args ← args.data.mapM getOrDecodeExpr
@@ -157,11 +194,11 @@ partial def decodeExprOf (carSym : String) (cdrPtr : ScalarPtr) : DecodeM Expr :
   | (x, y) => throw s!"Invalid tail length for {x}: {y.size}"
 
 partial def getOrDecodeExpr (ptr : ScalarPtr) : DecodeM Expr := do
-  match (← get).find? ptr with
+  match (← get).exprs.find? ptr with
   | some expr => pure expr
   | none =>
     let expr ← decodeExpr ptr
-    modifyGet fun stt => (expr, stt.insert ptr expr)
+    modifyGet fun stt => (expr, {stt with exprs := stt.exprs.insert ptr expr})
 
 end
 
