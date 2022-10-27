@@ -112,13 +112,17 @@ partial def decodeExpr (ptr : ScalarPtr) : DecodeM Expr := do
   match ctx.store.exprs.find? ptr with
   | none => throw s!"Pointer not found on the store:\n  {ptr}"
   | some expr => match (ptr.tag, expr) with
-    | (.nil, .sym ptr') => match ctx.memo.find? ptr' with
-      | some "nil" => return .lit .nil
-      | _ => throw s!"Pointer incompatible with nil:\n  {ptr'}"
+    | (.nil, .sym ptr') => match (ctx.memo.find? ptr, ptr.val == ptr'.val) with
+      | (some "nil", true) => return .lit .nil
+      | _ => throw s!"Pointer incompatible with nil:\n  {ptr}"
     | (.num, .num x) => return .lit $ .num x
     | (.char, .char x) => return .lit $ .char (Char.ofNat x)
     | (.sym, .sym x) => match ← getOrDecodeExpr x with
-      | .lit $ .str s => return .sym s
+      | .lit $ .str s => return match s with
+        | "NIL" => .lit .nil
+        | "T" => .lit .t
+        | "CURRENT-ENV" => .currEnv
+        | s => .sym s
       | _ => throw s!"Invalid pointer for a symbol:\n  {x}"
     | (.str, .strCons h t) => match (h.tag, ← getOrDecodeExpr t) with
       | (.char, .lit $ .str t) => return .lit $ .str ⟨Char.ofNat h.val :: t.data⟩
@@ -127,10 +131,15 @@ partial def decodeExpr (ptr : ScalarPtr) : DecodeM Expr := do
       if ptr.val == F.zero then return .lit $ .str ""
       else throw s!"Invalid pointer for empty string:\n  {ptr}"
     | (.cons, .cons car cdr) => match ctx.memo.find? car with
-      | some sym => decodeExprOf sym cdr
-      | none =>
-        (← unfoldCons cdr).foldlM (init := ← getOrDecodeExpr car) fun fn argPtr =>
-          return .app fn (← getOrDecodeExpr argPtr)
+      | none => match ← unfoldCons cdr with
+        | #[ptr] => return .app (← getOrDecodeExpr ptr) none
+        | ptrs => ptrs.foldlM (init := ← getOrDecodeExpr car) fun fn argPtr => do
+          pure $ .app fn $ some (← getOrDecodeExpr argPtr)
+      | some sym => match sym with
+        | "NIL" => sorry
+        | "T" => sorry
+        | "CURRENT-ENV" => sorry
+        | sym => decodeExprOf sym cdr
     | _ => throw s!"Pointer tag {ptr.tag} incompatible with expression:\n  {expr}"
 
 partial def decodeBinders (binders : ScalarPtr) : DecodeM $ List (Name × Expr) := do
@@ -184,7 +193,6 @@ partial def decodeExprOf (carSym : String) (cdrPtr : ScalarPtr) : DecodeM Expr :
   | ("<=", #[a, b]) => return .binaryOp .le (← getOrDecodeExpr a) (← getOrDecodeExpr b)
   | (">=", #[a, b]) => return .binaryOp .ge (← getOrDecodeExpr a) (← getOrDecodeExpr b)
   | ("eq", #[a, b]) => return .binaryOp .eq (← getOrDecodeExpr a) (← getOrDecodeExpr b)
-  | ("current-env", #[]) => return .currEnv
   | ("if", #[a, b, c]) =>
     return .ifE (← getOrDecodeExpr a) (← getOrDecodeExpr b) (← getOrDecodeExpr c)
   -- | ("terminal", _) => sorry
