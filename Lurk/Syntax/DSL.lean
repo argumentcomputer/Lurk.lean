@@ -1,18 +1,19 @@
 import Lurk.Syntax.ExprUtils
 
-namespace Lurk.Syntax.DSL
-
+namespace Lurk.Syntax
 open Lean Elab Meta Term
+
+namespace DSL
 
 def mkNameLit (name : String) :=
   mkAppM ``Name.mkSimple #[mkStrLit name]
 
 declare_syntax_cat lurk_literal
-syntax "t"       : lurk_literal
-syntax "nil"     : lurk_literal
-syntax num       : lurk_literal
-syntax str       : lurk_literal
-syntax char      : lurk_literal
+scoped syntax "t"       : lurk_literal
+scoped syntax "nil"     : lurk_literal
+scoped syntax num       : lurk_literal
+scoped syntax str       : lurk_literal
+scoped syntax char      : lurk_literal
 
 def elabLiteral : Syntax → TermElabM Lean.Expr
   | `(lurk_literal| t)   => return mkConst ``Lurk.Syntax.Literal.t
@@ -26,18 +27,21 @@ def elabLiteral : Syntax → TermElabM Lean.Expr
     mkAppM ``Lurk.Syntax.Literal.char #[c]
   | _ => throwUnsupportedSyntax
 
+end DSL
+
+namespace SExpr.DSL
+
 declare_syntax_cat                         sexpr
 scoped syntax lurk_literal               : sexpr
 scoped syntax ident                      : sexpr
 scoped syntax "(" sexpr* ")"             : sexpr
 scoped syntax "(" sexpr+ " . " sexpr ")" : sexpr
 
-open Lurk SExpr in 
 partial def elabSExpr : Syntax → TermElabM Lean.Expr
   | `(sexpr| $l:lurk_literal) => do
-    mkAppM ``SExpr.lit #[← elabLiteral l]
+    mkAppM ``SExpr.lit #[← DSL.elabLiteral l]
   | `(sexpr| $i:ident) => do
-    mkAppM ``SExpr.sym #[← mkNameLit i.getId.toString]
+    mkAppM ``SExpr.sym #[← DSL.mkNameLit i.getId.toString]
   | `(sexpr| ($es*)) => do
     let es ← es.mapM fun e => elabSExpr e
     mkAppM ``mkList #[← mkListLit (mkConst ``SExpr) es.data]
@@ -53,20 +57,24 @@ partial def elabSExpr : Syntax → TermElabM Lean.Expr
     else 
       throwUnsupportedSyntax 
 
-elab "[SExpr| " e:sexpr "]" : term =>
+elab "[sexpr| " e:sexpr "]" : term =>
   elabSExpr e
 
+end SExpr.DSL
+
+namespace DSL
+
 declare_syntax_cat lurk_bin_op
-syntax "+ "      : lurk_bin_op
-syntax "- "      : lurk_bin_op
-syntax "* "      : lurk_bin_op
-syntax "/ "      : lurk_bin_op
-syntax "= "      : lurk_bin_op
-syntax "< "      : lurk_bin_op
-syntax "> "      : lurk_bin_op
-syntax "<= "     : lurk_bin_op
-syntax ">= "     : lurk_bin_op
-syntax "eq "     : lurk_bin_op
+scoped syntax "+ "      : lurk_bin_op
+scoped syntax "- "      : lurk_bin_op
+scoped syntax "* "      : lurk_bin_op
+scoped syntax "/ "      : lurk_bin_op
+scoped syntax "= "      : lurk_bin_op
+scoped syntax "< "      : lurk_bin_op
+scoped syntax "> "      : lurk_bin_op
+scoped syntax "<= "     : lurk_bin_op
+scoped syntax ">= "     : lurk_bin_op
+scoped syntax "eq "     : lurk_bin_op
 
 def elabLurkBinOp : Syntax → TermElabM Lean.Expr
   | `(lurk_bin_op| +)  => return mkConst ``Lurk.Syntax.BinaryOp.sum
@@ -85,28 +93,28 @@ declare_syntax_cat lurk_expr
 declare_syntax_cat lurk_binding
 declare_syntax_cat lurk_bindings
 
-syntax "(" ident lurk_expr ")" : lurk_binding
-syntax  "(" lurk_binding* ")"  : lurk_bindings
+scoped syntax "(" ident lurk_expr ")" : lurk_binding
+scoped syntax  "(" lurk_binding* ")"  : lurk_bindings
 
-syntax lurk_literal                               : lurk_expr
-syntax ident                                      : lurk_expr
-syntax "(" "if" lurk_expr lurk_expr lurk_expr ")" : lurk_expr
-syntax "(" "lambda" "(" ident* ")" lurk_expr ")"  : lurk_expr
-syntax "(" "let" lurk_bindings lurk_expr ")"      : lurk_expr
-syntax "(" "letrec" lurk_bindings lurk_expr ")"   : lurk_expr
-syntax "(" "mutrec" lurk_bindings lurk_expr ")"   : lurk_expr
-syntax "(" "quote " sexpr ")"                     : lurk_expr
-syntax "," sexpr                                  : lurk_expr
-syntax "(" lurk_bin_op lurk_expr lurk_expr ")"    : lurk_expr
-syntax "(" "car" lurk_expr ")"                    : lurk_expr
-syntax "(" "cdr" lurk_expr ")"                    : lurk_expr
-syntax "(" "atom" lurk_expr ")"                   : lurk_expr
-syntax "(" "emit" lurk_expr ")"                   : lurk_expr
-syntax "(" "cons" lurk_expr lurk_expr ")"         : lurk_expr
-syntax "(" "strcons" lurk_expr lurk_expr ")"      : lurk_expr
-syntax "(" "begin" lurk_expr*  ")"                : lurk_expr
-syntax "current-env"                              : lurk_expr
-syntax "(" lurk_expr* ")"                         : lurk_expr
+scoped syntax lurk_literal                               : lurk_expr
+scoped syntax ident                                      : lurk_expr
+scoped syntax "(" "if" lurk_expr lurk_expr lurk_expr ")" : lurk_expr
+scoped syntax "(" "lambda" "(" ident* ")" lurk_expr ")"  : lurk_expr
+scoped syntax "(" "let" lurk_bindings lurk_expr ")"      : lurk_expr
+scoped syntax "(" "letrec" lurk_bindings lurk_expr ")"   : lurk_expr
+scoped syntax "(" "mutrec" lurk_bindings lurk_expr ")"   : lurk_expr
+scoped syntax "(" "quote " sexpr ")"                     : lurk_expr
+scoped syntax "," sexpr                                  : lurk_expr
+scoped syntax "(" lurk_bin_op lurk_expr lurk_expr ")"    : lurk_expr
+scoped syntax "(" "car" lurk_expr ")"                    : lurk_expr
+scoped syntax "(" "cdr" lurk_expr ")"                    : lurk_expr
+scoped syntax "(" "atom" lurk_expr ")"                   : lurk_expr
+scoped syntax "(" "emit" lurk_expr ")"                   : lurk_expr
+scoped syntax "(" "cons" lurk_expr lurk_expr ")"         : lurk_expr
+scoped syntax "(" "strcons" lurk_expr lurk_expr ")"      : lurk_expr
+scoped syntax "(" "begin" lurk_expr*  ")"                : lurk_expr
+scoped syntax "current-env"                              : lurk_expr
+scoped syntax "(" lurk_expr* ")"                         : lurk_expr
 
 /-- There are no type guarentees. -/
 partial def elabLurkIdents (i : TSyntax `ident) : TermElabM Lean.Expr := do 
@@ -157,9 +165,9 @@ partial def elabLurkExpr : TSyntax `lurk_expr → TermElabM Lean.Expr
   | `(lurk_expr| (mutrec $bind $body)) => do
     mkAppM ``Lurk.Syntax.Expr.mutRecE #[← elabLurkBindings bind, ← elabLurkExpr body]
   | `(lurk_expr| (quote $datum)) => do
-    mkAppM ``Lurk.Syntax.Expr.quote #[← elabSExpr datum]
+    mkAppM ``Lurk.Syntax.Expr.quote #[← SExpr.DSL.elabSExpr datum]
   | `(lurk_expr| ,$datum) => do
-    mkAppM ``Lurk.Syntax.Expr.quote #[← elabSExpr datum]
+    mkAppM ``Lurk.Syntax.Expr.quote #[← SExpr.DSL.elabSExpr datum]
   | `(lurk_expr| ($op:lurk_bin_op $e1 $e2)) => do
     mkAppM ``Lurk.Syntax.Expr.binaryOp
       #[← elabLurkBinOp op, ← elabLurkExpr e1, ← elabLurkExpr e2]
@@ -197,4 +205,17 @@ end
 elab "⟦ " e:lurk_expr " ⟧" : term =>
   elabLurkExpr e
 
-end Lurk.Syntax.DSL
+end DSL
+
+namespace SExpr.DSL
+
+def _quote := [sexpr| quote]
+def _nil   := [sexpr| nil]
+def _cons  := [sexpr| cons]
+def _car   := [sexpr| car]
+def _cdr   := [sexpr| cdr]
+def _begin   := [sexpr| begin]
+def _lambda   := [sexpr| lambda]
+
+end SExpr.DSL
+end Lurk.Syntax
