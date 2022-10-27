@@ -210,7 +210,6 @@ end DSL
 namespace SExpr.DSL
 
 def _quote := [sexpr| quote]
-def _nil   := [sexpr| nil]
 def _cons  := [sexpr| cons]
 def _car   := [sexpr| car]
 def _cdr   := [sexpr| cdr]

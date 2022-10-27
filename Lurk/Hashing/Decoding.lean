@@ -166,7 +166,7 @@ partial def getOrDecodeExpr (ptr : ScalarPtr) : DecodeM Expr := do
 end
 
 def enhanceStore (store : ScalarStore) : Context :=
-  let state := ⟨store.exprs, default, default, default⟩
+  let state := ⟨store.exprs, default, default, default, default⟩
   let (state, memo) : HashState × Std.RBMap ScalarPtr String compare :=
     knownSymbols.foldl (init := (state, default)) fun (state, memo) s =>
       let expr := if s == "nil" then .lit .nil else .sym s.toUpper
