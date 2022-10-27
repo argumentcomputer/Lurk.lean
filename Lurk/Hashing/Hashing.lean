@@ -9,8 +9,8 @@ def hashPtrPair (x y : ScalarPtr) : F :=
   .ofInt $ Poseidon.Lurk.hash x.tag.toF x.val y.tag.toF y.val
 
 def destructSExpr : SExpr → List Expr
-  | .lit  l   => [.lit l]
-  | .sym  s   => [.sym s]
+  | .lit l => [.lit l]
+  | .sym s => [.sym s]
   | .cons a (.lit .nil) => destructSExpr a
   | .cons a b => destructSExpr a ++ destructSExpr b
 
@@ -109,6 +109,6 @@ end
 end Lurk.Hashing
 
 open Lurk.Hashing in
-def Lurk.Syntax.Expr.hash (e : Expr) : ScalarStore × ScalarPtr := Id.run do
-  match ← StateT.run (hashExpr e) default with
-  | (ptr, stt) => (stt.store, ptr)
+def Lurk.Syntax.Expr.hash (e : Expr) : ScalarPtr × ScalarStore :=
+  match StateT.run (hashExpr e) default with
+  | (ptr, stt) => (ptr, stt.store)
