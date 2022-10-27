@@ -53,6 +53,14 @@ structure DecodeContext where
 
 abbrev DecodeM := ReaderT DecodeContext $ ExceptT String Id
 
+partial def unfoldCons (ptr : ScalarPtr) (acc : Array ScalarPtr := #[]) :
+    DecodeM $ Array ScalarPtr := do
+  match (← read).store.exprs.find? ptr with
+  | some (.cons h ⟨.nil, _⟩) => return acc.push h
+  | some (.cons h t) => unfoldCons t (acc.push h)
+  | some x => throw s!"Invalid expression on a cons chain:\n  {x}"
+  | none => throw s!"Pointer not found on the store:\n  {ptr}"
+
 partial def decodeExpr (ptr : ScalarPtr) : DecodeM Expr := do
   let ctx ← read
   match ctx.store.exprs.find? ptr with
@@ -71,8 +79,13 @@ partial def decodeExpr (ptr : ScalarPtr) : DecodeM Expr := do
       | _ => throw "Error when decoding string"
     | (.str, .strNil) =>
       if ptr.val == F.zero then return .lit $ .str ""
-      else throw "Invalid pointer for empty string:\n  {ptr}"
-    | (.cons, .cons car cdr) => sorry
+      else throw s!"Invalid pointer for empty string:\n  {ptr}"
+    | (.cons, .cons car cdr) => match ctx.memo.find? car with
+      | some "cons" => match ← unfoldCons cdr with
+        | #[a, b] => return .cons (← decodeExpr a) (← decodeExpr b)
+        | x => throw s!"Unexpected unfolding for a cons exprection {x}"
+      | some x => throw s!"Invalid expression keyword: {x}"
+      | none => throw s!"Pointer not found on memo:\n {car}"
     | _ => throw s!"Pointer tag {ptr.tag} incompatible with expression:\n  {expr}"
 
 def enhanceStore (store : ScalarStore) : DecodeContext :=
