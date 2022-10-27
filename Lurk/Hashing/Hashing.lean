@@ -139,8 +139,8 @@ partial def hashExpr (e : Expr) : HashM ScalarPtr := do
       | .lam args body => do
         let lambda ← hashExpr $ .sym `lambda
         let args ← hashExprList (args.map .sym)
-        let ptr ← hashExpr body
-        hashPtrList [lambda, args, ptr]
+        let body ← hashExpr body
+        hashPtrList [lambda, args, body]
       | .letE    binders body => hashBlock `let    binders body
       | .letRecE binders body => hashBlock `letrec binders body
       | .mutRecE binders body => hashBlock `mutrec binders body
