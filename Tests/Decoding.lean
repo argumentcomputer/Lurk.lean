@@ -8,16 +8,25 @@ open Lurk
 
 open Syntax.DSL Syntax.SExpr.DSL in
 def expressions := [
-  -- ⟦nil⟧,
-  -- ⟦t⟧,
-  -- ⟦current-env⟧,
-  -- ⟦()⟧,
-  ⟦(nil)⟧
-  -- ⟦(current-env)⟧,
-  -- ⟦(/ (- (+ 1 2) a) (* 4 3))⟧,
+  ⟦nil⟧,
+  ⟦t⟧,
+  ⟦current-env⟧,
+  ⟦()⟧,
+  ⟦(nil)⟧,
+  ⟦(t)⟧,
+  ⟦(current-env)⟧,
+  -- ⟦(nil t)⟧,
+  -- ⟦(t nil)⟧,
+  ⟦(current-env t nil)⟧,
+  ⟦(f)⟧,
+  -- ⟦(f a)⟧,
+  ⟦(/ (- (+ 1 2) a) (* 4 3))⟧,
   -- ⟦(begin)⟧,
-  -- .hide (.sym `a) (.sym `b),
-  -- ⟦(lambda (a b c) (begin (cons a b) c))⟧
+  ⟦(begin 1)⟧,
+  -- ⟦(begin nil)⟧,
+  ⟦(begin 1 2 3)⟧,
+  .hide (.sym `a) (.sym `b),
+  ⟦(lambda (a b c) (begin (cons a b) c))⟧
 ]
 
 open LSpec in
@@ -32,4 +41,4 @@ def main := do
       withExceptOk s!"Decoding {e.pprint true false} succeeds"
           (Lurk.Hashing.decode ptr store) fun e' =>
         tSeq ++ test
-          s!"Expected {e.pprint true false} equals resulting {e'.pprint true false}" (e == e')
+          s!"Expected {e.pprint true false} equals {e'.pprint true false}" (e == e')

@@ -70,6 +70,13 @@ partial def unfoldCons (ptr : ScalarPtr) (acc : Array ScalarPtr := #[]) :
 
 mutual
 
+partial def decodeApp (fn : Expr) (args : ScalarPtr) : DecodeM Expr := do
+  match ← unfoldCons args with
+  | #[] => throw s!"Empty unfolding of pointer:\n  {args}"
+  | #[nil!] => return .app fn none
+  | args => args.foldlM (init := fn) fun fn argPtr => do
+      pure $ .app fn $ some (← getOrDecodeExpr argPtr)
+
 partial def decodeExpr (ptr : ScalarPtr) : DecodeM Expr := do
   let ctx ← read
   match ctx.store.exprs.find? ptr with
@@ -94,15 +101,12 @@ partial def decodeExpr (ptr : ScalarPtr) : DecodeM Expr := do
       if ptr.val == F.zero then return .lit $ .str ""
       else throw s!"Invalid pointer for empty string:\n  {ptr}"
     | (.cons, .cons car cdr) => match ctx.memo.find? car with
-      | none => match ← unfoldCons cdr with
-        | #[ptr] => return .app (← getOrDecodeExpr ptr) none
-        | ptrs => ptrs.foldlM (init := ← getOrDecodeExpr car) fun fn argPtr => do
-          pure $ .app fn $ some (← getOrDecodeExpr argPtr)
       | some sym => match sym with
-        | "NIL" => sorry
-        | "T" => sorry
-        | "CURRENT-ENV" => sorry
+        | "nil" => decodeApp (.lit .nil) cdr
+        | "t" => decodeApp (.lit .t) cdr
+        | "current-env" => decodeApp (.currEnv) cdr
         | sym => decodeExprOf sym cdr
+      | none => decodeApp (← getOrDecodeExpr car) cdr
     | _ => throw s!"Pointer tag {ptr.tag} incompatible with expression:\n  {expr}"
 
 partial def decodeBinders (binders : ScalarPtr) : DecodeM $ List (Name × Expr) := do
