@@ -80,9 +80,9 @@ partial def decodeSExpr (ptr : ScalarPtr) : DecodeM SExpr := do
   match ctx.store.exprs.find? ptr with
   | none => throw s!"Pointer not found on the store:\n  {ptr}"
   | some expr => match (ptr.tag, expr) with
-    | (.nil, .sym ptr') => match ctx.memo.find? ptr' with
-      | some "nil" => return .lit .nil
-      | _ => throw s!"Pointer incompatible with nil:\n  {ptr'}"
+    | (.nil, .sym ptr') => match (ctx.memo.find? ptr, ptr.val == ptr'.val) with
+      | (some "nil", true) => return .lit .nil
+      | _ => throw s!"Pointer incompatible with nil:\n  {ptr}"
     | (.num, .num x) => return .lit $ .num x
     | (.char, .char x) => return .lit $ .char (Char.ofNat x)
     | (.sym, .sym x) => match ← getOrDecodeSExpr x with
@@ -160,8 +160,6 @@ partial def decodeBinders (binders : ScalarPtr) : DecodeM $ List (Name × Expr) 
 
 partial def decodeExprOf (carSym : String) (cdrPtr : ScalarPtr) : DecodeM Expr := do
   match (carSym, ← unfoldCons cdrPtr) with
-  | ("nil", #[]) => return .lit .nil
-  | ("t", #[]) => return .lit .t
   | ("quote", #[body]) => return .quote (← getOrDecodeSExpr body)
   | ("lambda", #[args, body]) =>
     let args ← unfoldCons args

@@ -28,7 +28,13 @@ def expressions := [
   ⟦(begin 1 2 3)⟧,
   .hide (.sym `a) (.sym `b),
   ⟦(lambda (a b c) (begin (cons a b) c))⟧,
-  ⟦(let ((a 1) (b c)) (+ a b))⟧
+  ⟦(let ((a 1) (b c)) (+ a b))⟧,
+  ⟦(quote 1)⟧,
+  ⟦(quote x)⟧,
+  ⟦(quote (nil))⟧,
+  ⟦(quote (nil 1))⟧,
+  ⟦(quote (nil . 1))⟧,
+  ⟦(quote ((nil . 1) x))⟧
 ]
 
 open LSpec in
