@@ -22,12 +22,13 @@ def expressions := [
   ⟦(f a)⟧,
   ⟦(f 1 q)⟧,
   ⟦(/ (- (+ 1 2) a) (* 4 3))⟧,
-  -- ⟦(begin)⟧,
+  ⟦(begin)⟧,
   ⟦(begin 1)⟧,
-  -- ⟦(begin nil)⟧,
+  ⟦(begin nil)⟧,
   ⟦(begin 1 2 3)⟧,
   .hide (.sym `a) (.sym `b),
-  ⟦(lambda (a b c) (begin (cons a b) c))⟧
+  ⟦(lambda (a b c) (begin (cons a b) c))⟧,
+  ⟦(let ((a 1) (b c)) (+ a b))⟧
 ]
 
 open LSpec in

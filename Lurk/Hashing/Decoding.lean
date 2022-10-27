@@ -174,7 +174,9 @@ partial def decodeExprOf (carSym : String) (cdrPtr : ScalarPtr) : DecodeM Expr :
   | ("letrec", #[binders, body]) => return .letRecE (← decodeBinders binders) (← getOrDecodeExpr body)
   | ("mutrec", #[binders, body]) => return .mutRecE (← decodeBinders binders) (← getOrDecodeExpr body)
   | ("begin", es) =>
-    es.foldlM (init := .lit .nil) fun acc e => do pure $ .begin acc (← getOrDecodeExpr e)
+    if es.isEmpty then return .begin (.lit .nil) (.lit .nil)
+    else es.foldlM (init := .lit .nil) fun acc e => do
+      pure $ .begin acc (← getOrDecodeExpr e)
   | ("hide", #[a, b]) => return .hide (← getOrDecodeExpr a) (← getOrDecodeExpr b)
   | ("cons", #[a, b]) => return .cons (← getOrDecodeExpr a) (← getOrDecodeExpr b)
   | ("strcons", #[a, b]) => return .strcons (← getOrDecodeExpr a) (← getOrDecodeExpr b)
