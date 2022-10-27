@@ -26,10 +26,10 @@ def elabLiteral : Syntax → TermElabM Lean.Expr
     mkAppM ``Lurk.Syntax.Literal.char #[c]
   | _ => throwUnsupportedSyntax
 
-declare_syntax_cat                        sexpr
-scoped syntax lurk_literal              : sexpr
-scoped syntax ident                     : sexpr
-scoped syntax "(" sexpr* ")"            : sexpr
+declare_syntax_cat                         sexpr
+scoped syntax lurk_literal               : sexpr
+scoped syntax ident                      : sexpr
+scoped syntax "(" sexpr* ")"             : sexpr
 scoped syntax "(" sexpr+ " . " sexpr ")" : sexpr
 
 open Lurk SExpr in 
