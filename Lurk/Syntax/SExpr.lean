@@ -39,6 +39,11 @@ def mkListWith (es : List SExpr) (tail : SExpr) : SExpr :=
 
 def mkList (es : List SExpr) := mkListWith es (.lit .nil)
 
+def toUpper : SExpr → SExpr
+  | lit l => lit l
+  | sym s => sym s.toUpper
+  | cons e₁ e₂ => cons e₁.toUpper e₂.toUpper
+
 instance : ToFormat SExpr where 
   format := pprint
 

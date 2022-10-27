@@ -100,9 +100,9 @@ def evalBinaryOp (v₁ v₂ : Value) : BinaryOp → EvalM Value
   | .ge    => return if (← num! v₁) >= (← num! v₂) then TRUE else FALSE
   | .eq    => return if v₁ == v₂ then TRUE else FALSE
 
-def Value.ofSExpr : SExpr → Value 
+def Value.ofSExpr : SExpr → Value
   | .lit l => .lit l
-  | .sym s => .sym s
+  | .sym s => .lit (.str (s.toString false))
   | .cons e₁ e₂ => .cons (Value.ofSExpr e₁) (Value.ofSExpr e₂)
 
 mutual

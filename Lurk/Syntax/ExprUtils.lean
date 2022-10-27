@@ -238,4 +238,34 @@ def beginTelescope : Expr → List Expr
   | .begin e₁ e₂ => beginTelescope e₁ ++ beginTelescope e₂
   | e => [e]
 
+mutual
+
+partial def bindersToUpper (bs : List (Name × Expr)) : List (Name × Expr) :=
+  bs.map fun (n, e) => (n.toUpper, e.toUpper)
+
+partial def toUpper : Expr → Expr
+  | .sym s => .sym s.toUpper
+  | .ifE a b c => .ifE a.toUpper b.toUpper c.toUpper
+  | .lam ns e => .lam (ns.map .toUpper) e.toUpper
+  | .letE bs e => .letE (bindersToUpper bs) e.toUpper
+  | .letRecE bs e => .letRecE (bindersToUpper bs) e.toUpper
+  | .mutRecE bs e => .mutRecE (bindersToUpper bs) e.toUpper
+  | .app e none => .app e.toUpper none
+  | .app e (some e') => .app e.toUpper e'.toUpper
+  | .quote se => .quote se.toUpper
+  | .binaryOp op e₁ e₂ => .binaryOp op e₁.toUpper e₂.toUpper
+  | .cons e₁ e₂ => .cons e₁.toUpper e₂.toUpper
+  | .strcons e₁ e₂ => .strcons e₁.toUpper e₂.toUpper
+  | .atom e => .atom e.toUpper
+  | .car e => .car e.toUpper
+  | .cdr e => .cdr e.toUpper
+  | .emit e => .emit e.toUpper
+  | .begin e₁ e₂ => .begin e₁.toUpper e₂.toUpper
+  | .hide e₁ e₂ => .hide e₁.toUpper e₂.toUpper
+  | .commit e => .commit e.toUpper
+  | .comm e => .comm e.toUpper
+  | e => e
+
+end
+
 end Lurk.Syntax.Expr

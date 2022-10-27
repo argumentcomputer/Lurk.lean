@@ -4,8 +4,11 @@ namespace Lurk.Hashing
 
 open Lurk.Syntax
 
-def hashString' (s : String) (state : HashState) : ScalarPtr × HashState :=
+def hashSymbol (s : String) (state : HashState) : ScalarPtr × HashState :=
   StateT.run (hashString s) state
+
+def hashExpr' (e : Expr) (state : HashState) : ScalarPtr × HashState :=
+  StateT.run (hashExpr e) state
 
 def knownSymbols := [
   "nil",
@@ -61,6 +64,7 @@ partial def unfoldCons (ptr : ScalarPtr) (acc : Array ScalarPtr := #[]) :
   match (← read).store.exprs.find? ptr with
   | some (.cons h ⟨.nil, _⟩) => return acc.push h
   | some (.cons h t) => unfoldCons t (acc.push h)
+  | some (.sym s) => return acc.push s
   | some x => throw s!"Invalid expression on a cons chain:\n  {x}"
   | none => throw s!"Pointer not found on the store:\n  {ptr}"
 
@@ -79,8 +83,8 @@ partial def decodeExpr (ptr : ScalarPtr) : DecodeM Expr := do
     | (.sym, .sym x) => match ← getOrDecodeExpr x with
       | .lit $ .str s => return .sym s
       | _ => throw s!"Invalid pointer for a symbol:\n  {x}"
-    | (.str, .strCons h t) => match (← getOrDecodeExpr h, ← getOrDecodeExpr t) with
-      | (.lit $ .char h, .lit $ .str t) => return .lit $ .str ⟨h :: t.data⟩
+    | (.str, .strCons h t) => match (h.tag, ← getOrDecodeExpr t) with
+      | (.char, .lit $ .str t) => return .lit $ .str ⟨Char.ofNat h.val :: t.data⟩
       | _ => throw "Error when decoding string"
     | (.str, .strNil) =>
       if ptr.val == F.zero then return .lit $ .str ""
@@ -165,7 +169,8 @@ def enhanceStore (store : ScalarStore) : Context :=
   let state := ⟨store.exprs, default, default, default, default⟩
   let (state, memo) : HashState × Std.RBMap ScalarPtr String compare :=
     knownSymbols.foldl (init := (state, default)) fun (state, memo) s =>
-      let (ptr, state) := hashString' s.toUpper state
+      let expr := if s == "nil" then .lit .nil else .sym s.toUpper
+      let (ptr, state) := hashExpr' expr state
       (state, memo.insert ptr s)
   ⟨state.store, memo⟩
 
