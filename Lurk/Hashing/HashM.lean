@@ -65,6 +65,7 @@ structure HashState where
   charCache   : RBMap Char   ScalarPtr compare
   stringCache : RBMap String ScalarPtr compare
   exprCache   : RBMap Expr   ScalarPtr compare
+  sexprCache  : RBMap SExpr  ScalarPtr compare
   deriving Inhabited
 
 def HashState.store (stt : HashState) : ScalarStore :=
