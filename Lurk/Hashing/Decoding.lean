@@ -99,7 +99,8 @@ partial def decodeExprOf (carSym : String) (cdrPtr : ScalarPtr) : DecodeM Expr :
   | ("let", _) => sorry
   | ("letrec", _) => sorry
   | ("mutrec", _) => sorry
-  | ("begin", _) => sorry
+  | ("begin", es) =>
+    es.foldlM (init := .lit .nil) fun acc e => return .begin acc (← getOrDecodeExpr e)
   | ("hide", #[a, b]) => return .hide (← getOrDecodeExpr a) (← getOrDecodeExpr b)
   | ("cons", #[a, b]) => return .cons (← getOrDecodeExpr a) (← getOrDecodeExpr b)
   | ("strcons", #[a, b]) => return .strcons (← getOrDecodeExpr a) (← getOrDecodeExpr b)
