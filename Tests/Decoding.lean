@@ -6,13 +6,18 @@ import Lurk.Hashing.Decoding
 
 open Lurk
 
-open Syntax.DSL Syntax.SExpr.DSL in 
-def nilExpr := ⟦
-  (current-env)
-⟧
-
+open Syntax.DSL Syntax.SExpr.DSL in
 def expressions := [
-  nilExpr
+  -- ⟦nil⟧,
+  -- ⟦t⟧,
+  -- ⟦current-env⟧,
+  -- ⟦()⟧,
+  ⟦(nil)⟧
+  -- ⟦(current-env)⟧,
+  -- ⟦(/ (- (+ 1 2) a) (* 4 3))⟧,
+  -- ⟦(begin)⟧,
+  -- .hide (.sym `a) (.sym `b),
+  -- ⟦(lambda (a b c) (begin (cons a b) c))⟧
 ]
 
 open LSpec in
