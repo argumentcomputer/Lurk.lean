@@ -64,12 +64,14 @@ abbrev DecodeM := ReaderT Context $ ExceptT String $ StateM State
 
 partial def unfoldCons (ptr : ScalarPtr) (acc : Array ScalarPtr := #[]) :
     DecodeM $ Array ScalarPtr := do
-  match (← read).store.exprs.find? ptr with
-  | some (.cons h ⟨.nil, _⟩) => return acc.push h
-  | some (.cons h t) => unfoldCons t (acc.push h)
-  | some (.sym s) => return acc.push s
-  | some x => throw s!"Invalid expression on a cons chain:\n  {x}"
-  | none => throw s!"Pointer not found on the store:\n  {ptr}"
+  match (← read).memo.find? ptr with
+  | some "nil" => return acc
+  | _ => match (← read).store.exprs.find? ptr with
+    | some (.cons h ⟨.nil, _⟩) => return acc.push h
+    | some (.cons h t) => unfoldCons t (acc.push h)
+    | some (.sym s) => return acc.push s
+    | some x => throw s!"Invalid expression on a cons chain:\n  {x}"
+    | none => throw s!"Pointer not found on the store:\n  {ptr}"
 
 mutual 
 
@@ -109,8 +111,7 @@ mutual
 
 partial def decodeApp (fn : Expr) (args : ScalarPtr) : DecodeM Expr := do
   match ← unfoldCons args with
-  | #[] => throw s!"Empty unfolding of pointer:\n  {args}"
-  | #[nil!] => return .app fn none
+  | #[] => return .app fn none
   | args => args.foldlM (init := fn) fun fn argPtr => do
       pure $ .app fn $ some (← getOrDecodeExpr argPtr)
 
