@@ -1,5 +1,6 @@
 import Lean
 import Lurk.Syntax.Literal
+import YatimaStdLib.Lean
 
 open Std 
 
@@ -7,6 +8,7 @@ namespace Lurk.Syntax
 
 inductive SExpr where
   | lit : Literal → SExpr
+  | sym : Lean.Name → SExpr
   | cons : SExpr → SExpr → SExpr
   deriving Repr, BEq, Inhabited, Ord
 
@@ -16,6 +18,7 @@ open Format ToFormat in
 partial def pprint (e : SExpr) (pretty := true) : Format :=
   match e with
   | .lit l     => format l
+  | .sym s     => format s
   | e@(.cons ..) => 
     let (es, tail) := telescopeCons [] e
       let tail := match tail with
@@ -35,6 +38,11 @@ def mkListWith (es : List SExpr) (tail : SExpr) : SExpr :=
   es.foldr (fun e acc => .cons e acc) tail
 
 def mkList (es : List SExpr) := mkListWith es (.lit .nil)
+
+def toUpper : SExpr → SExpr
+  | lit l => lit l
+  | sym s => sym s.toUpper
+  | cons e₁ e₂ => cons e₁.toUpper e₂.toUpper
 
 instance : ToFormat SExpr where 
   format := pprint

@@ -2,9 +2,9 @@ import LSpec
 import Lurk.Syntax.DSL
 import Lurk.Evaluation.Eval
 
-open Lurk.Syntax
+open Lurk.Syntax DSL SExpr.DSL
 
--- TODO FIXME: bettter error handling, `.error ""` needs to be replaced
+-- TODO FIXME: better error handling, `.error ""` needs to be replaced
 
 abbrev Test := Except String Lurk.Evaluation.Value × Expr
 

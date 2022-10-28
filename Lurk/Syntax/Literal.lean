@@ -2,6 +2,9 @@ import Lurk.Arithmetic
 
 open Std
 
+def Lean.Name.toUpper (n : Lean.Name) : Lean.Name :=
+  .mkSimple (n.toString false).toUpper
+
 namespace Lurk.Syntax
 
 /-- Basic Lurk primitives -/

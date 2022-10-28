@@ -7,6 +7,7 @@ open Lurk.Syntax Std
 
 inductive Value where
   | lit  : Literal → Value
+  | sym  : Name → Value 
   | lam  : List Name → List (Name × Thunk Value) →
     (List (Name × Thunk Value)) × Expr → Value
   | cons : Value → Value → Value
@@ -32,6 +33,7 @@ open Format ToFormat in
 partial def Value.pprint (v : Value) (pretty := true) : Format :=
   match v with
     | .lit l => format l
+    | .sym s => format s -- TODO: maybe should escape
     | .lam ns _ (_, lb) => paren $
       group ("lambda" ++ line ++ paren (fmtNames ns)) ++ line ++ lb.pprint pretty
     | e@(.cons ..) =>
@@ -98,8 +100,9 @@ def evalBinaryOp (v₁ v₂ : Value) : BinaryOp → EvalM Value
   | .ge    => return if (← num! v₁) >= (← num! v₂) then TRUE else FALSE
   | .eq    => return if v₁ == v₂ then TRUE else FALSE
 
-def Value.ofSExpr : SExpr → Value 
+def Value.ofSExpr : SExpr → Value
   | .lit l => .lit l
+  | .sym s => .lit (.str (s.toString false))
   | .cons e₁ e₂ => .cons (Value.ofSExpr e₁) (Value.ofSExpr e₂)
 
 mutual
