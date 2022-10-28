@@ -1,14 +1,11 @@
-import Lurk.Hashing.Hashing
+import Lurk.Hashing.Encoding
 
 namespace Lurk.Hashing
 
 open Lurk.Syntax
 
-def hashSymbol (s : String) (state : HashState) : ScalarPtr × HashState :=
-  StateT.run (hashString s) state
-
 def hashExpr' (e : Expr) (state : HashState) : ScalarPtr × HashState :=
-  StateT.run (hashExpr e) state
+  StateT.run (encodeExpr e) state
 
 def knownSymbols := [
   "nil",

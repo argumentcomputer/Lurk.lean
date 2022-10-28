@@ -1,7 +1,6 @@
 import LSpec
 import Lurk.Syntax.DSL
 import Lurk.Syntax.Printing
-import Lurk.Hashing.StoreDSL
 import Lurk.Hashing.Decoding
 
 open Lurk
@@ -42,10 +41,7 @@ def main := do
   lspecIO $ expressions.foldl (init := .done)
     fun tSeq (e : Syntax.Expr) =>
       let e := e.toUpper
-      let (ptr, store) := e.hash
-      -- dbg_trace ptr
-      -- dbg_trace "------------------"
-      -- dbg_trace store
+      let (ptr, store) := e.encode
       withExceptOk s!"Decoding {e.pprint true false} succeeds"
           (Lurk.Hashing.decode ptr store) fun e' =>
         tSeq ++ test
