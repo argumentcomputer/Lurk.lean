@@ -7,7 +7,6 @@ inductive AST
   | str : String → AST
   | sym : String → AST
   | cons : AST → AST → AST
-  | stac : AST → AST
 
 namespace AST
 
