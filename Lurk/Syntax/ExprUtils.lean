@@ -202,15 +202,15 @@ partial def replaceFreeVars (map : Std.RBMap Name Expr compare) : Expr → Expr
     | none => .sym n
   | .ifE e₁ e₂ e₃ => .ifE (replaceFreeVars map e₁)
     (replaceFreeVars map e₂) (replaceFreeVars map e₃)
-  | .lam ns e => .lam ns $ replaceFreeVars (map.filterOut (.ofList ns)) e
+  | .lam ns e => .lam ns $ replaceFreeVars (map.filterOut (.ofList ns _)) e
   | .letE bindings body =>
-    let map' := map.filterOut (.ofList (bindings.map (·.1)))
+    let map' := map.filterOut (.ofList (bindings.map (·.1)) _)
     .letE (replaceBindersFreeVars map bindings false) $ replaceFreeVars map' body
   | .letRecE bindings body =>
-    let map' := map.filterOut (.ofList (bindings.map (·.1)))
+    let map' := map.filterOut (.ofList (bindings.map (·.1)) _)
     .letRecE (replaceBindersFreeVars map bindings true) $ replaceFreeVars map' body
   | .mutRecE bindings body =>
-    let map' := map.filterOut (.ofList (bindings.map (·.1)))
+    let map' := map.filterOut (.ofList (bindings.map (·.1)) _)
     .mutRecE (replaceBindersFreeVars map bindings true) $ replaceFreeVars map' body
   | .app e₁ e₂? => .app (replaceFreeVars map e₁) $ e₂?.map (replaceFreeVars map)
   | .binaryOp op e₁ e₂ => .binaryOp op (replaceFreeVars map e₁) (replaceFreeVars map e₂)
