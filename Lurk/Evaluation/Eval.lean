@@ -151,7 +151,7 @@ partial def evalM (env : Env) (e : Expr) (iter := 0) : EvalM Value := do
   | .app fn none => do 
     match fn with
     | .currEnv =>
-      return .env $ ← env.foldM (init := default)
+      return .env $ ← env.foldlM (init := default)
         fun acc n e => 
         return (n, ← e) :: acc
     | _ =>

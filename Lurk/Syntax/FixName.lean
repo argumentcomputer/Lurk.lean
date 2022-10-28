@@ -1,14 +1,14 @@
-import Lean
+import Std.Data.RBMap
 
 namespace Lurk.Syntax
 
-open Std (RBTree) in
+open Std (RBSet) in
 /--
 List of valid characters for Lurk identifiers. The order is shuffled to
 avoid an unbalanced `RBTree`.
 -/
-def validCharsTree : RBTree Char compare :=
-  RBTree.ofList [
+def validCharsTree : RBSet Char compare :=
+  RBSet.ofList [
     'e', 'C', '6', 'D', 'E', 'f', 'F', '7',
     'G', 'y', '8', 'z', '2', 'H', '3', '9',
     'm', 'A', 'W', 'B', '4', 'n', '5', 'X',
@@ -17,7 +17,7 @@ def validCharsTree : RBTree Char compare :=
     'I', 'K', 'a', 'L', 'O', 'J', 'P', 'b',
     'U', 'u', '0', 'v', 'c', 'V', 'd', '1',
     'q', 'Q', 'w', 'R', '-', 'r', ':', 'x',
-    '_']
+    '_'] _
 
 def charToHex (c : Char) : String :=
   let n  := Char.toNat c;

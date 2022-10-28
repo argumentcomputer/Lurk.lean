@@ -51,7 +51,7 @@ instance : BEq ScalarStore where
   beq x y := x.exprs.toList == y.exprs.toList
 
 def ScalarStore.ofList (exprs : List (ScalarPtr × ScalarExpr)) : ScalarStore :=
-  ⟨.ofList exprs⟩
+  ⟨.ofList exprs _⟩
 
 def ScalarStore.toString (s : ScalarStore) : String :=
   let body := ",\n".intercalate $ s.exprs.toList.map fun (k, v) => s!"  {k}: {v}"
