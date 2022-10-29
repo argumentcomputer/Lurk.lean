@@ -39,20 +39,27 @@ scoped syntax "(" ast* ")"           : ast
 scoped syntax "(" ast+ " . " ast ")" : ast
 scoped syntax "," ast                : ast -- quoting
 
-set_option hygiene false in
+mutual
+
+partial def elabASTCons (xs : Array $ TSyntax `ast) : TermElabM Lean.Expr :=
+  xs.foldrM (init := Lean.mkConst ``AST.nil)
+    fun x acc => do mkAppM ``AST.cons #[← elabAST x, acc]
+
 partial def elabAST : TSyntax `ast → TermElabM Lean.Expr
   | `(ast| $n:num) => mkAppM ``AST.num #[mkNatLit n.getNat]
   | `(ast| $c:char) => do
-    let c ← mkAppM ``Char.ofNat #[mkNatLit c.getChar.val.toNat]
-    mkAppM ``AST.char #[c]
+    mkAppM ``AST.char #[← mkAppM ``Char.ofNat #[mkNatLit c.getChar.val.toNat]]
   | `(ast| $s:str) => mkAppM ``AST.str #[mkStrLit s.getString]
   | `(ast| $s:sym) => elabSym s
-  | `(ast| ($xs*)) => xs.foldrM (init := Lean.mkConst ``AST.nil)
-    fun x acc => do mkAppM ``AST.cons #[← elabAST x, acc]
-  | `(ast| ($xs* . $x)) => do
-    mkAppM ``AST.cons ((← xs.mapM elabAST).push (← elabAST x))
-  | `(ast| ,$x:ast) => do elabAST $ ← `(ast| (quote $x)) -- no hygiene!
+  | `(ast| ($xs*)) => elabASTCons xs
+  | `(ast| ($xs* . $x)) => do mkAppM ``AST.cons #[← elabASTCons xs, ← elabAST x]
+  | `(ast| ,$x:ast) => do
+    let quote ← mkAppM ``AST.sym #[mkStrLit "quote"]
+    let tail ← mkAppM ``AST.cons #[← elabAST x, Lean.mkConst ``AST.nil]
+    mkAppM ``AST.cons #[quote, tail]
   | _ => throwUnsupportedSyntax
+
+end
 
 elab "⟦ " x:ast " ⟧" : term =>
   elabAST x
