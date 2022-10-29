@@ -10,6 +10,12 @@ inductive AST
 
 namespace AST
 
+def mkCons (xs : List AST) : AST :=
+  xs.foldr (init := .nil) fun x acc => .cons x acc
+
+def mkQuote (x : AST) : AST :=
+  mkCons [.sym "quote", x]
+
 def upper : AST → AST
   | sym s => sym s.toUpper
   | cons a b => cons a.upper b.upper

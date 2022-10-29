@@ -41,9 +41,8 @@ scoped syntax "," ast                : ast -- quoting
 
 mutual
 
-partial def elabASTCons (xs : Array $ TSyntax `ast) : TermElabM Lean.Expr :=
-  xs.foldrM (init := Lean.mkConst ``AST.nil)
-    fun x acc => do mkAppM ``AST.cons #[← elabAST x, acc]
+partial def elabASTCons (xs : Array $ TSyntax `ast) : TermElabM Lean.Expr := do
+  mkAppM ``AST.mkCons #[← mkListLit (Lean.mkConst ``AST) (← xs.data.mapM elabAST)]
 
 partial def elabAST : TSyntax `ast → TermElabM Lean.Expr
   | `(ast| $n:num) => mkAppM ``AST.num #[mkNatLit n.getNat]
@@ -53,10 +52,7 @@ partial def elabAST : TSyntax `ast → TermElabM Lean.Expr
   | `(ast| $s:sym) => elabSym s
   | `(ast| ($xs*)) => elabASTCons xs
   | `(ast| ($xs* . $x)) => do mkAppM ``AST.cons #[← elabASTCons xs, ← elabAST x]
-  | `(ast| ,$x:ast) => do
-    let quote ← mkAppM ``AST.sym #[mkStrLit "quote"]
-    let tail ← mkAppM ``AST.cons #[← elabAST x, Lean.mkConst ``AST.nil]
-    mkAppM ``AST.cons #[quote, tail]
+  | `(ast| ,$x:ast) => do mkAppM ``AST.mkQuote #[← elabAST x]
   | _ => throwUnsupportedSyntax
 
 end
