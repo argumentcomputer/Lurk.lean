@@ -1,13 +1,12 @@
 import LSpec
-import Lurk.Syntax.DSL
-import Lurk.Syntax.Printing
-import Lurk.Hashing.DSL
-import Lurk.Hashing.Encoding
+import Lurk.Syntax2.DSL
+import Lurk.Hashing2.DSL
+import Lurk.Hashing2.Hashing
 
 open Lurk
 
-open Syntax.DSL Syntax.SExpr.DSL in 
-def expression := ⟦
+open Syntax.DSL in 
+def ast := ⟦
   (begin
     (lambda (x y) (+ x y))
     (cons 1 2)
@@ -149,107 +148,6 @@ open Hashing.DSL in def expectedStore := [store| scalar_store: {
   (str, Scalar(0x3a0eacecf3e379c8c152fb390a8a4aa2ad40737411230fb7253378fb9c92eaff)): StrCons((char, 'C'), (str, Scalar(0x16507e8d322113e024b96229c8cd6bab88ecd5df04afd04414fce2fbc9c9ebdc))),
 }]
 
-open Syntax.DSL Syntax.SExpr.DSL in 
-def quoteTest := ⟦
-  (quote (nil))
-⟧
-
-open Hashing.DSL in def quoteTestRes := [store| scalar_store: {
-  (nil, Scalar(0x02e1314a79caf97ee88842647fe82bb88f5f795845cd3ed258ff172dae38cdb2)): Sym((str, Scalar(0x02e1314a79caf97ee88842647fe82bb88f5f795845cd3ed258ff172dae38cdb2))),
-  (cons, Scalar(0x3f48b5cba97c86f36c3a75457703efc6dd3fe9c9417fd8a9bd4ffc4a1a8e48b3)): Cons((cons, Scalar(0x44d99a3ddfa5cc571d44990ad30ed24267f780b8f376fa08b64a6ffafdedb39e)), (nil, Scalar(0x02e1314a79caf97ee88842647fe82bb88f5f795845cd3ed258ff172dae38cdb2))),
-  (cons, Scalar(0x44d99a3ddfa5cc571d44990ad30ed24267f780b8f376fa08b64a6ffafdedb39e)): Cons((sym, Scalar(0x02e1314a79caf97ee88842647fe82bb88f5f795845cd3ed258ff172dae38cdb2)), (sym, Scalar(0x02e1314a79caf97ee88842647fe82bb88f5f795845cd3ed258ff172dae38cdb2))),
-  (cons, Scalar(0x4c6811884352c2523733aba10b061f81db334536f74ac15782d6cddc29fef91c)): Cons((sym, Scalar(0x3b165850855659488b09987a470794b55365ad166a526926f332a74433a2316f)), (cons, Scalar(0x3f48b5cba97c86f36c3a75457703efc6dd3fe9c9417fd8a9bd4ffc4a1a8e48b3))),
-  (sym, Scalar(0x02e1314a79caf97ee88842647fe82bb88f5f795845cd3ed258ff172dae38cdb2)): Sym((str, Scalar(0x02e1314a79caf97ee88842647fe82bb88f5f795845cd3ed258ff172dae38cdb2))),
-  (sym, Scalar(0x3b165850855659488b09987a470794b55365ad166a526926f332a74433a2316f)): Sym((str, Scalar(0x3b165850855659488b09987a470794b55365ad166a526926f332a74433a2316f))),
-  (str, Scalar(0)): StrNil,
-  (str, Scalar(0x02e1314a79caf97ee88842647fe82bb88f5f795845cd3ed258ff172dae38cdb2)): StrCons((char, 'N'), (str, Scalar(0x2a7575c0facca35dc32adee47b9cdf5584f18b6e9d00a8c229b83e8815a4ba09))),
-  (str, Scalar(0x0b56ad382634f8bd7910c39be6b7def4f958a18231cf042d2cd110a6179d743b)): StrCons((char, 'O'), (str, Scalar(0x270bba6f52b3b2bf60505cd551e6b50f2c952c2ddeeaf79c40e54bd82a680866))),
-  (str, Scalar(0x18118519a123348a6b31a86f2688156dc236615cff46dfa0f013496f4bc18570)): StrCons((char, 'L'), (str, Scalar(0))),
-  (str, Scalar(0x270bba6f52b3b2bf60505cd551e6b50f2c952c2ddeeaf79c40e54bd82a680866)): StrCons((char, 'T'), (str, Scalar(0x4b25e77c7077aae2a9047661389410e8f570338bf47570a19453d40ff24fcff8))),
-  (str, Scalar(0x2a7575c0facca35dc32adee47b9cdf5584f18b6e9d00a8c229b83e8815a4ba09)): StrCons((char, 'I'), (str, Scalar(0x18118519a123348a6b31a86f2688156dc236615cff46dfa0f013496f4bc18570))),
-  (str, Scalar(0x3b165850855659488b09987a470794b55365ad166a526926f332a74433a2316f)): StrCons((char, 'Q'), (str, Scalar(0x5c294ee38eda2488bff3c260764617fa1fcf7eddf29a0cfad97bf39d9c5827dd))),
-  (str, Scalar(0x4b25e77c7077aae2a9047661389410e8f570338bf47570a19453d40ff24fcff8)): StrCons((char, 'E'), (str, Scalar(0))),
-  (str, Scalar(0x5c294ee38eda2488bff3c260764617fa1fcf7eddf29a0cfad97bf39d9c5827dd)): StrCons((char, 'U'), (str, Scalar(0x0b56ad382634f8bd7910c39be6b7def4f958a18231cf042d2cd110a6179d743b)))
-}]
-
-open Hashing.DSL in def quoteTestEx := [store| scalar_store: {
-  (nil, Scalar(0x02e1314a79caf97ee88842647fe82bb88f5f795845cd3ed258ff172dae38cdb2)): Sym((str, Scalar(0x02e1314a79caf97ee88842647fe82bb88f5f795845cd3ed258ff172dae38cdb2))),
-  (cons, Scalar(0x4ea6b11b5ac9a37f75f1f52a0d2a712021f0224a7228ad947a925b18aebcf533)): Cons((sym, Scalar(0x3b165850855659488b09987a470794b55365ad166a526926f332a74433a2316f)), (cons, Scalar(0x5018526d52eed2c3f03c17ecca6e1af855d24ab51a399ceb94270343bdd779fb))),
-  (cons, Scalar(0x42570206e353787d3b347f3f169a8a985214d6745648a715ecb6f48822d8ce6e)): Cons((nil, Scalar(0x02e1314a79caf97ee88842647fe82bb88f5f795845cd3ed258ff172dae38cdb2)), (nil, Scalar(0x02e1314a79caf97ee88842647fe82bb88f5f795845cd3ed258ff172dae38cdb2))),
-  (cons, Scalar(0x5018526d52eed2c3f03c17ecca6e1af855d24ab51a399ceb94270343bdd779fb)): Cons((cons, Scalar(0x42570206e353787d3b347f3f169a8a985214d6745648a715ecb6f48822d8ce6e)), (nil, Scalar(0x02e1314a79caf97ee88842647fe82bb88f5f795845cd3ed258ff172dae38cdb2))),
-  (sym, Scalar(0x3b165850855659488b09987a470794b55365ad166a526926f332a74433a2316f)): Sym((str, Scalar(0x3b165850855659488b09987a470794b55365ad166a526926f332a74433a2316f))),
-  (str, Scalar(0x0000000000000000000000000000000000000000000000000000000000000000)): StrNil,
-  (str, Scalar(0x2a7575c0facca35dc32adee47b9cdf5584f18b6e9d00a8c229b83e8815a4ba09)): StrCons((char, 'I'), (str, Scalar(0x18118519a123348a6b31a86f2688156dc236615cff46dfa0f013496f4bc18570))),
-  (str, Scalar(0x0b56ad382634f8bd7910c39be6b7def4f958a18231cf042d2cd110a6179d743b)): StrCons((char, 'O'), (str, Scalar(0x270bba6f52b3b2bf60505cd551e6b50f2c952c2ddeeaf79c40e54bd82a680866))),
-  (str, Scalar(0x270bba6f52b3b2bf60505cd551e6b50f2c952c2ddeeaf79c40e54bd82a680866)): StrCons((char, 'T'), (str, Scalar(0x4b25e77c7077aae2a9047661389410e8f570338bf47570a19453d40ff24fcff8))),
-  (str, Scalar(0x3b165850855659488b09987a470794b55365ad166a526926f332a74433a2316f)): StrCons((char, 'Q'), (str, Scalar(0x5c294ee38eda2488bff3c260764617fa1fcf7eddf29a0cfad97bf39d9c5827dd))),
-  (str, Scalar(0x18118519a123348a6b31a86f2688156dc236615cff46dfa0f013496f4bc18570)): StrCons((char, 'L'), (str, Scalar(0x0000000000000000000000000000000000000000000000000000000000000000))),
-  (str, Scalar(0x02e1314a79caf97ee88842647fe82bb88f5f795845cd3ed258ff172dae38cdb2)): StrCons((char, 'N'), (str, Scalar(0x2a7575c0facca35dc32adee47b9cdf5584f18b6e9d00a8c229b83e8815a4ba09))),
-  (str, Scalar(0x5c294ee38eda2488bff3c260764617fa1fcf7eddf29a0cfad97bf39d9c5827dd)): StrCons((char, 'U'), (str, Scalar(0x0b56ad382634f8bd7910c39be6b7def4f958a18231cf042d2cd110a6179d743b))),
-  (str, Scalar(0x4b25e77c7077aae2a9047661389410e8f570338bf47570a19453d40ff24fcff8)): StrCons((char, 'E'), (str, Scalar(0x0000000000000000000000000000000000000000000000000000000000000000))),
-}]
-
-open Syntax.DSL Syntax.SExpr.DSL in 
-def quoteNum := ⟦
-  (quote sym)
-⟧
-
-open Hashing.DSL in def quoteNumRes := [store| scalar_store: {
-  (nil, Scalar(0x02e1314a79caf97ee88842647fe82bb88f5f795845cd3ed258ff172dae38cdb2)): Sym((str, Scalar(0x02e1314a79caf97ee88842647fe82bb88f5f795845cd3ed258ff172dae38cdb2))),
-  (cons, Scalar(0x4ac95a5a5dd5c3745ddbb22378621e962cf938cac305c885c9fdd0c9ec910d15)): Cons((sym, Scalar(0x43517c2d853a0064da4eafa63d0577b33d81032424553a3e8966b7c198074dcf)), (nil, Scalar(0x02e1314a79caf97ee88842647fe82bb88f5f795845cd3ed258ff172dae38cdb2))),
-  (cons, Scalar(0x5f6519179acd01072d59e477dfdffd132550207d147584be9a7211f840ec8db6)): Cons((sym, Scalar(0x3b165850855659488b09987a470794b55365ad166a526926f332a74433a2316f)), (cons, Scalar(0x4ac95a5a5dd5c3745ddbb22378621e962cf938cac305c885c9fdd0c9ec910d15))),
-  (sym, Scalar(0x3b165850855659488b09987a470794b55365ad166a526926f332a74433a2316f)): Sym((str, Scalar(0x3b165850855659488b09987a470794b55365ad166a526926f332a74433a2316f))),
-  (sym, Scalar(0x43517c2d853a0064da4eafa63d0577b33d81032424553a3e8966b7c198074dcf)): Sym((str, Scalar(0x43517c2d853a0064da4eafa63d0577b33d81032424553a3e8966b7c198074dcf))),
-  (str, Scalar(0)): StrNil,
-  (str, Scalar(0x02e1314a79caf97ee88842647fe82bb88f5f795845cd3ed258ff172dae38cdb2)): StrCons((char, 'N'), (str, Scalar(0x2a7575c0facca35dc32adee47b9cdf5584f18b6e9d00a8c229b83e8815a4ba09))),
-  (str, Scalar(0x0b56ad382634f8bd7910c39be6b7def4f958a18231cf042d2cd110a6179d743b)): StrCons((char, 'O'), (str, Scalar(0x270bba6f52b3b2bf60505cd551e6b50f2c952c2ddeeaf79c40e54bd82a680866))),
-  (str, Scalar(0x18118519a123348a6b31a86f2688156dc236615cff46dfa0f013496f4bc18570)): StrCons((char, 'L'), (str, Scalar(0))),
-  (str, Scalar(0x1f7419a7d67ceba1308ae1877b4af595da45933775bd25f9554791b6f0ad5f95)): StrCons((char, 'Y'), (str, Scalar(0x37597c079577c05a33eeae90a19c48c4f0707003ff84bd4a4034e2f73f46c738))),
-  (str, Scalar(0x270bba6f52b3b2bf60505cd551e6b50f2c952c2ddeeaf79c40e54bd82a680866)): StrCons((char, 'T'), (str, Scalar(0x4b25e77c7077aae2a9047661389410e8f570338bf47570a19453d40ff24fcff8))),
-  (str, Scalar(0x2a7575c0facca35dc32adee47b9cdf5584f18b6e9d00a8c229b83e8815a4ba09)): StrCons((char, 'I'), (str, Scalar(0x18118519a123348a6b31a86f2688156dc236615cff46dfa0f013496f4bc18570))),
-  (str, Scalar(0x37597c079577c05a33eeae90a19c48c4f0707003ff84bd4a4034e2f73f46c738)): StrCons((char, 'M'), (str, Scalar(0))),
-  (str, Scalar(0x3b165850855659488b09987a470794b55365ad166a526926f332a74433a2316f)): StrCons((char, 'Q'), (str, Scalar(0x5c294ee38eda2488bff3c260764617fa1fcf7eddf29a0cfad97bf39d9c5827dd))),
-  (str, Scalar(0x43517c2d853a0064da4eafa63d0577b33d81032424553a3e8966b7c198074dcf)): StrCons((char, 'S'), (str, Scalar(0x1f7419a7d67ceba1308ae1877b4af595da45933775bd25f9554791b6f0ad5f95))),
-  (str, Scalar(0x4b25e77c7077aae2a9047661389410e8f570338bf47570a19453d40ff24fcff8)): StrCons((char, 'E'), (str, Scalar(0))),
-  (str, Scalar(0x5c294ee38eda2488bff3c260764617fa1fcf7eddf29a0cfad97bf39d9c5827dd)): StrCons((char, 'U'), (str, Scalar(0x0b56ad382634f8bd7910c39be6b7def4f958a18231cf042d2cd110a6179d743b)))
-}
-]
-
-open Hashing.DSL in def quoteNumEx := [store| scalar_store: {
-  (nil, Scalar(0x02e1314a79caf97ee88842647fe82bb88f5f795845cd3ed258ff172dae38cdb2)): Sym((str, Scalar(0x02e1314a79caf97ee88842647fe82bb88f5f795845cd3ed258ff172dae38cdb2))),
-  -- cons sym nil
-  (cons, Scalar(0x4ac95a5a5dd5c3745ddbb22378621e962cf938cac305c885c9fdd0c9ec910d15)): Cons((sym, Scalar(0x43517c2d853a0064da4eafa63d0577b33d81032424553a3e8966b7c198074dcf)), (nil, Scalar(0x02e1314a79caf97ee88842647fe82bb88f5f795845cd3ed258ff172dae38cdb2))),
-  -- cons quote (sym)
-  (cons, Scalar(0x5f6519179acd01072d59e477dfdffd132550207d147584be9a7211f840ec8db6)): Cons((sym, Scalar(0x3b165850855659488b09987a470794b55365ad166a526926f332a74433a2316f)), (cons, Scalar(0x4ac95a5a5dd5c3745ddbb22378621e962cf938cac305c885c9fdd0c9ec910d15))),
-  -- symbol quote
-  (sym, Scalar(0x3b165850855659488b09987a470794b55365ad166a526926f332a74433a2316f)): Sym((str, Scalar(0x3b165850855659488b09987a470794b55365ad166a526926f332a74433a2316f))),
-  -- symbol sym
-  (sym, Scalar(0x43517c2d853a0064da4eafa63d0577b33d81032424553a3e8966b7c198074dcf)): Sym((str, Scalar(0x43517c2d853a0064da4eafa63d0577b33d81032424553a3e8966b7c198074dcf))),
-  (str, Scalar(0x0000000000000000000000000000000000000000000000000000000000000000)): StrNil,
-  (str, Scalar(0x2a7575c0facca35dc32adee47b9cdf5584f18b6e9d00a8c229b83e8815a4ba09)): StrCons((char, 'I'), (str, Scalar(0x18118519a123348a6b31a86f2688156dc236615cff46dfa0f013496f4bc18570))),
-  (str, Scalar(0x37597c079577c05a33eeae90a19c48c4f0707003ff84bd4a4034e2f73f46c738)): StrCons((char, 'M'), (str, Scalar(0x0000000000000000000000000000000000000000000000000000000000000000))),
-  (str, Scalar(0x0b56ad382634f8bd7910c39be6b7def4f958a18231cf042d2cd110a6179d743b)): StrCons((char, 'O'), (str, Scalar(0x270bba6f52b3b2bf60505cd551e6b50f2c952c2ddeeaf79c40e54bd82a680866))),
-  (str, Scalar(0x270bba6f52b3b2bf60505cd551e6b50f2c952c2ddeeaf79c40e54bd82a680866)): StrCons((char, 'T'), (str, Scalar(0x4b25e77c7077aae2a9047661389410e8f570338bf47570a19453d40ff24fcff8))),
-  (str, Scalar(0x3b165850855659488b09987a470794b55365ad166a526926f332a74433a2316f)): StrCons((char, 'Q'), (str, Scalar(0x5c294ee38eda2488bff3c260764617fa1fcf7eddf29a0cfad97bf39d9c5827dd))),
-  (str, Scalar(0x18118519a123348a6b31a86f2688156dc236615cff46dfa0f013496f4bc18570)): StrCons((char, 'L'), (str, Scalar(0x0000000000000000000000000000000000000000000000000000000000000000))),
-  (str, Scalar(0x1f7419a7d67ceba1308ae1877b4af595da45933775bd25f9554791b6f0ad5f95)): StrCons((char, 'Y'), (str, Scalar(0x37597c079577c05a33eeae90a19c48c4f0707003ff84bd4a4034e2f73f46c738))),
-  (str, Scalar(0x02e1314a79caf97ee88842647fe82bb88f5f795845cd3ed258ff172dae38cdb2)): StrCons((char, 'N'), (str, Scalar(0x2a7575c0facca35dc32adee47b9cdf5584f18b6e9d00a8c229b83e8815a4ba09))),
-  (str, Scalar(0x43517c2d853a0064da4eafa63d0577b33d81032424553a3e8966b7c198074dcf)): StrCons((char, 'S'), (str, Scalar(0x1f7419a7d67ceba1308ae1877b4af595da45933775bd25f9554791b6f0ad5f95))),
-  (str, Scalar(0x5c294ee38eda2488bff3c260764617fa1fcf7eddf29a0cfad97bf39d9c5827dd)): StrCons((char, 'U'), (str, Scalar(0x0b56ad382634f8bd7910c39be6b7def4f958a18231cf042d2cd110a6179d743b))),
-  (str, Scalar(0x4b25e77c7077aae2a9047661389410e8f570338bf47570a19453d40ff24fcff8)): StrCons((char, 'E'), (str, Scalar(0x0000000000000000000000000000000000000000000000000000000000000000))),
-}]
-
-open Syntax Hashing
-
-def tuples : List (Expr × ScalarStore) := [
-  (expression, expectedStore),
-  (quoteTest, quoteTestEx),
-  (quoteNum, quoteNumEx)
-]
-
 open LSpec in
-def main := do
-  lspecIO $ tuples.foldl (init := .done)
-    fun tSeq (tuple : Expr × ScalarStore) => match tuple with
-      | (expr, s) => tSeq ++ test s!"Stores {expr.pprint true false} correctly"
-        (expr.encode.2 == s)
+def main := lspecIO $
+  test "Hashing and storing works correctly" (ast.hash.2 == expectedStore)

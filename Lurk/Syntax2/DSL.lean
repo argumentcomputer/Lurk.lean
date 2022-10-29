@@ -19,6 +19,8 @@ scoped syntax ">="  : sym
 -- these can't be simple idents because they'd clash with Lean's syntax
 scoped syntax "if"  : sym
 scoped syntax "let" : sym
+-- this prevents Lean from parsing as "current" ++ "-" ++ "env"
+scoped syntax "current-env" : sym
 
 def elabSym : TSyntax `sym → TermElabM Lean.Expr
   | `(sym| $i:ident) => mkAppM ``AST.sym #[mkStrLit i.getId.toString.toUpper]
@@ -33,6 +35,7 @@ def elabSym : TSyntax `sym → TermElabM Lean.Expr
   | `(sym| >=) => mkAppM ``AST.sym #[mkStrLit ">="]
   | `(sym| if) => mkAppM ``AST.sym #[mkStrLit "IF"]
   | `(sym| let) => mkAppM ``AST.sym #[mkStrLit "LET"]
+  | `(sym| current-env) => mkAppM ``AST.sym #[mkStrLit "CURRENT-ENV"]
   | _ => throwUnsupportedSyntax
 
 declare_syntax_cat                     ast
