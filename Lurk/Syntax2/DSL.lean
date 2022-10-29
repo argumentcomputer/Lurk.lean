@@ -16,9 +16,12 @@ scoped syntax "<"   : sym
 scoped syntax ">"   : sym
 scoped syntax "<="  : sym
 scoped syntax ">="  : sym
+-- these can't be simple idents because they'd clash with Lean's syntax
+scoped syntax "if"  : sym
+scoped syntax "let" : sym
 
 def elabSym : TSyntax `sym → TermElabM Lean.Expr
-  | `(sym| $i:ident) => mkAppM ``AST.sym #[mkStrLit i.getId.toString]
+  | `(sym| $i:ident) => mkAppM ``AST.sym #[mkStrLit i.getId.toString.toUpper]
   | `(sym| +)  => mkAppM ``AST.sym #[mkStrLit "+"]
   | `(sym| *)  => mkAppM ``AST.sym #[mkStrLit "*"]
   | `(sym| -)  => mkAppM ``AST.sym #[mkStrLit "-"]
@@ -28,6 +31,8 @@ def elabSym : TSyntax `sym → TermElabM Lean.Expr
   | `(sym| >)  => mkAppM ``AST.sym #[mkStrLit ">"]
   | `(sym| <=) => mkAppM ``AST.sym #[mkStrLit "<="]
   | `(sym| >=) => mkAppM ``AST.sym #[mkStrLit ">="]
+  | `(sym| if) => mkAppM ``AST.sym #[mkStrLit "IF"]
+  | `(sym| let) => mkAppM ``AST.sym #[mkStrLit "LET"]
   | _ => throwUnsupportedSyntax
 
 declare_syntax_cat                     ast
