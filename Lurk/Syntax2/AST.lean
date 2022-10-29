@@ -7,7 +7,7 @@ inductive AST
   | str : String → AST
   | sym : String → AST
   | cons : AST → AST → AST
-  deriving Ord
+  deriving Ord, BEq, Repr
 
 namespace AST
 

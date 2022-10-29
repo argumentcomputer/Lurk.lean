@@ -1,12 +1,12 @@
 import LSpec
-import Lurk.Syntax.DSL
+import Lurk.Syntax2.DSL
 import Lurk.Syntax.Printing
-import Lurk.Hashing.Decoding
+import Lurk.Hashing2.Decoding
 
 open Lurk
 
-open Syntax.DSL Syntax.SExpr.DSL in
-def expressions := [
+open Syntax.DSL in
+def asts := [
   ⟦nil⟧,
   ⟦t⟧,
   ⟦current-env⟧,
@@ -25,7 +25,7 @@ def expressions := [
   ⟦(begin 1)⟧,
   ⟦(begin nil)⟧,
   ⟦(begin 1 2 3)⟧,
-  .hide (.sym `a) (.sym `b),
+  ⟦(hide a b)⟧,
   ⟦(lambda (a b c) (begin (cons a b) c))⟧,
   ⟦(let ((a 1) (b c)) (+ a b))⟧,
   ⟦(quote 1)⟧,
@@ -38,11 +38,11 @@ def expressions := [
 
 open LSpec in
 def main := do
-  lspecIO $ expressions.foldl (init := .done)
-    fun tSeq (e : Syntax.Expr) =>
-      let e := e.toUpper
-      let (ptr, store) := e.encode
-      withExceptOk s!"Decoding {e.pprint true false} succeeds"
-          (Lurk.Hashing.decode ptr store) fun e' =>
+  lspecIO $ asts.foldl (init := .done)
+    fun tSeq (x : Lurk.Syntax.AST) =>
+      let (ptr, store) := x.hash
+      withExceptOk "Decoding {e.pprint true false} succeeds"
+          (Lurk.Hashing.decode ptr store) fun x' =>
         tSeq ++ test
-          s!"Expected {e.pprint true false} equals {e'.pprint true false}" (e == e')
+          "Expected {repr x} equals {repr x'}" (x == x')
+#eval main
