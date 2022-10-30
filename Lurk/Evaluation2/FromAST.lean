@@ -25,7 +25,6 @@ def mkList (args : AST) : ToExprM (List AST) :=
     | _ => throw "invalid arguments shape, expected list"
 
 def mkOp₁ (op₁ : String) : Expr → Expr := match op₁ with
-  | "QUOTE" => .op₁ .quote
   | "ATOM" => .op₁ .atom
   | "CAR" => .op₁ .car
   | "CDR" => .op₁ .cdr
@@ -38,19 +37,20 @@ def mkOp₁ (op₁ : String) : Expr → Expr := match op₁ with
   | x => fun y => .app (.sym x) y
 
 def mkOp₂ (op₂ : String) : Expr → Expr → Expr := match op₂ with
-  | "CONS"  => .op₂ .cons
-  | "BEGIN" => .op₂ .begin
-  | "+"     => .op₂ .add
-  | "-"     => .op₂ .sub
-  | "*"     => .op₂ .mul
-  | "/"     => .op₂ .div
-  | "="     => .op₂ .numEq
-  | "<"     => .op₂ .lt
-  | ">"     => .op₂ .gt
-  | "<="    => .op₂ .le
-  | ">="    => .op₂ .ge
-  | "EQ"    => .op₂ .eq
-  | "HIDE"  => .op₂ .hide
+  | "CONS"    => .op₂ .cons
+  | "STRCONS" => .op₂ .strcons
+  | "BEGIN"   => .op₂ .begin
+  | "+"       => .op₂ .add
+  | "-"       => .op₂ .sub
+  | "*"       => .op₂ .mul
+  | "/"       => .op₂ .div
+  | "="       => .op₂ .numEq
+  | "<"       => .op₂ .lt
+  | ">"       => .op₂ .gt
+  | "<="      => .op₂ .le
+  | ">="      => .op₂ .ge
+  | "EQ"      => .op₂ .eq
+  | "HIDE"    => .op₂ .hide
   | x => fun y z => .app (.app (.sym x) y) z
 
 partial def toExpr : AST → ToExprM Expr
@@ -82,6 +82,7 @@ partial def toExpr : AST → ToExprM Expr
     let bindings ← bindings.mapM fun (x, y) => return (x, ← y.toExpr)
     return bindings.foldr (init := ← body.toExpr) 
       fun (n, e) acc => .letrec n e acc
+  | ~[.sym "QUOTE", datum] => return .quote datum
   -- unary operators
   | ~[.sym op₁, x] => do return mkOp₁ op₁ (← x.toExpr)
   -- binary operators

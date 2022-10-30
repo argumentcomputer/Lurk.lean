@@ -18,8 +18,22 @@ inductive Lit
   | char : Char → Lit
   deriving Repr, BEq
 
+namespace Lit 
+
+def pprint : Lit → Format
+  | .nil        => "nil"
+  | .t          => "t"
+  | .num n      => n.asHex
+  | .str s      => s!"\"{s}\""
+  | .char c     => s!"#\\{c}"
+
+instance : ToFormat Lit where
+  format := pprint
+
+end Lit
+
 inductive Op₁
-  | quote | atom | car | cdr | emit
+  | atom | car | cdr | emit
   | commit | comm | «open»
   | num | char
   deriving Repr, BEq
@@ -42,6 +56,7 @@ inductive Expr
   | lambda : String → Expr → Expr
   | «let»  : String → Expr → Expr → Expr
   | letrec : String → Expr → Expr → Expr
+  | quote : Syntax.AST → Expr
   deriving Repr, Inhabited, BEq
 
 end Lurk.Evaluation
