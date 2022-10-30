@@ -1,8 +1,9 @@
 import Lean
-import Lurk.Syntax2.AST 
+import Lurk.Syntax2.AST
 
 namespace Lurk.Syntax
-open Lean Elab Meta Term 
+
+open Lean Elab Meta Term
 
 scoped syntax "~[" withoutPosition(term,*) "]"  : term
 

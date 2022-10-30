@@ -42,7 +42,8 @@ def main := do
   lspecIO $ asts.foldl (init := .done)
     fun tSeq (x : Lurk.Syntax.AST) =>
       let (ptr, store) := x.hash
-      withExceptOk s!"Decoding {repr x} succeeds"
+      withExceptOk s!"Decoding {x} succeeds"
           (Lurk.Hashing.decode ptr store) fun x' =>
         tSeq ++ test
-          s!"Expected {repr x} equals {repr x'}" (x == x')
+          s!"Expected {x} equals {x'}" (x == x')
+#eval main

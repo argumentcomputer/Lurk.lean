@@ -6,23 +6,20 @@ open Evaluation
 
 abbrev ToExprM := Except String
 
-def mkArgs (args : AST) : ToExprM (List String) := 
-  match args with 
-    | .nil => return []
-    | .cons (.sym x) xs => return x :: (← mkArgs xs)
-    | _ => throw "invalid arguments shape, expected list of symbols"
+def mkArgs : AST → ToExprM (List String)
+  | .nil => return []
+  | .cons (.sym x) xs => return x :: (← mkArgs xs)
+  | _ => throw "invalid arguments shape, expected list of symbols"
 
-def mkBindings (bindings : AST) : ToExprM $ List (String × AST) := 
-  match bindings with 
-    | .nil => return []
-    | .cons ~[(.sym x), y] xs => return (x, y) :: (← mkBindings xs)
-    | _ => throw "invalid binding shape, expected list of (symbol, body) pairs"
+def mkBindings : AST → ToExprM (List (String × AST))
+  | .nil => return []
+  | .cons ~[(.sym x), y] xs => return (x, y) :: (← mkBindings xs)
+  | _ => throw "invalid binding shape, expected list of (symbol, body) pairs"
 
-def mkList (args : AST) : ToExprM (List AST) := 
-  match args with 
-    | .nil => return []
-    | .cons x xs => return x :: (← mkList xs)
-    | _ => throw "invalid arguments shape, expected list"
+def mkList : AST → ToExprM (List AST)
+  | .nil => return []
+  | .cons x xs => return x :: (← mkList xs)
+  | _ => throw "invalid arguments shape, expected list"
 
 def mkOp₁ (op₁ : String) : Expr → Expr := match op₁ with
   | "ATOM" => .op₁ .atom
@@ -66,21 +63,20 @@ partial def toExpr : AST → ToExprM Expr
   -- `lambda` requires a gradual consumption of a symbol
   | ~[.sym "LAMBDA", args, body] => do
     let args ← mkArgs args
-    if args == [] then 
+    if args.isEmpty then
       return .lambda "_" (← body.toExpr)
-    else 
-      return args.foldr (init := ← body.toExpr) 
-        fun arg acc => .lambda arg acc
+    else
+      return args.foldr (init := ← body.toExpr) fun arg acc => .lambda arg acc
   -- let and letrec are in the same case
   | ~[.sym "LET", bindings, body] => do
     let bindings ← mkBindings bindings
     let bindings ← bindings.mapM fun (x, y) => return (x, ← y.toExpr)
-    return bindings.foldr (init := ← body.toExpr) 
+    return bindings.foldr (init := ← body.toExpr)
       fun (n, e) acc => .let n e acc
   | ~[.sym "LETREC", bindings, body] => do
     let bindings ← mkBindings bindings
     let bindings ← bindings.mapM fun (x, y) => return (x, ← y.toExpr)
-    return bindings.foldr (init := ← body.toExpr) 
+    return bindings.foldr (init := ← body.toExpr)
       fun (n, e) acc => .letrec n e acc
   | ~[.sym "QUOTE", datum] => return .quote datum
   -- unary operators
@@ -90,9 +86,9 @@ partial def toExpr : AST → ToExprM Expr
   -- everything else is just an `app`
   | cons fn args => do
     let args ← (← mkList args) |>.mapM toExpr
-    if args == [] then 
-      return .app₀ (← fn.toExpr) 
-    else 
+    if args.isEmpty then
+      return .app₀ (← fn.toExpr)
+    else
       return args.foldl (init := ← fn.toExpr) fun acc arg => .app acc arg
 
 end Lurk.Syntax.AST

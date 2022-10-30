@@ -18,13 +18,24 @@ def mkCons (xs : List AST) (init : AST) : AST :=
 def mkQuote (x : AST) : AST :=
   mkCons [.sym "QUOTE", x] .nil
 
-def type : AST → String 
-  | .nil      => "NIL"
-  | .num _    => "NUM"
-  | .char _   => "CHAR"
-  | .str _    => "STR"
-  | .sym _    => "SYM"
-  | .cons _ _ => "CONS"
+def unfoldCons (acc : Array AST := #[]) : AST → Array AST
+  | cons x nil => acc.push x
+  | cons x y => y.unfoldCons $ acc.push x
+  | x => acc.push x
+
+open Std Format in
+partial def toFormat : AST → Format
+  | nil => "NIL"
+  | num n => format n
+  | char c => s!"#\\{c}"
+  | str s => s!"\"{s}\""
+  | sym s => s
+  | cns => match ((cns.unfoldCons).map toFormat).data with
+    | [] => "()"
+    | x :: xs => paren $ xs.foldl (fun acc x => group $ acc ++ line ++ x) x
+
+instance : Std.ToFormat AST := ⟨toFormat⟩
+instance : ToString AST := ⟨toString ∘ toFormat⟩
 
 end AST
 
