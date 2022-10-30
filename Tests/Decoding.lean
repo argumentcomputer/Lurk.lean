@@ -33,7 +33,8 @@ def asts := [
   ⟦(quote (nil))⟧,
   ⟦(quote (nil 1))⟧,
   ⟦(quote (nil . 1))⟧,
-  ⟦(quote ((nil . 1) x))⟧
+  ⟦(quote ((nil . 1) x))⟧,
+  ⟦((+ 1 2) (f x) . (cons 4 2))⟧
 ]
 
 open LSpec in
@@ -41,8 +42,7 @@ def main := do
   lspecIO $ asts.foldl (init := .done)
     fun tSeq (x : Lurk.Syntax.AST) =>
       let (ptr, store) := x.hash
-      withExceptOk "Decoding {e.pprint true false} succeeds"
+      withExceptOk s!"Decoding {repr x} succeeds"
           (Lurk.Hashing.decode ptr store) fun x' =>
         tSeq ++ test
-          "Expected {repr x} equals {repr x'}" (x == x')
-#eval main
+          s!"Expected {repr x} equals {repr x'}" (x == x')
