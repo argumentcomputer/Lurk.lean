@@ -19,11 +19,14 @@ scoped syntax ">="  : sym
 -- these can't be simple idents because they'd clash with Lean's syntax
 scoped syntax "if"  : sym
 scoped syntax "let" : sym
--- this prevents Lean from parsing as "current" ++ "-" ++ "env"
+-- these prevent Lean from parsing two identifiers separated by "-"
 scoped syntax "current-env" : sym
+scoped syntax "CURRENT-ENV" : sym
 
 def elabSym : TSyntax `sym → TermElabM Lean.Expr
-  | `(sym| $i:ident) => mkAppM ``AST.sym #[mkStrLit i.getId.toString.toUpper]
+  | `(sym|  $i:ident ) => match i.getId.toString.toUpper with
+    | "NIL" => return Lean.mkConst ``AST.nil
+    | i => mkAppM ``AST.sym #[mkStrLit i]
   | `(sym| +)  => mkAppM ``AST.sym #[mkStrLit "+"]
   | `(sym| *)  => mkAppM ``AST.sym #[mkStrLit "*"]
   | `(sym| -)  => mkAppM ``AST.sym #[mkStrLit "-"]
@@ -35,7 +38,8 @@ def elabSym : TSyntax `sym → TermElabM Lean.Expr
   | `(sym| >=) => mkAppM ``AST.sym #[mkStrLit ">="]
   | `(sym| if) => mkAppM ``AST.sym #[mkStrLit "IF"]
   | `(sym| let) => mkAppM ``AST.sym #[mkStrLit "LET"]
-  | `(sym| current-env) => mkAppM ``AST.sym #[mkStrLit "CURRENT-ENV"]
+  | `(sym| current-env)
+  | `(sym| CURRENT-ENV) => mkAppM ``AST.sym #[mkStrLit "CURRENT-ENV"]
   | _ => throwUnsupportedSyntax
 
 declare_syntax_cat                     ast

@@ -125,18 +125,17 @@ def hashAST (x : Syntax.AST) : HashM ScalarPtr := do
   | some ptr => pure ptr
   | none =>
     let ptr ← match x with
-      | .nil
-      | .sym "NIL" => do
+      | .nil => do
         -- `nil` has its own tag instead of `.sym`. Thus we need to manually
         -- hash it as a string and make a `.nil` pointer with it
         let ptr ← hashString "NIL"
-        addToStore ⟨Tag.nil, ptr.val⟩ (.sym ptr)
-      | .num n => let n := .ofNat n; addToStore ⟨Tag.num, n⟩ (.num n)
+        addToStore ⟨.nil, ptr.val⟩ (.sym ptr)
+      | .num n => let n := .ofNat n; addToStore ⟨.num, n⟩ (.num n)
       | .char c => return ⟨.char, .ofNat c.toNat⟩
       | .str s => hashString s
       | .sym s =>
         let ptr ← hashString s
-        addToStore ⟨Tag.sym, ptr.val⟩ (.sym ptr)
+        addToStore ⟨.sym, ptr.val⟩ (.sym ptr)
       | .cons car cdr =>
         let car ← hashAST car
         let cdr ← hashAST cdr
@@ -148,5 +147,5 @@ end Lurk.Hashing
 
 open Lurk.Hashing in
 def Lurk.Syntax.AST.hash (x : Syntax.AST) : ScalarPtr × ScalarStore :=
-  match StateT.run (hashAST x.upper) default with
+  match StateT.run (hashAST x) default with
   | (ptr, stt) => (ptr, stt.store)

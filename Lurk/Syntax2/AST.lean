@@ -1,5 +1,6 @@
 namespace Lurk.Syntax
 
+/-- Symbols are expected to be in uppercase -/
 inductive AST
   | nil
   | num : Nat → AST
@@ -15,11 +16,6 @@ def mkCons (xs : List AST) : AST :=
   xs.foldr (init := .nil) fun x acc => .cons x acc
 
 def mkQuote (x : AST) : AST :=
-  mkCons [.sym "quote", x]
-
-def upper : AST → AST
-  | sym s => sym s.toUpper
-  | cons a b => cons a.upper b.upper
-  | x => x
+  mkCons [.sym "QUOTE", x]
 
 end AST
