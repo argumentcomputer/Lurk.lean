@@ -1,9 +1,10 @@
 import Lean
 import Lurk.Syntax2.AST
 
-namespace Lurk.Syntax.DSL
-
+namespace Lurk.Syntax
 open Lean Elab Meta Term
+
+namespace DSL
 
 declare_syntax_cat    sym
 scoped syntax ident : sym
@@ -85,4 +86,6 @@ end
 elab "⟦ " x:ast " ⟧" : term =>
   elabAST x
 
-end Lurk.Syntax.DSL
+end DSL
+
+end Lurk.Syntax

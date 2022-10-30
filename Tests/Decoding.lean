@@ -46,3 +46,4 @@ def main := do
           (Lurk.Hashing.decode ptr store) fun x' =>
         tSeq ++ test
           s!"Expected {x} equals {x'}" (x == x')
+#eval main

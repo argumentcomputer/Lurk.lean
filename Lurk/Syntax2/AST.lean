@@ -38,3 +38,5 @@ instance : Std.ToFormat AST := ⟨toFormat⟩
 instance : ToString AST := ⟨toString ∘ toFormat⟩
 
 end AST
+
+end Lurk.Syntax
