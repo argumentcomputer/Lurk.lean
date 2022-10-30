@@ -37,7 +37,8 @@ inductive Expr
   | op₁ : Op₁ → Expr → Expr
   | op₂ : Op₂ → Expr → Expr → Expr
   | «if» : Expr → Expr → Expr → Expr
-  | app  : Expr → Option Expr → Expr
+  | app₀ : Expr → Expr
+  | app  : Expr → Expr → Expr
   | lambda : String → Expr → Expr
   | «let»  : String → Expr → Expr → Expr
   | letrec : String → Expr → Expr → Expr

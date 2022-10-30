@@ -4,23 +4,25 @@ import Lurk.Evaluation2.Expr
 namespace Lurk.Syntax.AST
 open Evaluation
 
-def mkArgs! (args : AST) : List String := 
-  match args with 
-    | .nil => []
-    | .cons (.sym x) xs => x :: mkArgs! xs
-    | _ => panic! "invalid arguments shape, expected list of symbols"
+abbrev ToExprM := Except String
 
-def mkBindings! (bindings : AST) : List (String × AST) := 
+def mkArgs (args : AST) : ToExprM (List String) := 
+  match args with 
+    | .nil => return []
+    | .cons (.sym x) xs => return x :: (← mkArgs xs)
+    | _ => throw "invalid arguments shape, expected list of symbols"
+
+def mkBindings (bindings : AST) : ToExprM $ List (String × AST) := 
   match bindings with 
-    | .nil => []
-    | .cons ~[(.sym x), y] xs => (x, y) :: mkBindings! xs
-    | _ => panic! "invalid binding shape, expected list of (symbol, body) pairs"
+    | .nil => return []
+    | .cons ~[(.sym x), y] xs => return (x, y) :: (← mkBindings xs)
+    | _ => throw "invalid binding shape, expected list of (symbol, body) pairs"
 
-def mkList! (args : AST) : List AST := 
+def mkList (args : AST) : ToExprM (List AST) := 
   match args with 
-    | .nil => []
-    | .cons x xs => x :: mkList! xs
-    | _ => panic! "invalid arguments shape, expected list"
+    | .nil => return []
+    | .cons x xs => return x :: (← mkList xs)
+    | _ => throw "invalid arguments shape, expected list"
 
 def mkOp₁ (op₁ : String) : Expr → Expr := match op₁ with
   | "QUOTE" => .op₁ .quote
@@ -51,45 +53,45 @@ def mkOp₂ (op₂ : String) : Expr → Expr → Expr := match op₂ with
   | "HIDE"  => .op₂ .hide
   | x => fun y z => .app (.app (.sym x) y) z
 
-partial def toExpr : AST → Expr
+partial def toExpr : AST → ToExprM Expr
   -- trivial cases
-  | .nil    => .lit .nil
-  | .num n  => .lit $ .num (.ofNat n)
-  | .char c => .lit $ .char c
-  | .str s  => .lit $ .str s
-  | .sym "CURRENT-ENV" => .env
-  | .sym s  => .sym s
+  | .nil    => return .lit .nil
+  | .num n  => return .lit $ .num (.ofNat n)
+  | .char c => return .lit $ .char c
+  | .str s  => return .lit $ .str s
+  | .sym "CURRENT-ENV" => return .env
+  | .sym s  => return .sym s
   -- `if` is a sequence of three expressions
-  | ~[.sym "IF", x, y, z] => .if x.toExpr y.toExpr z.toExpr
+  | ~[.sym "IF", x, y, z] => return .if (← x.toExpr) (← y.toExpr) (← z.toExpr)
   -- `lambda` requires a gradual consumption of a symbol
-  | ~[.sym "LAMBDA", args, body] =>
-    let args := mkArgs! args
+  | ~[.sym "LAMBDA", args, body] => do
+    let args ← mkArgs args
     if args == [] then 
-      .lambda "_" body.toExpr
+      return .lambda "_" (← body.toExpr)
     else 
-      args.foldr (init := body.toExpr) 
+      return args.foldr (init := ← body.toExpr) 
         fun arg acc => .lambda arg acc
   -- let and letrec are in the same case
-  | ~[.sym "LET", bindings, body] =>
-    let bindings := mkBindings! bindings
-    let bindings := bindings.map fun (x, y) => (x, y.toExpr)
-    bindings.foldr (init := body.toExpr) 
+  | ~[.sym "LET", bindings, body] => do
+    let bindings ← mkBindings bindings
+    let bindings ← bindings.mapM fun (x, y) => return (x, ← y.toExpr)
+    return bindings.foldr (init := ← body.toExpr) 
       fun (n, e) acc => .let n e acc
-  | ~[.sym "LETREC", bindings, body] =>
-    let bindings := mkBindings! bindings
-    let bindings := bindings.map fun (x, y) => (x, y.toExpr)
-    bindings.foldr (init := body.toExpr) 
+  | ~[.sym "LETREC", bindings, body] => do
+    let bindings ← mkBindings bindings
+    let bindings ← bindings.mapM fun (x, y) => return (x, ← y.toExpr)
+    return bindings.foldr (init := ← body.toExpr) 
       fun (n, e) acc => .letrec n e acc
   -- unary operators
-  | ~[.sym op₁, x] => mkOp₁ op₁ x.toExpr
+  | ~[.sym op₁, x] => do return mkOp₁ op₁ (← x.toExpr)
   -- binary operators
-  | ~[.sym op₂, x, y] => mkOp₂ op₂ x.toExpr y.toExpr
+  | ~[.sym op₂, x, y] => do return mkOp₂ op₂ (← x.toExpr) (← y.toExpr)
   -- everything else is just an `app`
-  | cons fn args => 
-    let args := mkList! args |>.map toExpr
+  | cons fn args => do
+    let args ← (← mkList args) |>.mapM toExpr
     if args == [] then 
-      .app fn.toExpr none 
+      return .app₀ (← fn.toExpr) 
     else 
-      args.foldl (init := fn.toExpr) fun acc arg => .app acc (some arg)
+      return args.foldl (init := ← fn.toExpr) fun acc arg => .app acc arg
 
 end Lurk.Syntax.AST
