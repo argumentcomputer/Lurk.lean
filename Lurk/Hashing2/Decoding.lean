@@ -14,7 +14,7 @@ partial def decodeAST (ptr : ScalarPtr) : DecodeM AST := do
   match (← read).exprs.find? ptr with
   | none => throw s!"Pointer not found on the store:\n  {ptr}"
   | some expr => match (ptr.tag, expr) with
-    | (.nil, _) => return .sym "NIL"
+    | (.nil, _) => return .nil
     | (.num, .num x) => return .num x
     | (.char, .char x) => return .char (Char.ofNat x)
     | (.sym, .sym x) => match ← getOrDecodeAST x with

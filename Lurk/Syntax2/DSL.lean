@@ -1,9 +1,10 @@
 import Lean
 import Lurk.Syntax2.AST
 
-namespace Lurk.Syntax.DSL
-
+namespace Lurk.Syntax
 open Lean Elab Meta Term
+
+namespace DSL
 
 declare_syntax_cat    sym
 scoped syntax ident : sym
@@ -23,7 +24,10 @@ scoped syntax "let" : sym
 scoped syntax "current-env" : sym
 
 def elabSym : TSyntax `sym → TermElabM Lean.Expr
-  | `(sym| $i:ident) => mkAppM ``AST.sym #[mkStrLit i.getId.toString.toUpper]
+  | `(sym| $i:ident) => do
+    let id := i.getId.toString.toUpper
+    if id == "NIL" then return mkConst ``AST.nil
+    else mkAppM ``AST.sym #[mkStrLit i.getId.toString.toUpper]
   | `(sym| +)  => mkAppM ``AST.sym #[mkStrLit "+"]
   | `(sym| *)  => mkAppM ``AST.sym #[mkStrLit "*"]
   | `(sym| -)  => mkAppM ``AST.sym #[mkStrLit "-"]
@@ -68,4 +72,6 @@ end
 elab "⟦ " x:ast " ⟧" : term =>
   elabAST x
 
-end Lurk.Syntax.DSL
+end DSL
+
+end Lurk.Syntax

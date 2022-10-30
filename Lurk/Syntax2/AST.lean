@@ -22,4 +22,14 @@ def upper : AST → AST
   | cons a b => cons a.upper b.upper
   | x => x
 
+def type : AST → String 
+  | .nil      => "NIL"
+  | .num _    => "NUM"
+  | .char _   => "CHAR"
+  | .str _    => "STR"
+  | .sym _    => "SYM"
+  | .cons _ _ => "CONS"
+
 end AST
+
+end Lurk.Syntax

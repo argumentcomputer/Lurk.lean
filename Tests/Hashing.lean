@@ -5,8 +5,7 @@ import Lurk.Hashing2.Hashing
 
 open Lurk
 
-open Syntax.DSL in 
-def ast := ⟦
+open Syntax.DSL in def ast := ⟦
   (begin
     (lambda (x y) (+ x y))
     (cons 1 2)
