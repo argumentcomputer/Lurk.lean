@@ -19,9 +19,6 @@ scoped syntax ">="  : sym
 -- these can't be simple idents because they'd clash with Lean's syntax
 scoped syntax "if"  : sym
 scoped syntax "let" : sym
--- these prevent Lean from parsing two identifiers separated by "-"
-scoped syntax "current-env" : sym
-scoped syntax "CURRENT-ENV" : sym
 
 def elabSym : TSyntax `sym → TermElabM Lean.Expr
   | `(sym|  $i:ident ) => match i.getId.toString.toUpper with
@@ -38,8 +35,6 @@ def elabSym : TSyntax `sym → TermElabM Lean.Expr
   | `(sym| >=) => mkAppM ``AST.sym #[mkStrLit ">="]
   | `(sym| if) => mkAppM ``AST.sym #[mkStrLit "IF"]
   | `(sym| let) => mkAppM ``AST.sym #[mkStrLit "LET"]
-  | `(sym| current-env)
-  | `(sym| CURRENT-ENV) => mkAppM ``AST.sym #[mkStrLit "CURRENT-ENV"]
   | _ => throwUnsupportedSyntax
 
 declare_syntax_cat                     ast
@@ -50,6 +45,17 @@ scoped syntax sym                    : ast
 scoped syntax "(" ast* ")"           : ast
 scoped syntax "(" ast+ " . " ast ")" : ast
 scoped syntax "," ast                : ast -- quoting
+-- symbols separated by a dash (only handles one dash)
+scoped syntax sym noWs "-" noWs sym  : ast
+scoped syntax sym noWs "-" noWs num  : ast
+
+def mergeSymSym : AST → AST → AST
+  | .sym a, .sym b => .sym s!"{a}-{b}"
+  | x, _ => x
+
+def mergeSymNat : AST → Nat → AST
+  | .sym a, n => .sym s!"{a}-{n}"
+  | x, _ => x
 
 mutual
 
@@ -62,6 +68,8 @@ partial def elabAST : TSyntax `ast → TermElabM Lean.Expr
     mkAppM ``AST.char #[← mkAppM ``Char.ofNat #[mkNatLit c.getChar.val.toNat]]
   | `(ast| $s:str) => mkAppM ``AST.str #[mkStrLit s.getString]
   | `(ast| $s:sym) => elabSym s
+  | `(ast| $a:sym-$b:sym) => do mkAppM ``mergeSymSym #[← elabSym a, ← elabSym b]
+  | `(ast| $a:sym-$n:num) => do mkAppM ``mergeSymNat #[← elabSym a, mkNatLit n.getNat]
   | `(ast| ($xs*)) => elabASTCons xs
   | `(ast| ($xs* . $x)) => do mkAppM ``AST.cons #[← elabASTCons xs, ← elabAST x]
   | `(ast| ,$x:ast) => do mkAppM ``AST.mkQuote #[← elabAST x]
