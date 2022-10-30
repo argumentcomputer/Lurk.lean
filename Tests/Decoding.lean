@@ -33,7 +33,8 @@ def asts := [
   ⟦(quote (nil))⟧,
   ⟦(quote (nil 1))⟧,
   ⟦(quote (nil . 1))⟧,
-  ⟦(quote ((nil . 1) x))⟧
+  ⟦(quote ((nil . 1) x))⟧,
+  ⟦((+ 1 2) (f x) . (cons 4 2))⟧
 ]
 
 open LSpec in

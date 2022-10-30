@@ -12,10 +12,10 @@ inductive AST
 
 namespace AST
 
-def mkCons (xs : List AST) : AST :=
-  xs.foldr (init := .nil) fun x acc => .cons x acc
+def mkCons (xs : List AST) (init : AST) : AST :=
+  xs.foldr (init := init) fun x acc => .cons x acc
 
 def mkQuote (x : AST) : AST :=
-  mkCons [.sym "QUOTE", x]
+  mkCons [.sym "QUOTE", x] .nil
 
 end AST
