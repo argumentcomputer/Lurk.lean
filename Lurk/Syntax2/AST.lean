@@ -36,6 +36,9 @@ instance : ToString AST := ⟨toString ∘ toFormat⟩
 
 section ASThelpers
 
+def buildCons (xs : List AST) (init : AST) : AST :=
+  xs.foldr (init := nil) fun x acc => cons x acc
+
 scoped syntax "~[" withoutPosition(term,*) "]"  : term
 
 open Lean in
