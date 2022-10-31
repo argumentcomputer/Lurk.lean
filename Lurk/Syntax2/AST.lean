@@ -12,12 +12,6 @@ inductive AST
 
 namespace AST
 
-def mkCons (xs : List AST) (init : AST) : AST :=
-  xs.foldr (init := init) fun x acc => .cons x acc
-
-def mkQuote (x : AST) : AST :=
-  mkCons [.sym "QUOTE", x] .nil
-
 open Std Format in
 partial def toFormat : AST → Format
   | nil => "NIL"
@@ -26,23 +20,40 @@ partial def toFormat : AST → Format
   | str s => s!"\"{s}\""
   | sym s => s
   | x@(.cons ..) =>
-    let (xs, tail) := telescopeCons [] x
-      let tail := match tail with
-        | nil => Format.nil
-        | _ => line ++ "." ++ line ++ tail.toFormat
-      paren $ fmtList xs ++ tail
+    match telescopeCons #[] x with
+    | (xs, nil) => paren $ fmtList xs.data
+    | (xs, y)   => paren $ fmtList xs.data ++ line ++ "." ++ line ++ y.toFormat
 where
-  telescopeCons (acc : List AST) : AST → List AST × AST
-    | cons x y => telescopeCons (x :: acc) y
-    | x => (acc.reverse, x)
+  telescopeCons (acc : Array AST) : AST → Array AST × AST
+    | cons x y => telescopeCons (acc.push x) y
+    | x => (acc, x)
   fmtList : List AST → Format
-    | [ ]   => Format.nil
-    | [n]   => n.toFormat
-    | n::ns => format (n.toFormat) ++ line ++ fmtList ns
+    | [] => .nil
+    | x::xs => xs.foldl (fun acc x => acc ++ line ++ x.toFormat) x.toFormat
 
 instance : Std.ToFormat AST := ⟨toFormat⟩
 instance : ToString AST := ⟨toString ∘ toFormat⟩
 
-end AST
+section ASThelpers
 
-end Lurk.Syntax
+scoped syntax "~[" withoutPosition(term,*) "]"  : term
+
+open Lean in
+macro_rules -- todo: try to simplify this macro
+  | `(~[$elems,*]) => do
+    let rec expandListLit (i : Nat) (skip : Bool) (result : TSyntax `term) :
+        MacroM Syntax := do
+      match i, skip with
+      | 0,   _     => pure result
+      | i+1, true  => expandListLit i false result
+      | i+1, false =>
+        let res ← ``(AST.cons $(⟨elems.elemsAndSeps.get! i⟩) $result)
+        expandListLit i true res
+    expandListLit elems.elemsAndSeps.size false (← ``(AST.nil))
+
+def mkQuote (x : AST) : AST :=
+  ~[sym "QUOTE", x]
+
+end ASThelpers
+
+end Lurk.Syntax.AST
