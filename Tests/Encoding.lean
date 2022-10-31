@@ -1,7 +1,7 @@
 import LSpec
 import Lurk.Syntax2.DSL
-import Lurk.Hashing2.DSL
-import Lurk.Hashing2.Hashing
+import Lurk.Hashing2.StoreDSL
+import Lurk.Hashing2.Encoding
 
 open Lurk
 
@@ -178,4 +178,4 @@ open Hashing.DSL in def expectedStore := [store| scalar_store: {
 
 open LSpec in
 def main := lspecIO $
-  test "Hashing and storing works correctly" (ast.hash.2 == expectedStore)
+  test "Hashing and storing works correctly" (ast.encode.2 == expectedStore)

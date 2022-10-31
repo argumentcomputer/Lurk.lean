@@ -20,5 +20,5 @@ require LSpec from git
   "https://github.com/yatima-inc/LSpec.git" @ "02e423d02d2ba1b76bed3cf6459a5c2d7a13afb8"
 
 lean_exe Tests.Evaluation
-lean_exe Tests.Hashing
+lean_exe Tests.Encoding
 lean_exe Tests.Decoding
