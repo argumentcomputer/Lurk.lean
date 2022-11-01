@@ -1,6 +1,6 @@
 import LSpec
 import Lurk.Syntax2.DSL
-import Lurk.Syntax.Printing
+import Lurk.Hashing2.Encoding
 import Lurk.Hashing2.Decoding
 
 open Lurk
@@ -41,9 +41,8 @@ open LSpec in
 def main := do
   lspecIO $ asts.foldl (init := .done)
     fun tSeq (x : Lurk.Syntax.AST) =>
-      let (ptr, store) := x.hash
+      let (ptr, store) := x.encode
       withExceptOk s!"Decoding {x} succeeds"
           (Lurk.Hashing.decode ptr store) fun x' =>
         tSeq ++ test
           s!"Expected {x} equals {x'}" (x == x')
-#eval main

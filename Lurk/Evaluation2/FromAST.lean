@@ -1,8 +1,9 @@
-import Lurk.Syntax2.Notation
+import Lurk.Syntax2.AST
 import Lurk.Evaluation2.Expr
 
 namespace Lurk.Syntax.AST
-open Evaluation
+
+open Evaluation (Expr)
 
 abbrev ToExprM := Except String
 
@@ -80,9 +81,9 @@ partial def toExpr : AST → ToExprM Expr
       fun (n, e) acc => .letrec n e acc
   | ~[.sym "QUOTE", datum] => return .quote datum
   -- unary operators
-  | ~[.sym op₁, x] => do return mkOp₁ op₁ (← x.toExpr)
+  | ~[.sym op₁, x] => return mkOp₁ op₁ (← x.toExpr)
   -- binary operators
-  | ~[.sym op₂, x, y] => do return mkOp₂ op₂ (← x.toExpr) (← y.toExpr)
+  | ~[.sym op₂, x, y] => return mkOp₂ op₂ (← x.toExpr) (← y.toExpr)
   -- everything else is just an `app`
   | cons fn args => do
     let args ← (← mkList args) |>.mapM toExpr

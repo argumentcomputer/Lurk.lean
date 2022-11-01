@@ -19,6 +19,9 @@ require YatimaStdLib from git
 require LSpec from git
   "https://github.com/yatima-inc/LSpec.git" @ "02e423d02d2ba1b76bed3cf6459a5c2d7a13afb8"
 
+require Megaparsec from git
+  "https://github.com/yatima-inc/Megaparsec.lean" @ "e9238a79b3bef1be1bc1e99f26acc189bec12542"
+
 lean_exe Tests.Evaluation
-lean_exe Tests.Hashing
+lean_exe Tests.Encoding
 lean_exe Tests.Decoding

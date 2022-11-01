@@ -1,5 +1,5 @@
 import Lean
-import Lurk.Hashing2.Hashing
+import Lurk.Hashing2.Datatypes
 
 /-!
 # Helper DSL for generating test stores

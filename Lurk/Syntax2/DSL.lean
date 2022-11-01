@@ -60,12 +60,8 @@ def mergeSymNat : AST → Nat → AST
 
 mutual
 
-partial def elabASTCons (xs : Array $ TSyntax `ast) (init : Expr) :
-    TermElabM Expr := do
-  mkAppM ``AST.mkCons #[
-    ← mkListLit (mkConst ``AST) (← xs.data.mapM elabAST),
-    init
-  ]
+partial def elabASTCons (xs : Array $ TSyntax `ast) (init : Expr) : TermElabM Expr :=
+  xs.foldrM (init := init) fun e acc => do mkAppM ``AST.cons #[← elabAST e, acc]
 
 partial def elabAST : TSyntax `ast → TermElabM Expr
   | `(ast| $n:num) => mkAppM ``AST.num #[mkNatLit n.getNat]
