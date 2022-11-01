@@ -10,17 +10,17 @@ abbrev ToExprM := Except String
 def mkArgs : AST → ToExprM (List String)
   | .nil => return []
   | .cons (.sym x) xs => return x :: (← mkArgs xs)
-  | _ => throw "invalid arguments shape, expected list of symbols"
+  | x => throw s!"expected list of symbols but got {x}"
 
 def mkBindings : AST → ToExprM (List (String × AST))
   | .nil => return []
   | .cons ~[.sym x, y] xs => return (x, y) :: (← mkBindings xs)
-  | _ => throw "invalid binding shape, expected list of (symbol, body) pairs"
+  | x => throw s!"expected list of (symbol, body) pairs but got {x}"
 
 def mkList : AST → ToExprM (List AST)
   | .nil => return []
   | .cons x xs => return x :: (← mkList xs)
-  | _ => throw "invalid arguments shape, expected list"
+  | x => throw s!"expected list but got {x}"
 
 def mkOp₁ (op₁ : String) : Expr → Expr := match op₁ with
   | "ATOM"   => .op₁ .atom
@@ -59,15 +59,18 @@ partial def toExpr : AST → ToExprM Expr
   | .str s  => return .lit $ .str s
   | .sym "CURRENT-ENV" => return .env
   | .sym s  => return .sym s
-  -- `if` is a sequence of three expressions
+  -- `if` is a sequence of (up to) three expressions
+  | ~[.sym "IF"] => return .if (.lit .nil) (.lit .nil) (.lit .nil)
+  | ~[.sym "IF", x] => return .if (← x.toExpr) (.lit .nil) (.lit .nil)
+  | ~[.sym "IF", x, y] => return .if (← x.toExpr) (← y.toExpr) (.lit .nil)
   | ~[.sym "IF", x, y, z] => return .if (← x.toExpr) (← y.toExpr) (← z.toExpr)
   -- `lambda` requires a gradual consumption of a symbol
   | ~[.sym "LAMBDA", args, body] => do
     let args ← mkArgs args
     if args.isEmpty then
-      return .lambda "_" (← body.toExpr)
+      return .lam "_" (← body.toExpr)
     else
-      return args.foldr (init := ← body.toExpr) fun arg acc => .lambda arg acc
+      return args.foldr (init := ← body.toExpr) fun arg acc => .lam arg acc
   -- let and letrec are in the same case
   | ~[.sym "LET", bindings, body] => do
     let bindings ← mkBindings bindings
