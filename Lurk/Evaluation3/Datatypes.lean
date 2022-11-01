@@ -1,4 +1,4 @@
-import Lurk.Hashing2.Datatypes
+import Lurk.Hashing.Datatypes
 import Std.Data.HashMap
 
 

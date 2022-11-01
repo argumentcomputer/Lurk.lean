@@ -10,10 +10,9 @@ inductive Env
   | mk : Lean.RBNode String (fun _ => Thunk (Except String Value)) → Env
 
 inductive Value where
-  | lit : Lit → Value
-  | lam : String → Env → Expr → Value
-  | env : List (String × Value) → Value
   | ast : Syntax.AST → Value
+  | comm : F → Value
+  | «fun» : String → Env → Expr → Value
   deriving Inhabited
 
 end
@@ -21,14 +20,9 @@ end
 abbrev Result := Except String Value
 
 partial def Value.toString : Value → String
-  | .lit l => l.toString
   | .ast x => ToString.toString x
-  | .env l =>
-    if l.isEmpty then "NIL"
-    else
-      let pairs := " ".intercalate (l.map fun (s, v) => s!"({s} . {v.toString})")
-      s!"({pairs})"
-  | .lam n .. => s!"<λ{n}>"
+  | .comm c => s!"<comm {c.asHex}>"
+  | .fun n .. => s!"<fun ({n})>"
 
 instance : Inhabited Env := ⟨.mk .leaf⟩
 
@@ -62,45 +56,72 @@ partial def Env.eq (e₁ e₂ : Env) : Bool :=
   Env.eqAux (e₁.toList.map fun (s, v) => (s, v.get)) (e₂.toList.map fun (s, v) => (s, v.get))
 
 partial def Value.eq : Value → Value → Bool
-  | .lit l₁, .lit l₂ => l₁ == l₂
-  | .lam ns₁ env₁ e₁, .lam ns₂ env₂ e₂ =>
+  | .fun ns₁ env₁ e₁, .fun ns₂ env₂ e₂ =>
     ns₁ == ns₂ && env₁.eq env₂ && e₁ == e₂
   | .ast x, .ast y => x == y
   -- | .env e₁, .env e₂ => Env.eqAux e₁ e₂
+  | .comm c₁, .comm c₂ => c₁ == c₂
   | _, _ => false
 
 end
 
-def Value.num! : Value → Except String (Fin N)
-  | .lit (.num x) => pure x
-  | v => throw s!"expected numerical value, got\n {v.toString}"
+def Value.num : Value → Except String F
+  | .ast (.num x) => pure $ .ofNat x
+  | v => throw s!"expected numerical value, got\n  {v.toString}"
+
+partial def Expr.evalOp₁ (op : Op₁) (v : Value) : Except String Value := match op, v with
+  | .atom, .ast (.cons ..) => return .ast .nil
+  | .atom, _ => return .ast (.sym "T")
+  | .car, .ast (.cons car _) => return .ast car
+  | .car, v => throw s!"expected cons value, got\n  {v.toString}"
+  | .cdr, .ast (.cons _ cdr) => return .ast cdr
+  | .cdr, v => throw s!"expected cons value, got\n  {v.toString}"
+  | .emit, v => dbg_trace s!"{v.toString}"; return v
+  | .commit, v => throw "TODO"
+  | .comm, v => return .comm (← v.num)
+  | .open, v => throw "TODO"
+  | .num, .ast (.num n) => return .ast (.num n)
+  | .num, .ast (.char c) => return .ast (.num c.toNat)
+  | .num, .comm c => return .ast (.num c)
+  | .num, v => throw s!"expected char, num, or comm value, got\n  {v.toString}"
+  | .char, .ast (.char c) => return .ast (.char c)
+  | .char, .ast (.num n) => 
+    if h : isValidChar n.toUInt32 then
+      return .ast (.char ⟨n.toUInt32, h⟩)
+    else 
+      throw s!"{n.toUInt32} is not a valid char value"
+  | .char, v => throw s!"expected char or num value, got\n  {v.toString}"
+
+-- partial def Expr.evalOp₂ (op : Op₂) (v₁ v₂ : Value) : Except String Value := match op, v₁, v₂ with
+--   | .cons, v₁, v₂ => return .ast (.cons v₁ v₂)
+--   | _, _, _ => _
 
 partial def Expr.eval (env : Env := default) : Expr → Except String Value
-  | .lit l => return .lit l
+  | .lit l => return .ast l.toAST
   | .sym n => match env.find? n with
     | some v => v.get
     | none => throw s!"{n} not found"
   | .env => throw "TODO env"--return .env $ env.node.fold (fun acc k v => (k, v) :: acc) []
   | .if x y z => do match ← x.eval env with
-    | .lit .t => y.eval env
+    | .ast (.sym "T") => y.eval env
     | _ => z.eval env
   | .app₀ fn => do match ← fn.eval env with
     | e@(.env _) => return e
     | l@(.lam ..) => return l
     | _ => throw "invalid 0-arity app"
   | .app fn arg => do match ← fn.eval env with
-    | .lam n env' body => body.eval (env'.insert n (arg.eval env))
+    | .fun n env' body => body.eval (env'.insert n (arg.eval env))
     | _ => throw "lambda was expected"
-  | .op₁ op e => throw "TODO op₁"
+  | .op₁ op e => do evalOp₁ op (← e.eval env)
   | .op₂ op e₁ e₂ => match op with
-    | .add => return .lit $ .num $ (← (← e₁.eval env).num!) + (← (← e₂.eval env).num!)
-    | .sub => return .lit $ .num $ (← (← e₁.eval env).num!) - (← (← e₂.eval env).num!)
-    | .mul => return .lit $ .num $ (← (← e₁.eval env).num!) * (← (← e₂.eval env).num!)
+    | .add => return .ast $ .num $ (← (← e₁.eval env).num!) + (← (← e₂.eval env).num!)
+    | .sub => return .ast $ .num $ (← (← e₁.eval env).num!) - (← (← e₂.eval env).num!)
+    | .mul => return .ast $ .num $ (← (← e₁.eval env).num!) * (← (← e₂.eval env).num!)
     | .numEq => return match (← (← e₁.eval env).num!) == (← (← e₂.eval env).num!) with
-      | true => .lit .t
-      | false => .lit .nil
+      | true => .ast (.sym "T")
+      | false => .ast .nil
     | _ => throw "TODO op₂"
-  | .lam s e => return .lam s env e
+  | .lam s e => return .fun s env e
   | .let s v b => b.eval (env.insert s (v.eval env))
   | .letrec s v b => do
     let v' : Expr := .letrec s v v

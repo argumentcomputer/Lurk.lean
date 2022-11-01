@@ -36,6 +36,13 @@ def pprint : Lit → Format
 instance : ToFormat Lit where
   format := pprint
 
+def toAST : Lit → Syntax.AST
+  | .nil        => .nil
+  | .t          => .sym "T"
+  | .num n      => .num n
+  | .str s      => .str s
+  | .char c     => .char c
+
 end Lit
 
 inductive Op₁
