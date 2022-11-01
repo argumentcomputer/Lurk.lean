@@ -63,7 +63,7 @@ partial def listP : P AST := Megaparsec.attempt $ do
   discard $ single '('
   let x ← many' astP
   discard $ single ')'
-  return mkList x
+  return consWith x nil
 
 partial def dottedListP : P AST := Megaparsec.attempt $ do
   discard $ many' (satisfy fun c => c == ' ')
@@ -73,7 +73,7 @@ partial def dottedListP : P AST := Megaparsec.attempt $ do
   discard $ single '.'
   let x ← astP
   discard $ single ')'
-  return mkListWith xs x
+  return consWith xs x
 
 partial def astP : P AST := atomP <|> quoteP <|> listP <|> dottedListP
 

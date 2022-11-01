@@ -14,7 +14,7 @@ def mkArgs : AST → ToExprM (List String)
 
 def mkBindings : AST → ToExprM (List (String × AST))
   | .nil => return []
-  | .cons ~[(.sym x), y] xs => return (x, y) :: (← mkBindings xs)
+  | .cons ~[.sym x, y] xs => return (x, y) :: (← mkBindings xs)
   | _ => throw "invalid binding shape, expected list of (symbol, body) pairs"
 
 def mkList : AST → ToExprM (List AST)
@@ -23,15 +23,15 @@ def mkList : AST → ToExprM (List AST)
   | _ => throw "invalid arguments shape, expected list"
 
 def mkOp₁ (op₁ : String) : Expr → Expr := match op₁ with
-  | "ATOM" => .op₁ .atom
-  | "CAR" => .op₁ .car
-  | "CDR" => .op₁ .cdr
-  | "EMIT" => .op₁ .emit
+  | "ATOM"   => .op₁ .atom
+  | "CAR"    => .op₁ .car
+  | "CDR"    => .op₁ .cdr
+  | "EMIT"   => .op₁ .emit
   | "COMMIT" => .op₁ .commit
-  | "COMM" => .op₁ .comm
-  | "OPEN" => .op₁ .open
-  | "NUM" => .op₁ .num
-  | "CHAR" => .op₁ .char
+  | "COMM"   => .op₁ .comm
+  | "OPEN"   => .op₁ .open
+  | "NUM"    => .op₁ .num
+  | "CHAR"   => .op₁ .char
   | x => fun y => .app (.sym x) y
 
 def mkOp₂ (op₂ : String) : Expr → Expr → Expr := match op₂ with
