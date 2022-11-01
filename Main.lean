@@ -1,4 +1,5 @@
 import Lurk.Syntax2.Parser
+import Lurk.Syntax2.DSL
 import Lurk.Evaluation2.FromAST
 import Lurk.Evaluation2.Eval
 
@@ -18,3 +19,20 @@ def main : List String → IO UInt32
     IO.println $ eval code
     return 0
   | _ => do IO.eprintln "Only one input file is accepted"; return 1
+
+open Lurk.Syntax.DSL in
+def expr := ⟦(letrec ((exp (lambda (base)
+                (lambda (exponent)
+                  (if (= 0 exponent)
+                      1
+                      (* base ((exp base) (- exponent 1))))))))
+        ((exp 5) 3))⟧
+
+def evaluate (code : Lurk.Syntax.AST) : IO Unit :=
+  match code.toExpr with
+  | .ok e => match e.eval with
+    | .ok v => IO.println v.toString
+    | .error err => IO.println err
+  | .error err => IO.println err
+
+#eval evaluate expr
