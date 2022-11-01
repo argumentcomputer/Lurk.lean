@@ -1,10 +1,9 @@
-import Lurk.Evaluation2.FromAST
 import Lurk.Hashing2.Datatypes
 import Std.Data.HashMap
 
 
 namespace Lurk.Evaluation
-open Lurk.Syntax Std
+open Lean
 
 abbrev PoseidonCache := HashMap (Array F) F
 
@@ -21,6 +20,11 @@ structure ContPtr where
 structure ConsData where 
   car : Ptr
   cdr : Ptr
+  deriving BEq, Hashable
+
+structure CommData where 
+  hash : F
+  val  : Ptr
   deriving BEq, Hashable
 
 structure FunData where 
@@ -96,23 +100,24 @@ structure EmitData where
   deriving BEq, Hashable
 
 structure Store where
-  consStore : Lean.HashSet ConsData
-  funStore : Lean.HashSet FunData
-  symStore : Lean.HashSet String
-  strStore : Lean.HashSet String
-  thunkStore : Lean.HashSet ThunkData
-  call₀Store : Lean.HashSet Call₀Data
-  callStore : Lean.HashSet CallData
-  callnextStore : Lean.HashSet CallNextData
-  tailStore : Lean.HashSet TailData
-  lookupStore : Lean.HashSet LookupData
-  op₁Store : Lean.HashSet Op₁Data
-  op₂Store : Lean.HashSet Op₂Data
-  op₂nextStore : Lean.HashSet Op₂NextData
-  ifStore : Lean.HashSet IfData
-  letStore : Lean.HashSet LetTypeData
-  letrecStore : Lean.HashSet LetTypeData
-  emitStore : Lean.HashSet EmitData
+  consStore : HashSet ConsData
+  commStore : HashSet CommData
+  funStore : HashSet FunData
+  symStore : HashSet String
+  strStore : HashSet String
+  thunkStore : HashSet ThunkData
+  call₀Store : HashSet Call₀Data
+  callStore : HashSet CallData
+  callnextStore : HashSet CallNextData
+  tailStore : HashSet TailData
+  lookupStore : HashSet LookupData
+  op₁Store : HashSet Op₁Data
+  op₂Store : HashSet Op₂Data
+  op₂nextStore : HashSet Op₂NextData
+  ifStore : HashSet IfData
+  letStore : HashSet LetTypeData
+  letrecStore : HashSet LetTypeData
+  emitStore : HashSet EmitData
 
   opaques : HashMap Ptr Hashing.ScalarPtr
   scalars : HashMap Hashing.ScalarPtr Ptr
@@ -124,6 +129,34 @@ structure Store where
   dehyratedConts : Array ContPtr
   opaqueCount : USize
 
+inductive Expr where
+  | nil : Expr
+  | num : F → Expr
+  | sym : String → Expr
+  | str : String → Expr
+  | char : Char → Expr
+  | opaque : Ptr → Expr
+  | cons : ConsData → Expr
+  | comm : CommData → Expr
+  | «fun» : FunData → Expr
+  | thunk : ThunkData → Expr
 
+inductive Continuation where
+  | outermost : Continuation
+  | call₀ : Call₀Data → Continuation
+  | call : CallData → Continuation
+  | callnext : CallNextData → Continuation
+  | tail : TailData → Continuation
+  | error : Continuation
+  | lookup : LookupData → Continuation
+  | op₁ : Op₁Data → Continuation
+  | op₂ : Op₂Data → Continuation
+  | op₂next : Op₂NextData → Continuation
+  | «if» : IfData → Continuation
+  | «let» : LetTypeData → Continuation
+  | letrec : LetTypeData → Continuation
+  | emit : EmitData → Continuation
+  | dummy : Continuation
+  | terminal : Continuation 
 
 end Lurk.Evaluation

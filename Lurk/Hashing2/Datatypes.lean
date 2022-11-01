@@ -1,11 +1,11 @@
 import Lurk.Arithmetic
 import Std.Data.RBMap
 
-namespace Lurk.Hashing
+namespace Lurk
 
 inductive Tag
   | nil | cons | sym | «fun» | num | thunk | str | char | comm
-  deriving Ord, BEq, Inhabited
+  deriving Ord, BEq, Inhabited, Hashable
 
 def Tag.toString : Tag → String
   | nil   => "nil"
@@ -31,10 +31,56 @@ def Tag.toF : Tag → F
   | .char  => .ofNat 7
   | .comm  => .ofNat 8
 
+
+inductive ContTag
+  | outermost | call₀ | call | callnext | tail | error | lookup | op₁ | op₂
+  | op₂next | «if» | «let» | letrec | dummy | terminal | emit
+  deriving Ord, BEq, Inhabited, Hashable
+
+def ContTag.toString : ContTag → String
+  | outermost => "outermost" 
+  | call₀ => "call₀" 
+  | call => "call" 
+  | callnext => "callnext" 
+  | tail => "tail" 
+  | error => "error" 
+  | lookup => "lookup" 
+  | op₁ => "op₁" 
+  | op₂ => "op₂"
+  | op₂next => "op₂next" 
+  | «if» => "if" 
+  | «let» => "let" 
+  | letrec => "letrec" 
+  | dummy => "dummy" 
+  | terminal => "terminal" 
+  | emit => "emit"
+
+instance : ToString ContTag := ⟨ContTag.toString⟩
+
+def ContTag.toUSize : ContTag → USize
+  | outermost => Nat.toUSize 0 
+  | call₀ => Nat.toUSize 1 
+  | call => Nat.toUSize 2
+  | callnext => Nat.toUSize 3
+  | tail => Nat.toUSize 4
+  | error => Nat.toUSize 5
+  | lookup => Nat.toUSize 6
+  | op₁ => Nat.toUSize 7
+  | op₂ => Nat.toUSize 8
+  | op₂next => Nat.toUSize 9
+  | «if» => Nat.toUSize 10
+  | «let» => Nat.toUSize 11
+  | letrec => Nat.toUSize 12
+  | dummy => Nat.toUSize 13
+  | terminal => Nat.toUSize 14
+  | emit => Nat.toUSize 15
+
+namespace Hashing
+
 structure ScalarPtr where
   tag : Tag
   val : F
-  deriving Ord, BEq, Inhabited
+  deriving Ord, BEq, Inhabited, Hashable
 
 def ScalarPtr.toString : ScalarPtr → String
   | ⟨.num, n⟩ => s!"(num, {n.asHex})"
@@ -85,4 +131,5 @@ instance : ToString ScalarStore := ⟨ScalarStore.toString⟩
 def ScalarStore.ofExprList (exprs : List (ScalarPtr × ScalarExpr)) : ScalarStore :=
   ⟨.ofList exprs _, default⟩
 
-end Lurk.Hashing
+end Hashing
+end Lurk

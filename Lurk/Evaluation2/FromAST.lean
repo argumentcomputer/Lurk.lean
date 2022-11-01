@@ -17,9 +17,9 @@ def mkBindings : AST → ToExprM (List (String × AST))
   | .cons ~[(.sym x), y] xs => return (x, y) :: (← mkBindings xs)
   | _ => throw "invalid binding shape, expected list of (symbol, body) pairs"
 
-def mkList : AST → ToExprM (List AST)
+def toList : AST → ToExprM (List AST)
   | .nil => return []
-  | .cons x xs => return x :: (← mkList xs)
+  | .cons x xs => return x :: (← toList xs)
   | _ => throw "invalid arguments shape, expected list"
 
 def mkOp₁ (op₁ : String) : Expr → Expr := match op₁ with
@@ -86,7 +86,7 @@ partial def toExpr : AST → ToExprM Expr
   | ~[.sym op₂, x, y] => return mkOp₂ op₂ (← x.toExpr) (← y.toExpr)
   -- everything else is just an `app`
   | cons fn args => do
-    let args ← (← mkList args) |>.mapM toExpr
+    let args ← (← toList args) |>.mapM toExpr
     if args.isEmpty then
       return .app₀ (← fn.toExpr)
     else
