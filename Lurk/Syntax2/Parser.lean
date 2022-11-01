@@ -20,9 +20,9 @@ def numP : P AST := do
   return .num $ String.toNat! str
 
 def charP : P AST := do
-  discard $ single '#'
-  discard $ single '\\'
+  discard $ single '\''
   let c ← satisfy fun _ => true
+  discard $ single '\''
   return .char c
 
 def strP : P AST := do
@@ -31,14 +31,24 @@ def strP : P AST := do
   discard $ single '"'
   return .str $ ⟨x⟩
 
-def symP : P AST := do
+def noEscSymP : P AST := do
   let c ← satisfy Char.isAlpha
-  let x ← many' (satisfy Char.isAlphanum)
+  let x ← many' (satisfy fun c => c.isAlphanum || c == '-' || c == ':')
   return .sym $ String.toUpper ⟨c :: x⟩
+
+def escSymP : P AST := do
+  discard $ single '|'
+  let x ← many' (satisfy fun c => c != '|')
+  discard $ single '|'
+  return .sym $ ⟨x⟩
+
+def symP : P AST := escSymP <|> noEscSymP
 
 def atomP : P AST := Megaparsec.attempt $ do
   discard $ many' (satisfy fun c => c == ' ')
-  nilP <|> numP <|> charP <|> strP <|> symP
+  let a ← nilP <|> numP <|> charP <|> strP <|> symP
+  discard $ many' (satisfy fun c => c == ' ')
+  return a
 
 mutual 
 
@@ -65,7 +75,7 @@ partial def dottedListP : P AST := Megaparsec.attempt $ do
   discard $ single ')'
   return mkListWith xs x
 
-partial def astP : P AST := quoteP <|> atomP <|> listP <|> dottedListP
+partial def astP : P AST := atomP <|> quoteP <|> listP <|> dottedListP
 
 end 
 
