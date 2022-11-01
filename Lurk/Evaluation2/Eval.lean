@@ -22,9 +22,12 @@ partial def Value.toString : Value → String
   | .ast x => ToString.toString x
   | .env l =>
     if l.isEmpty then "NIL"
-    else "(" ++ " ".intercalate (l.map fun (s, v) => s!"({s} . {v.toString})") ++ ")"
-  | .lam ns .. => s!"<FUNCTION {ns}>"
-
+    else
+      let pairs := " ".intercalate (l.map fun (s, v) => s!"({s} . {v.toString})")
+      s!"({pairs})"
+  | .lam ns .. =>
+    let args := " ".intercalate ns
+    s!"<FUNCTION ({args})>"
 
 instance : Inhabited Env := ⟨.mk .leaf⟩
 
