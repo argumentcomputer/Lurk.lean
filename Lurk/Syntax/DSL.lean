@@ -1,5 +1,5 @@
 import Lean
-import Lurk.Syntax2.AST
+import Lurk.Syntax.AST
 
 namespace Lurk.Syntax
 open Lean Elab Meta Term

@@ -1,5 +1,5 @@
 import Lean
-import Lurk.Evaluation2.Expr
+import Lurk.Evaluation.Expr
 
 namespace Lurk.Evaluation
 

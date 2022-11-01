@@ -1,5 +1,5 @@
-import Lurk.Syntax2.AST
-import Lurk.Hashing2.Datatypes
+import Lurk.Syntax.AST
+import Lurk.Hashing.Datatypes
 import YatimaStdLib.Fin
 import Poseidon.ForLurk
 

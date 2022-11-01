@@ -1,5 +1,4 @@
-import Lurk.Syntax2.AST
-import Lurk.Evaluation2.Expr
+import Lurk.Evaluation.Expr
 
 namespace Lurk.Syntax.AST
 

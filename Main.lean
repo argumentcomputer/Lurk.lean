@@ -1,7 +1,7 @@
-import Lurk.Syntax2.Parser
-import Lurk.Syntax2.DSL
-import Lurk.Evaluation2.FromAST
-import Lurk.Evaluation2.Eval
+import Lurk.Syntax.Parser
+import Lurk.Syntax.DSL
+import Lurk.Evaluation.FromAST
+import Lurk.Evaluation.Eval
 
 def eval (code : String) : String :=
   match Lurk.Syntax.parse code with

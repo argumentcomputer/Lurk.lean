@@ -1,7 +1,7 @@
 import LSpec
-import Lurk.Syntax2.DSL
-import Lurk.Hashing2.Encoding
-import Lurk.Hashing2.Decoding
+import Lurk.Syntax.DSL
+import Lurk.Hashing.Encoding
+import Lurk.Hashing.Decoding
 
 open Lurk
 

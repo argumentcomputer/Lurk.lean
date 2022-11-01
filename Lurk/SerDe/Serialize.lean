@@ -1,4 +1,4 @@
-import Lurk.Hashing2.Datatypes
+import Lurk.Hashing.Datatypes
 import YatimaStdLib.Nat
 import YatimaStdLib.ByteArray
 

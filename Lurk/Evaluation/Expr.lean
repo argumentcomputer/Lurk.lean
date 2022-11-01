@@ -1,5 +1,5 @@
 import Lurk.Arithmetic
-import Lurk.Syntax2.AST
+import Lurk.Syntax.AST
 
 open Std
 
