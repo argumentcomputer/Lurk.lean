@@ -36,26 +36,17 @@ instance : ToString AST := ⟨toString ∘ toFormat⟩
 
 section ASThelpers
 
-def mkListWith (xs : List AST) (init : AST) : AST :=
+def consWith (xs : List AST) (init : AST) : AST :=
   xs.foldr (init := init) fun x acc => cons x acc
-
-def mkList (xs : List AST) : AST := 
-  mkListWith xs nil
 
 scoped syntax "~[" withoutPosition(term,*) "]"  : term
 
-open Lean in
-macro_rules -- todo: try to simplify this macro
-  | `(~[$elems,*]) => do
-    let rec expandListLit (i : Nat) (skip : Bool) (result : TSyntax `term) :
-        MacroM Syntax := do
-      match i, skip with
-      | 0,   _     => pure result
-      | i+1, true  => expandListLit i false result
-      | i+1, false =>
-        let res ← ``(AST.cons $(⟨elems.elemsAndSeps.get! i⟩) $result)
-        expandListLit i true res
-    expandListLit elems.elemsAndSeps.size false (← ``(AST.nil))
+macro_rules
+  | `(~[$xs,*]) => do
+    let mut x ← `(AST.nil)
+    for i in xs.getElems.reverse do
+      x ← `(AST.cons $i $x)
+    return x
 
 def mkQuote (x : AST) : AST :=
   ~[sym "QUOTE", x]

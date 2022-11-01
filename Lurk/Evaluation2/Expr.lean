@@ -19,9 +19,16 @@ inductive Lit
 
 namespace Lit 
 
+def toString : Lit → String
+  | .nil        => "NIL"
+  | .t          => "T"
+  | .num n      => ToString.toString n
+  | .str s      => s!"\"{s}\""
+  | .char c     => s!"#\\{c}"
+
 def pprint : Lit → Format
-  | .nil        => "nil"
-  | .t          => "t"
+  | .nil        => "NIL"
+  | .t          => "T"
   | .num n      => n.asHex
   | .str s      => s!"\"{s}\""
   | .char c     => s!"#\\{c}"
@@ -52,7 +59,7 @@ inductive Expr
   | «if» : Expr → Expr → Expr → Expr
   | app₀ : Expr → Expr
   | app  : Expr → Expr → Expr
-  | lambda : String → Expr → Expr
+  | lam : String → Expr → Expr
   | «let»  : String → Expr → Expr → Expr
   | letrec : String → Expr → Expr → Expr
   | quote : Syntax.AST → Expr

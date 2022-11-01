@@ -32,13 +32,13 @@ partial def encodeString (s : String) : EncodeM ScalarPtr := do
   | some ptr => pure ptr
   | none => 
     let ptr ← match s.data with
-    | c :: cs => do
-      let headPtr := ⟨.char, .ofNat c.toNat⟩
-      let tailPtr ← encodeString ⟨cs⟩
-      let ptr := ⟨Tag.str, hashPtrPair headPtr tailPtr⟩
-      let expr := .strCons headPtr tailPtr
-      addExprHash ptr expr 
-    | [] => addExprHash ⟨Tag.str, F.zero⟩ .strNil
+      | [] => addExprHash ⟨Tag.str, F.zero⟩ .strNil
+      | c :: cs => do
+        let headPtr := ⟨.char, .ofNat c.toNat⟩
+        let tailPtr ← encodeString ⟨cs⟩
+        let ptr := ⟨Tag.str, hashPtrPair headPtr tailPtr⟩
+        let expr := .strCons headPtr tailPtr
+        addExprHash ptr expr 
     modifyGet fun stt =>
       (ptr, { stt with stringCache := stt.stringCache.insert s ptr })
 
@@ -47,7 +47,7 @@ def encodeAST (x : Syntax.AST) : EncodeM ScalarPtr := do
   | some ptr => pure ptr
   | none =>
     let ptr ← match x with
-      | .nil => do
+      | .nil =>
         -- `nil` has its own tag instead of `.sym`. Thus we need to manually
         -- hash it as a string and make a `.nil` pointer with it
         let ptr ← encodeString "NIL"
@@ -64,25 +64,16 @@ def encodeAST (x : Syntax.AST) : EncodeM ScalarPtr := do
         addExprHash ⟨.cons, hashPtrPair car cdr⟩ (.cons car cdr)
     modifyGet fun stt =>
       (ptr, { stt with astCache := stt.astCache.insert x ptr })
-
-
-def hidePtr (secret : F) (ptr : ScalarPtr) : EncodeM F := do
-  let hash := hashPtrPair ⟨Tag.comm, secret⟩ ptr 
-  addCommitment hash ptr
-
-def commitPtr (ptr : ScalarPtr) : EncodeM F := do
-  hidePtr (.ofNat 0) ptr
   
 def hideAST (secret : F) (x : Syntax.AST)  : EncodeM F := do
   let ptr ← encodeAST x
-  hidePtr secret ptr
-
-def commitAST (x : Syntax.AST) : EncodeM F := do
-  hideAST (.ofNat 0) x
+  let hash := hashPtrPair ⟨.comm, secret⟩ ptr 
+  addCommitment hash ptr
 
 end Lurk.Hashing
 
 namespace Lurk.Syntax.AST
+
 open Lurk.Hashing
 
 def encode (x : Syntax.AST) : ScalarPtr × ScalarStore :=
@@ -94,7 +85,7 @@ def hide (secret : F) (x : Syntax.AST) : F × ScalarStore :=
   | (hash, stt) => (hash, stt.store)
 
 def commit (x : Syntax.AST) : F × ScalarStore :=
-  match StateT.run (commitAST x) default with
+  match StateT.run (hideAST (.ofNat 0) x) default with
   | (hash, stt) => (hash, stt.store)
 
 end Lurk.Syntax.AST
