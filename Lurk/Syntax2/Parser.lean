@@ -56,7 +56,7 @@ partial def quoteP : P AST := Megaparsec.attempt $ do
   discard $ many' (satisfy fun c => c == ' ')
   discard $ single '\''
   let x ← astP
-  return ~[sym "QUOTE", x]
+  return mkQuote x
 
 partial def listP : P AST := Megaparsec.attempt $ do
   discard $ many' (satisfy fun c => c == ' ')
