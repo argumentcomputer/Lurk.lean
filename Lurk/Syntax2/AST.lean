@@ -36,8 +36,11 @@ instance : ToString AST := ⟨toString ∘ toFormat⟩
 
 section ASThelpers
 
-def buildCons (xs : List AST) (init : AST) : AST :=
-  xs.foldr (init := nil) fun x acc => cons x acc
+def mkListWith (xs : List AST) (init : AST) : AST :=
+  xs.foldr (init := init) fun x acc => cons x acc
+
+def mkList (xs : List AST) : AST := 
+  mkListWith xs nil
 
 scoped syntax "~[" withoutPosition(term,*) "]"  : term
 

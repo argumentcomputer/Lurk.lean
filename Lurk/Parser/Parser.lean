@@ -20,9 +20,9 @@ def numP : P AST := do
   return .num $ String.toNat! str
 
 def charP : P AST := do
-  discard $ single '\''
+  discard $ single '#'
+  discard $ single '\\'
   let c ← satisfy fun _ => true
-  discard $ single '\''
   return .char c
 
 def strP : P AST := do
@@ -40,24 +40,37 @@ def atomP : P AST := Megaparsec.attempt $ do
   discard $ many' (satisfy fun c => c == ' ')
   nilP <|> numP <|> charP <|> strP <|> symP
 
-partial def parensP : P AST := Megaparsec.attempt $ do
+mutual 
+
+partial def quoteP : P AST := Megaparsec.attempt $ do
   discard $ many' (satisfy fun c => c == ' ')
-  discard $ single '('
-  let x ← many' $ atomP <|> parensP
-  discard $ single ')'
-  return buildCons x nil
-
-def astP : P AST := atomP <|> parensP
-
-def quoteP : P AST := do
   discard $ single '\''
-  discard $ many' (satisfy fun c => c == ' ')
   let x ← astP
   return ~[sym "QUOTE", x]
 
-/-- TODO: dotted cons -/
+partial def listP : P AST := Megaparsec.attempt $ do
+  discard $ many' (satisfy fun c => c == ' ')
+  discard $ single '('
+  let x ← many' astP
+  discard $ single ')'
+  return mkList x
+
+partial def dottedListP : P AST := Megaparsec.attempt $ do
+  discard $ many' (satisfy fun c => c == ' ')
+  discard $ single '('
+  let xs ← many1' astP
+  discard $ many' (satisfy fun c => c == ' ')
+  discard $ single '.'
+  let x ← astP
+  discard $ single ')'
+  return mkListWith xs x
+
+partial def astP : P AST := quoteP <|> atomP <|> listP <|> dottedListP
+
+end 
+
 protected def parse (code : String) : Except String AST :=
-  match parse (quoteP <|> astP) code with
+  match parse astP code with
   | .right x => return x
   | .left x => throw $ toString x
 
