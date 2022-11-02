@@ -10,7 +10,9 @@ inductive Env
   | mk : Lean.RBNode String (fun _ => Thunk (Except String Value)) → Env
 
 inductive Value where
-  | ast : Syntax.AST → Value
+  | lit : Lit → Value
+  | sym : String → Value
+  | cons : Value → Value → Value
   | comm : F → Value
   | «fun» : String → Env → Expr → Value
   deriving Inhabited
@@ -19,10 +21,36 @@ end
 
 abbrev Result := Except String Value
 
+partial def toListWith : Value → List Value × Option Value
+  | .cons v₁ v₂ => 
+    let (vs, tail) := toListWith v₂
+    (v₁ :: vs, tail) 
+  | v => ([], v)
+
 partial def Value.toString : Value → String
-  | .ast x => ToString.toString x
+  | .lit l => l.toString
+  | .sym s => s
+  | v@(.cons ..) => 
+    let (vs, tail) := toListWith v
+    let vs := vs.map toString |> String.intercalate " "
+    match tail with 
+    | none => "(" ++ vs ++ ")"
+    | some v => s!"({vs} . {v.toString})"
   | .comm c => s!"<comm {c.asHex}>"
   | .fun n .. => s!"<fun ({n})>"
+  
+instance : ToString Value where
+  toString := Value.toString
+
+partial def _root_.Lurk.Syntax.AST.toValue : Syntax.AST → Value
+  | .nil => .lit .nil
+  | .num n => .lit $ .num (.ofNat n)
+  | .char c => .lit $ .char c
+  | .str s => .lit $ .str s
+  | .sym "NIL" => .lit .nil
+  | .sym "T" => .lit .t
+  | .sym s => .sym s
+  | .cons e₁ e₂ => .cons e₁.toValue e₂.toValue
 
 instance : Inhabited Env := ⟨.mk .leaf⟩
 
@@ -47,7 +75,7 @@ mutual
 partial def Env.eqAux : List (String × Result) → List (String × Result) → Bool
   | [], [] => true
   | (s₁, v₁)::xs, (s₂, v₂)::ys => match (v₁, v₂) with
-    | (Except.ok v₁, Except.ok v₂) => v₁.eq v₂ && s₁ == s₂ && Env.eqAux xs ys
+    | (Except.ok v₁, Except.ok v₂) => v₁.beq v₂ && s₁ == s₂ && Env.eqAux xs ys
     | (Except.error e₁, Except.error e₂) => e₁ == e₂ && s₁ == s₂ && Env.eqAux xs ys
     | _ => false    
   | _, _ => false
@@ -55,10 +83,11 @@ partial def Env.eqAux : List (String × Result) → List (String × Result) → 
 partial def Env.eq (e₁ e₂ : Env) : Bool :=
   Env.eqAux (e₁.toList.map fun (s, v) => (s, v.get)) (e₂.toList.map fun (s, v) => (s, v.get))
 
-partial def Value.eq : Value → Value → Bool
+partial def Value.beq : Value → Value → Bool
+  | .lit l₁, .lit l₂ => l₁ == l₂
+  | .cons c₁ d₁, .cons c₂ d₂ => c₁.beq c₂ && d₁.beq d₂
   | .fun ns₁ env₁ e₁, .fun ns₂ env₂ e₂ =>
     ns₁ == ns₂ && env₁.eq env₂ && e₁ == e₂
-  | .ast x, .ast y => x == y
   -- | .env e₁, .env e₂ => Env.eqAux e₁ e₂
   | .comm c₁, .comm c₂ => c₁ == c₂
   | _, _ => false
@@ -66,67 +95,94 @@ partial def Value.eq : Value → Value → Bool
 end
 
 def Value.num : Value → Except String F
-  | .ast (.num x) => pure $ .ofNat x
+  | .lit (.num x) => pure x
   | v => throw s!"expected numerical value, got\n  {v.toString}"
 
+def Value.char : Value → Except String Char
+  | .lit (.char c) => pure c
+  | v => throw s!"expected numerical value, got\n  {v.toString}"
+
+def Value.string : Value → Except String String
+  | .lit (.str s) => pure s
+  | v => throw s!"expected numerical value, got\n  {v.toString}"
+
+instance : Coe Bool Value where coe
+  | true => .lit .t
+  | false => .lit .nil
+
+instance : Coe Char Value where 
+  coe c := .lit (.char c)
+
+instance : Coe String Value where 
+  coe c := .lit (.str c)
+
+instance : OfNat Value n where 
+  ofNat := .lit $ .num (.ofNat n)
+
 partial def Expr.evalOp₁ (op : Op₁) (v : Value) : Except String Value := match op, v with
-  | .atom, .ast (.cons ..) => return .ast .nil
-  | .atom, _ => return .ast (.sym "T")
-  | .car, .ast (.cons car _) => return .ast car
+  | .atom, .cons .. => return .lit .nil
+  | .atom, _ => return .lit .t
+  | .car, .cons car _ => return car
   | .car, v => throw s!"expected cons value, got\n  {v.toString}"
-  | .cdr, .ast (.cons _ cdr) => return .ast cdr
+  | .cdr, .cons _ cdr => return cdr
   | .cdr, v => throw s!"expected cons value, got\n  {v.toString}"
   | .emit, v => dbg_trace s!"{v.toString}"; return v
   | .commit, v => throw "TODO"
   | .comm, v => return .comm (← v.num)
   | .open, v => throw "TODO"
-  | .num, .ast (.num n) => return .ast (.num n)
-  | .num, .ast (.char c) => return .ast (.num c.toNat)
-  | .num, .comm c => return .ast (.num c)
+  | .num, .lit (.num n) => return .lit (.num n)
+  | .num, .lit (.char c) => return .lit $ .num (.ofNat c.toNat)
+  | .num, .comm c => return .lit (.num c)
   | .num, v => throw s!"expected char, num, or comm value, got\n  {v.toString}"
-  | .char, .ast (.char c) => return .ast (.char c)
-  | .char, .ast (.num n) => 
+  | .char, .lit (.char c) => return .lit (.char c)
+  | .char, .lit (.num ⟨n, _⟩) => 
     if h : isValidChar n.toUInt32 then
-      return .ast (.char ⟨n.toUInt32, h⟩)
+      return .lit (.char ⟨n.toUInt32, h⟩)
     else 
       throw s!"{n.toUInt32} is not a valid char value"
   | .char, v => throw s!"expected char or num value, got\n  {v.toString}"
 
--- partial def Expr.evalOp₂ (op : Op₂) (v₁ v₂ : Value) : Except String Value := match op, v₁, v₂ with
---   | .cons, v₁, v₂ => return .ast (.cons v₁ v₂)
---   | _, _, _ => _
+partial def Expr.evalOp₂ (op : Op₂) (v₁ v₂ : Value) : Except String Value := match op, v₁, v₂ with
+  | .cons, v₁, v₂ => return .cons v₁ v₂
+  | .strcons, .lit (.char c), .lit (.str s) => return .lit (.str ⟨c :: s.data⟩)
+  | .strcons, v₁, v₂ => throw s!"expected char and string value, got\n  {v₁.toString}\n  {v₂.toString}"
+  | .begin, _, v₂ => return v₂
+  | .add, v₁, v₂ => return .lit $ .num ((← v₁.num) + (← v₂.num))
+  | .sub, v₁, v₂ => return .lit $ .num ((← v₁.num) - (← v₂.num))
+  | .mul, v₁, v₂ => return .lit $ .num ((← v₁.num) * (← v₂.num))
+  | .div, v₁, v₂ => return .lit $ .num ((← v₁.num) * (← v₂.num))
+  | .numEq, v₁, v₂ => return (← v₁.num) == (← v₂.num)
+  | .lt, v₁, v₂ => return decide $ (← v₁.num) < (← v₂.num)
+  | .gt, v₁, v₂ => return decide $ (← v₁.num) > (← v₂.num)
+  | .le, v₁, v₂ => return decide $ (← v₁.num) <= (← v₂.num)
+  | .ge, v₁, v₂ => return decide $ (← v₁.num) >= (← v₂.num)
+  | .eq, v₁, v₂ => return v₁.beq v₂
+  | .hide, v₁, v₂ => throw "TODO"
 
 partial def Expr.eval (env : Env := default) : Expr → Except String Value
-  | .lit l => return .ast l.toAST
+  | .lit l => return .lit l
   | .sym n => match env.find? n with
     | some v => v.get
     | none => throw s!"{n} not found"
-  | .env => throw "TODO env"--return .env $ env.node.fold (fun acc k v => (k, v) :: acc) []
+  | .env => do env.node.foldM (fun acc k v => return .cons acc (.cons (.lit $ .str k) (← v.get))) (.lit .nil)
   | .if x y z => do match ← x.eval env with
-    | .ast (.sym "T") => y.eval env
+    | .lit .t => y.eval env
     | _ => z.eval env
   | .app₀ fn => do match ← fn.eval env with
-    | e@(.env _) => return e
-    | l@(.lam ..) => return l
+    | .fun "_" env' body => body.eval env'
     | _ => throw "invalid 0-arity app"
   | .app fn arg => do match ← fn.eval env with
+    | .fun "_" .. => throw "cannot apply argument to 0-arg lambda"
     | .fun n env' body => body.eval (env'.insert n (arg.eval env))
     | _ => throw "lambda was expected"
   | .op₁ op e => do evalOp₁ op (← e.eval env)
-  | .op₂ op e₁ e₂ => match op with
-    | .add => return .ast $ .num $ (← (← e₁.eval env).num!) + (← (← e₂.eval env).num!)
-    | .sub => return .ast $ .num $ (← (← e₁.eval env).num!) - (← (← e₂.eval env).num!)
-    | .mul => return .ast $ .num $ (← (← e₁.eval env).num!) * (← (← e₂.eval env).num!)
-    | .numEq => return match (← (← e₁.eval env).num!) == (← (← e₂.eval env).num!) with
-      | true => .ast (.sym "T")
-      | false => .ast .nil
-    | _ => throw "TODO op₂"
+  | .op₂ op e₁ e₂ => do evalOp₂ op (← e₁.eval env) (← e₂.eval env)
   | .lam s e => return .fun s env e
   | .let s v b => b.eval (env.insert s (v.eval env))
   | .letrec s v b => do
     let v' : Expr := .letrec s v v
     let env' := env.insert s $ .mk fun _ => eval env v'
     b.eval (env.insert s (eval env' v))
-  | .quote x => return .ast x
+  | .quote x => return x.toValue
 
 end Lurk.Evaluation
