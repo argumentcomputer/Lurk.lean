@@ -52,25 +52,23 @@ def escSymP : P AST := do
   discard $ single '|'
   return .sym $ ⟨x⟩
 
-def symP : P AST := escSymP <|> noEscSymP
-
-def atomP : P AST := do
-  nilP <|> numP <|> charP <|> strP <|> symP
+def symP : P AST :=
+  escSymP <|> noEscSymP
 
 def blanksP : P Unit := do
-  discard $ many' (satisfy fun c => c == ' ')
-  discard $ many' (satisfy fun c => c == '\t')
-  discard $ many' (satisfy fun c => c == '\n')
+  discard $ many' (satisfy fun c => [' ', '\n', '\t'].contains c)
+
+def atomP : P AST :=
+  nilP <|> symP <|> numP <|> charP <|> strP
 
 mutual 
 
 partial def quoteP : P AST := do
   discard $ single '\''
-  blanksP
   let x ← astP
   return mkQuote x
 
-partial def listP : P AST := attempt do
+partial def listP : P AST := do
   discard $ single '('
   blanksP
   let x ← many' astP
@@ -79,7 +77,6 @@ partial def listP : P AST := attempt do
 
 partial def dottedListP : P AST := do
   discard $ single '('
-  blanksP
   let xs ← many1' astP
   discard $ single '.'
   let x ← astP
@@ -88,7 +85,7 @@ partial def dottedListP : P AST := do
 
 partial def astP : P AST := do
   blanksP
-  let x ← atomP <|> quoteP <|> listP <|> dottedListP
+  let x ← atomP <|> (attempt listP) <|> dottedListP <|> quoteP
   blanksP
   return x
 
@@ -98,15 +95,5 @@ protected def parse (code : String) : Except String AST :=
   match parse astP code with
   | .right x => return x
   | .left x => throw $ toString x
-
--- #eval discard $ parseTestP astP "(begin
---     (current-env)
---     (g x s)
---     (let (
---         (n1 nil)
---         (n2 (quote (nil)))
---         (n3 (begin)))
---       (current-env))
---     ((+ 1 2) (f x) . (cons 4 2)))"
 
 end Lurk.Syntax
