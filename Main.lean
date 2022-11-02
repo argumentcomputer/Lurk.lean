@@ -20,8 +20,6 @@ def main : List String → IO UInt32
     return 0
   | _ => do IO.eprintln "Only one input file is accepted"; return 1
 
-#eval eval "(let ((a 1)) (current-env))"
-
 open Lurk.Syntax.DSL in
 def expr := ⟦(letrec ((exp (lambda (base)
                 (lambda (exponent)
