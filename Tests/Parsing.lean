@@ -10,6 +10,7 @@ def code := "(begin
     (   )
     (nil)
     (t)
+    |te._sting|
     (current-env  )
     (nil t)
     (lambda    (x y)     (+ x y))
@@ -38,6 +39,7 @@ open Lurk.Syntax.DSL in def expectedAST := ⟦
     ()
     (nil)
     (t)
+    |te._sting|
     (current-env)
     (nil t)
     (lambda (x y) (+ x y))
