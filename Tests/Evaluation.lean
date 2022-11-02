@@ -666,9 +666,9 @@ open LSpec in
 def main := do
   let tSeq : TestSeq := pairs.foldl (init := .done) fun tSeq pair =>
     let (expect, ast) := (pair : Test)
-    withExceptOk "" (AST.toExpr ast) fun e =>
+    withExceptOk s!"{ast} converts to expression" (AST.toExpr ast) fun e =>
       tSeq ++ match expect with
-      | .ok expect => withExceptOk "" e.eval fun res =>
+      | .ok expect => withExceptOk s!"{ast} evaluates to {expect}" e.eval fun res =>
         test (toString res) (res == expect)
-      | .error _ => withExceptError "" e.eval fun _ => .done
+      | .error _ => withExceptError s!"{ast} fails on evaluation" e.eval fun _ => .done
   lspecIO tSeq

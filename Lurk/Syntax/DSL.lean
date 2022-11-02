@@ -20,9 +20,11 @@ scoped syntax ">="  : sym
 -- these can't be simple idents because they'd clash with Lean's syntax
 scoped syntax "if"  : sym
 scoped syntax "let" : sym
+-- escaping symbols
+scoped syntax "|" sym "|" : sym
 
-def elabSym : TSyntax `sym → TermElabM Lean.Expr
-  | `(sym|  $i:ident ) => match i.getId.toString.toUpper with
+partial def elabSym : TSyntax `sym → TermElabM Lean.Expr
+  | `(sym| $i:ident ) => match i.getId.toString.toUpper with
     | "NIL" => return Lean.mkConst ``AST.nil
     | i => mkAppM ``AST.sym #[mkStrLit i]
   | `(sym| +)  => mkAppM ``AST.sym #[mkStrLit "+"]
@@ -36,6 +38,10 @@ def elabSym : TSyntax `sym → TermElabM Lean.Expr
   | `(sym| >=) => mkAppM ``AST.sym #[mkStrLit ">="]
   | `(sym| if) => mkAppM ``AST.sym #[mkStrLit "IF"]
   | `(sym| let) => mkAppM ``AST.sym #[mkStrLit "LET"]
+  | `(sym| |$i:ident|) => mkAppM ``AST.sym #[mkStrLit i.getId.toString]
+  | `(sym| |if|) => mkAppM ``AST.sym #[mkStrLit "if"]
+  | `(sym| |let|) => mkAppM ``AST.sym #[mkStrLit "let"]
+  | `(sym| |$s:sym|) => elabSym s
   | _ => throwUnsupportedSyntax
 
 declare_syntax_cat                     ast

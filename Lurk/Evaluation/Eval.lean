@@ -64,11 +64,8 @@ def find? (s : String) : Env → Option (Thunk Result)
 def insert (s : String) (v : Thunk Result) : Env → Env
   | mk e => mk $ e.insert compare s v
 
-def node : Env → Lean.RBNode String (fun _ => Thunk Result)
-  | mk e => e
-
-def toList : Env → List (String × (Thunk Result))
-  | mk e => e.fold (init := []) fun acc k v => (k, v) :: acc
+def toArray : Env → Array (String × (Thunk Result))
+  | mk e => e.fold (init := #[]) fun acc k v => acc.push (k, v)
 
 end Env
 
@@ -79,12 +76,12 @@ partial def Env.eqAux : List (String × Result) → List (String × Result) → 
   | (s₁, v₁)::xs, (s₂, v₂)::ys => match (v₁, v₂) with
     | (Except.ok v₁, Except.ok v₂) => v₁.beq v₂ && s₁ == s₂ && Env.eqAux xs ys
     | (Except.error e₁, Except.error e₂) => e₁ == e₂ && s₁ == s₂ && Env.eqAux xs ys
-    | _ => false 
+    | _ => false
   | _, _ => false
 
 partial def Env.eq (e₁ e₂ : Env) : Bool :=
-  Env.eqAux (e₁.toList.map fun (s, v) => (s, v.get))
-    (e₂.toList.map fun (s, v) => (s, v.get))
+  Env.eqAux (e₁.toArray.data.map fun (s, v) => (s, v.get))
+    (e₂.toArray.data.map fun (s, v) => (s, v.get))
 
 partial def Value.beq : Value → Value → Bool
   | .lit l₁, .lit l₂ => l₁ == l₂
@@ -164,7 +161,7 @@ partial def Expr.eval (env : Env := default) : Expr → Result
     | some v => v.get
     | none => throw s!"{n} not found"
   | .env => do
-    env.toList.reverse.foldrM (init := .lit .nil)
+    env.toArray.foldrM (init := .lit .nil)
       fun (k, v) acc => return .cons (.cons (.sym k) (← v.get)) acc
   | .begin x (.lit .nil) => x.eval env
   | .begin x y => do discard $ x.eval env; y.eval env
