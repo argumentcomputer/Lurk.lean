@@ -37,11 +37,11 @@ instance : ToFormat Lit where
   format := pprint
 
 def toAST : Lit → Syntax.AST
-  | .nil        => .nil
-  | .t          => .sym "T"
-  | .num n      => .num n
-  | .str s      => .str s
-  | .char c     => .char c
+  | .nil    => .nil
+  | .t      => .sym "T"
+  | .num n  => .num n
+  | .str s  => .str s
+  | .char c => .char c
 
 end Lit
 
@@ -52,7 +52,7 @@ inductive Op₁
   deriving Repr, BEq
 
 inductive Op₂
-  | cons | strcons | begin
+  | cons | strcons
   | add | sub | mul | div | numEq | lt | gt | le | ge | eq
   | hide
   deriving Repr, BEq
@@ -63,6 +63,7 @@ inductive Expr
   | env : Expr
   | op₁ : Op₁ → Expr → Expr
   | op₂ : Op₂ → Expr → Expr → Expr
+  | begin : Expr → Expr → Expr
   | «if» : Expr → Expr → Expr → Expr
   | app₀ : Expr → Expr
   | app  : Expr → Expr → Expr

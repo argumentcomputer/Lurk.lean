@@ -12,6 +12,10 @@ inductive AST
 
 namespace AST
 
+def telescopeCons (acc : Array AST := #[]) : AST → Array AST × AST
+  | cons x y => telescopeCons (acc.push x) y
+  | x => (acc, x)
+
 open Std Format in
 partial def toFormat : AST → Format
   | nil => "NIL"
@@ -20,13 +24,10 @@ partial def toFormat : AST → Format
   | str s => s!"\"{s}\""
   | sym s => s
   | x@(.cons ..) =>
-    match telescopeCons #[] x with
+    match x.telescopeCons with
     | (xs, nil) => paren $ fmtList xs.data
     | (xs, y)   => paren $ fmtList xs.data ++ line ++ "." ++ line ++ y.toFormat
 where
-  telescopeCons (acc : Array AST) : AST → Array AST × AST
-    | cons x y => telescopeCons (acc.push x) y
-    | x => (acc, x)
   fmtList : List AST → Format
     | [] => .nil
     | x::xs => xs.foldl (fun acc x => acc ++ line ++ x.toFormat) x.toFormat

@@ -36,7 +36,6 @@ def mkOp₁ (op₁ : String) : Expr → Expr := match op₁ with
 def mkOp₂ (op₂ : String) : Expr → Expr → Expr := match op₂ with
   | "CONS"    => .op₂ .cons
   | "STRCONS" => .op₂ .strcons
-  | "BEGIN"   => .op₂ .begin
   | "+"       => .op₂ .add
   | "-"       => .op₂ .sub
   | "*"       => .op₂ .mul
@@ -52,13 +51,18 @@ def mkOp₂ (op₂ : String) : Expr → Expr → Expr := match op₂ with
 
 partial def toExpr : AST → ToExprM Expr
   -- trivial cases
-  | .nil    => return .lit .nil
-  | .num n  => return .lit $ .num (.ofNat n)
-  | .char c => return .lit $ .char c
-  | .str s  => return .lit $ .str s
+  | .nil     => return .lit .nil
+  | .num  n  => return .lit $ .num (.ofNat n)
+  | .char c  => return .lit $ .char c
+  | .str  s  => return .lit $ .str s
   | .sym "T" => return .lit .t
-  | .sym "CURRENT-ENV" => return .env
+  | ~[.sym "CURRENT-ENV"] => return .env
   | .sym s  => return .sym s
+  -- `begin` is a sequence of expressions
+  | .cons (.sym "BEGIN") tail => do
+    let (tail, ini) := tail.telescopeCons
+    (← tail.mapM toExpr).foldrM (init := ← ini.toExpr)
+      fun e acc => pure $ .begin e acc
   -- `if` is a sequence of (up to) three expressions
   | ~[.sym "IF"] => return .if (.lit .nil) (.lit .nil) (.lit .nil)
   | ~[.sym "IF", x] => return .if (← x.toExpr) (.lit .nil) (.lit .nil)
@@ -83,11 +87,11 @@ partial def toExpr : AST → ToExprM Expr
     return bindings.foldr (init := ← body.toExpr)
       fun (n, e) acc => .letrec n e acc
   | ~[.sym "QUOTE", datum] => return .quote datum
-  -- unary operators
-  | ~[.sym op₁, x] => return mkOp₁ op₁ (← x.toExpr)
   -- binary operators
   | ~[.sym op₂, x, y] => return mkOp₂ op₂ (← x.toExpr) (← y.toExpr)
   -- everything else is just an `app`
+  -- unary operators
+  | ~[.sym op₁, x] => return mkOp₁ op₁ (← x.toExpr)
   | cons fn args => do
     let args ← (← toList args) |>.mapM toExpr
     if args.isEmpty then

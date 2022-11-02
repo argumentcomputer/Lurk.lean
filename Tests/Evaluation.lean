@@ -579,63 +579,63 @@ def closure : Test :=
             (let ((myexp exp) (exp (lambda (base) (lambda (exponent) 10)))) ((myexp 5) 3)))⟧)
 
 def pairs : List Test := [
-  -- outer_evaluate,
-  -- outer_evaluate2,
-  -- outer_evaluate3,
-  -- outer_evaluate4,
-  -- outer_evaluate5,
-  -- outer_evaluate_sum,
-  -- outer_evaluate_diff,
-  -- outer_evaluate_product,
-  -- outer_evaluate_quotient,
-  -- outer_evaluate_num_equal_1,
-  -- outer_evaluate_num_equal_2,
-  -- outer_evaluate_adder,
-  -- outer_evaluate_let_simple,
-  -- outer_evaluate_let_bug,
-  -- outer_evaluate_let,
-  -- outer_evaluate_arithmetic,
-  -- outer_evaluate_arithmetic_simplest,
-  -- outer_evaluate_arithmetic_let,
-  -- outer_evaluate_arithmetic_comparison,
-  -- outer_evaluate_if,
-  -- outer_evaluate_fully_evaluates,
-  -- outer_evaluate_recursion,
-  -- outer_evaluate_recursion_multiarg,
-  -- outer_evaluate_recursion_optimized,
-  -- outer_evaluate_tail_recursion,
-  -- outer_evaluate_tail_recursion_somewhat_optimized,
-  -- outer_evaluate_no_mutual_recursion,
-  -- outer_evaluate_no_mutual_recursion_err,
-  -- outer_evaluate_let_scope,
-  -- outer_prove_error_zero_arg_lambda4,
-  -- outer_prove_error_zero_arg_lambda5,
-  -- outer_evaluate_cons_1,
-  -- outer_evaluate_cons_2,
-  -- outer_evaluate_cons_in_function_1,
-  -- outer_evaluate_cons_in_function_2,
-  -- outer_evaluate_zero_arg_lambda_1,
-  -- outer_evaluate_zero_arg_lambda_2,
-  -- minimal_tail_call,
-  -- multiple_letrec_bindings,
-  -- multiple_let_bindings,
-  -- tail_call2,
-  -- outer_evaluate_multiple_letrecstar_bindings,
-  -- outer_evaluate_multiple_letrecstar_bindings_referencing,
-  -- outer_evaluate_multiple_letrecstar_bindings_recursive,
-  -- dont_discard_rest_env,
-  -- let_restore_saved_env,
-  -- let_restore_saved_env2,
-  -- letrec_restore_saved_env,
-  -- lookup_restore_saved_env,
-  -- tail_call_restore_saved_env,
-  -- binop_restore_saved_env,
+  outer_evaluate,
+  outer_evaluate2,
+  outer_evaluate3,
+  outer_evaluate4,
+  outer_evaluate5,
+  outer_evaluate_sum,
+  outer_evaluate_diff,
+  outer_evaluate_product,
+  outer_evaluate_quotient,
+  outer_evaluate_num_equal_1,
+  outer_evaluate_num_equal_2,
+  outer_evaluate_adder,
+  outer_evaluate_let_simple,
+  outer_evaluate_let_bug,
+  outer_evaluate_let,
+  outer_evaluate_arithmetic,
+  outer_evaluate_arithmetic_simplest,
+  outer_evaluate_arithmetic_let,
+  outer_evaluate_arithmetic_comparison,
+  outer_evaluate_if,
+  outer_evaluate_fully_evaluates,
+  outer_evaluate_recursion,
+  outer_evaluate_recursion_multiarg,
+  outer_evaluate_recursion_optimized,
+  outer_evaluate_tail_recursion,
+  outer_evaluate_tail_recursion_somewhat_optimized,
+  outer_evaluate_no_mutual_recursion,
+  outer_evaluate_no_mutual_recursion_err,
+  outer_evaluate_let_scope,
+  outer_prove_error_zero_arg_lambda4,
+  outer_prove_error_zero_arg_lambda5,
+  outer_evaluate_cons_1,
+  outer_evaluate_cons_2,
+  outer_evaluate_cons_in_function_1,
+  outer_evaluate_cons_in_function_2,
+  outer_evaluate_zero_arg_lambda_1,
+  outer_evaluate_zero_arg_lambda_2,
+  minimal_tail_call,
+  multiple_letrec_bindings,
+  multiple_let_bindings,
+  tail_call2,
+  outer_evaluate_multiple_letrecstar_bindings,
+  outer_evaluate_multiple_letrecstar_bindings_referencing,
+  outer_evaluate_multiple_letrecstar_bindings_recursive,
+  dont_discard_rest_env,
+  let_restore_saved_env,
+  let_restore_saved_env2,
+  letrec_restore_saved_env,
+  lookup_restore_saved_env,
+  tail_call_restore_saved_env,
+  binop_restore_saved_env,
   -- env_let,
   -- env_let_nested,
   -- env_letrec,
   -- env_letrec_nested,
   -- env_let_letrec_let,
-  -- begin_emit,
+  begin_emit,
   begin_is_nil,
   -- env_let_begin_emit,
   multiple_apps,
@@ -657,51 +657,18 @@ def pairs : List Test := [
   strcons_char_char,
   strcons_not_char_str,
   car_unicode_char,
-  mutrec1,
-  mutrec2,
+  -- mutrec1,
+  -- mutrec2,
   closure
 ]
 
-def runTest (t : Test) : Except String Bool := do
-  let e ← t.2.toExpr
-  let v := e.eval
-  dbg_trace "eval:"
-  dbg_trace v
-  match t.1, v with 
-  | .ok t, .ok v => 
-    if t.beq v then
-      return true 
-    else throw s!"expected {t}, got {v}"
-  | .error _, .error _ => 
-    dbg_trace "successful failure"
-    return true
-  | _, _ => throw "failed"
-
-def runTests (ts : List Test) : Except String Unit := do
-  for t in ts do 
-    discard $ runTest t
-
-#eval runTests pairs
-
--- open LSpec in
--- def main := do
---   let tSeq : TestSeq ← pairs.foldlM (init := .done) fun tSeq test => do
---     match runTest test with 
---     | .ok res => withExceptOk s!"Evaluation of {test.2} succeeds" res
---         fun v' => tSeq ++ test s!"Evaluation of {test.2} yields {v}" (v == v')
---     | .error _ => _
---     match Prod.snd pair with 
---     | Except.ok (e : Expr) => _
---     | .error (_ : String) => 
---       withExceptError s!"Evaluation of {e.pprint} Fails" res
---         fun _ => tSeq
---     match Prod.snd pair with 
---     | Except.ok _ => _
---     | .error _ => _
---     let res := e.eval
---     return match Prod.fst pair with
---     | Except.ok v => withExceptOk s!"Evaluation of {e.pprint} succeeds" res
---       fun v' => tSeq ++ test s!"Evaluation of {e.pprint} yields {v}" (v == v')
---     | .error (_ : String) => withExceptError s!"Evaluation of {e.pprint} Fails" res
---       fun _ => tSeq
---   lspecIO tSeq
+open LSpec in
+def main := do
+  let tSeq : TestSeq := pairs.foldl (init := .done) fun tSeq pair =>
+    let (expect, ast) := (pair : Test)
+    withExceptOk "" (AST.toExpr ast) fun e =>
+      tSeq ++ match expect with
+      | .ok expect => withExceptOk "" e.eval fun res =>
+        test (toString res) (res == expect)
+      | .error _ => withExceptError "" e.eval fun _ => .done
+  lspecIO tSeq
