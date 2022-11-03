@@ -6,12 +6,16 @@ namespace Lurk.Syntax
 open Megaparsec Parsec Common
 open Lurk.Syntax AST
 
+def isWhitespace (c : Char) : Bool :=
+  [' ', '\n', '\t'].contains c
+
 abbrev P := Parsec Char String Unit
 
 def nilP : P AST := attempt do
   discard $ single 'n' <|> single 'N'
   discard $ single 'i' <|> single 'I'
   discard $ single 'l' <|> single 'L'
+  discard $ lookAhead (satisfy isWhitespace <|> single '(' <|> single ')')
   return .nil
 
 def numP : P AST := do
@@ -56,12 +60,12 @@ def symP : P AST :=
   escSymP <|> noEscSymP
 
 def blanksP : P Unit := do
-  discard $ many' (satisfy fun c => [' ', '\n', '\t'].contains c)
+  discard $ many' (satisfy isWhitespace)
 
 def atomP : P AST :=
   nilP <|> symP <|> numP <|> charP <|> strP
 
-mutual 
+mutual
 
 partial def quoteP : P AST := do
   discard $ single '\''
@@ -89,7 +93,7 @@ partial def astP : P AST := do
   blanksP
   return x
 
-end 
+end
 
 protected def parse (code : String) : Except String AST :=
   match parse astP code with
