@@ -7,10 +7,10 @@ namespace Lurk.Hashing
 
 open Std (RBMap) in
 structure EncodeState where
-  exprs       : RBMap ScalarPtr  ScalarExpr compare
-  comms       : RBMap F          ScalarPtr  compare
-  stringCache : RBMap String     ScalarPtr  compare
-  astCache    : RBMap Syntax.AST ScalarPtr  compare
+  exprs       : RBMap ScalarPtr   ScalarExpr compare
+  comms       : RBMap F           ScalarPtr  compare
+  stringCache : RBMap (List Char) ScalarPtr  compare
+  astCache    : RBMap Syntax.AST  ScalarPtr  compare
   deriving Inhabited
 
 def EncodeState.store (stt : EncodeState) : ScalarStore :=
@@ -27,15 +27,15 @@ def addCommitment (hash : F) (ptr : ScalarPtr) : EncodeM F :=
 def hashPtrPair (x y : ScalarPtr) : F :=
   .ofInt $ Poseidon.Lurk.hash x.tag.toF x.val y.tag.toF y.val
 
-partial def encodeString (s : String) : EncodeM ScalarPtr := do
+def encodeString (s : List Char) : EncodeM ScalarPtr := do
   match (← get).stringCache.find? s with
   | some ptr => pure ptr
   | none => 
-    let ptr ← match s.data with
+    let ptr ← match s with
       | [] => addExprHash ⟨Tag.str, F.zero⟩ .strNil
       | c :: cs => do
         let headPtr := ⟨.char, .ofNat c.toNat⟩
-        let tailPtr ← encodeString ⟨cs⟩
+        let tailPtr ← encodeString cs
         let ptr := ⟨Tag.str, hashPtrPair headPtr tailPtr⟩
         let expr := .strCons headPtr tailPtr
         addExprHash ptr expr 
@@ -50,13 +50,13 @@ def encodeAST (x : Syntax.AST) : EncodeM ScalarPtr := do
       | .nil =>
         -- `nil` has its own tag instead of `.sym`. Thus we need to manually
         -- hash it as a string and make a `.nil` pointer with it
-        let ptr ← encodeString "NIL"
+        let ptr ← encodeString ['N', 'I', 'L']
         addExprHash ⟨.nil, ptr.val⟩ (.sym ptr)
-      | .num n => let n := .ofNat n; addExprHash ⟨.num, n⟩ (.num n)
+      | .num n => return ⟨.num, .ofNat n⟩ -- not storing numbers
       | .char c => return ⟨.char, .ofNat c.toNat⟩
-      | .str s => encodeString s
+      | .str s => encodeString s.data
       | .sym s =>
-        let ptr ← encodeString s
+        let ptr ← encodeString s.data
         addExprHash ⟨.sym, ptr.val⟩ (.sym ptr)
       | .cons car cdr =>
         let car ← encodeAST car
