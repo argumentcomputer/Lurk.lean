@@ -6,39 +6,51 @@ namespace Lurk.SerDe
 
 open Lurk.Hashing
 
-abbrev FArray := Array F
-
-
--- structure SerializeState where
---   bytes : FArray
---   cache : Std.RBMap F FArray compare
---   deriving Inhabited
-
--- abbrev SerializeM := ReaderT ScalarStore $ StateM SerializeState
-
--- def serializePtr (ptr : ScalarPtr) : SerializeM Unit := sorry
-
--- def serializeIter : SerializeM Unit := sorry
-
--- def serialize (ptr : ScalarPtr) (store : ScalarStore) : FArray :=
---   (StateT.run (ReaderT.run serializeIter store) default).2.bytes
-
-structure SerializeContext where
-  store : ScalarStore
-  visit : Std.RBSet ScalarPtr compare
+structure SerializeState where
+  bytes : ByteArray
+  cache : Std.RBMap F ByteArray compare
   deriving Inhabited
 
-abbrev SerializeM := ReaderT SerializeContext $ ExceptT String $
-  StateM FArray
+abbrev SerializeM := ReaderT ScalarStore $ StateM SerializeState
 
-def withVisiting (ptr : ScalarPtr) : SerializeM α → SerializeM α :=
-  withReader fun ctx => { ctx with visit := ctx.visit.insert ptr }
+def writeF (n : F) : SerializeM Unit := do
+  match (← get).cache.find? n with
+  | some bytes => modify fun stt => { stt with bytes := stt.bytes ++ bytes }
+  | none =>
+    let bytes := n.toBytes -- this can be a bottleneck so we cache it
+    modify fun stt => { stt with
+      bytes := stt.bytes ++ bytes
+      cache := stt.cache.insert n bytes }
 
-def serializePtr (ptr : ScalarPtr) : SerializeM Unit := sorry
+def writePtr (ptr : ScalarPtr) : SerializeM Unit := do
+  modify fun stt => { stt with bytes := stt.bytes.push (.ofNat ptr.tag.toNat) }
+  writeF ptr.val
 
-def serialize (ptr : ScalarPtr) (store : ScalarStore) : Except String FArray :=
-  match StateT.run (ReaderT.run (serializePtr ptr) ⟨store, default⟩) default with
-  | (.error e, _) => .error e
-  | (.ok _,  arr) => .ok arr
+def writeExpr : ScalarExpr → SerializeM Unit
+  | .cons car cdr => do writePtr car; writePtr cdr
+  | .comm n ptr => do writeF n; writePtr ptr
+  | .sym ptr => writePtr ptr
+  | .fun arg body env => do writePtr arg; writePtr body; writePtr env
+  | .num n => writeF n
+  | .strNil => writePtr ⟨.str, F.zero⟩
+  | .strCons head tail => do writePtr head; writePtr tail
+  | .char c => writeF c
+
+def writeStore : SerializeM Unit := do
+  let store ← read
+  -- writing expressions
+  writeF $ .ofNat store.exprs.size
+  store.exprs.forM fun ptr expr => do writePtr ptr; writeExpr expr
+  -- writing comms
+  writeF $ .ofNat store.comms.size
+  store.comms.forM fun n ptr => do writeF n; writePtr ptr
+
+def serializeM (roots : List ScalarPtr) : SerializeM Unit := do
+  writeF $ .ofNat roots.length
+  roots.sort.forM writePtr
+  writeStore
+
+def serialize (roots : List ScalarPtr) (store : ScalarStore) : ByteArray :=
+  (StateT.run (ReaderT.run (serializeM roots) store) default).2.bytes
 
 end Lurk.SerDe

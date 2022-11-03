@@ -1,4 +1,5 @@
 import YatimaStdLib.Nat
+import YatimaStdLib.ByteArray
 
 namespace Lurk
 
@@ -16,5 +17,12 @@ instance : Inhabited F := ⟨.ofNat 0⟩
 
 def F.zero : F :=
   .ofNat 0
+
+@[inline] def F.toBytes (n : F) : ByteArray :=
+  let bytes := n.val.toByteArrayLE
+  bytes.pushZeros $ 32 - bytes.size
+
+@[inline] def F.ofBytes (bytes : ByteArray) :=
+  bytes.asLEtoNat
 
 end Lurk

@@ -72,9 +72,9 @@ partial def toExpr : AST → ToExprM Expr
   | ~[.sym "LAMBDA", args, body] => do
     let args ← mkArgs args
     if args.isEmpty then
-      return .lam "_" (← body.toExpr)
+      return .lambda "_" (← body.toExpr)
     else
-      return args.foldr (init := ← body.toExpr) fun arg acc => .lam arg acc
+      return args.foldr (init := ← body.toExpr) fun arg acc => .lambda arg acc
   -- let and letrec are in the same case
   | ~[.sym "LET", bindings, body] => do
     let bindings ← mkBindings bindings

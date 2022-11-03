@@ -67,7 +67,7 @@ inductive Expr
   | «if» : Expr → Expr → Expr → Expr
   | app₀ : Expr → Expr
   | app  : Expr → Expr → Expr
-  | lam : String → Expr → Expr
+  | lambda : String → Expr → Expr
   | «let»  : String → Expr → Expr → Expr
   | letrec : String → Expr → Expr → Expr
   | quote : Syntax.AST → Expr

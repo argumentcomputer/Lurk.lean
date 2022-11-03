@@ -20,6 +20,17 @@ def Tag.toString : Tag → String
 
 instance : ToString Tag := ⟨Tag.toString⟩
 
+def Tag.toNat : Tag → Nat
+  | .nil   => 0
+  | .cons  => 1
+  | .sym   => 2
+  | .fun   => 3
+  | .num   => 4
+  | .thunk => 5
+  | .str   => 6
+  | .char  => 7
+  | .comm  => 8
+
 def Tag.toF : Tag → F
   | .nil   => .ofNat 0
   | .cons  => .ofNat 1
@@ -30,7 +41,6 @@ def Tag.toF : Tag → F
   | .str   => .ofNat 6
   | .char  => .ofNat 7
   | .comm  => .ofNat 8
-
 
 inductive ContTag
   | outermost | call₀ | call | callnext | tail | error | lookup | op₁ | op₂
