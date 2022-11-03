@@ -6,6 +6,8 @@ def code := "(begin
     nil
     t
     current-env
+    nilbutsym
+    (nil.1)
     ()
     (   )
     (nil)
@@ -35,6 +37,8 @@ open Lurk.Syntax.DSL in def expectedAST := ⟦
     nil
     t
     current-env
+    nilbutsym
+    (nil . 1)
     ()
     ()
     (nil)

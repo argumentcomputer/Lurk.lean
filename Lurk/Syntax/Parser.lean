@@ -15,7 +15,7 @@ def nilP : P AST := attempt do
   discard $ single 'n' <|> single 'N'
   discard $ single 'i' <|> single 'I'
   discard $ single 'l' <|> single 'L'
-  discard $ lookAhead (satisfy isWhitespace <|> single '(' <|> single ')')
+  discard $ lookAhead (satisfy isWhitespace <|> single '(' <|> single ')' <|> single '.')
   return .nil
 
 def numP : P AST := do
