@@ -8,20 +8,24 @@ namespace Lurk.Hashing
 open Std (RBMap) in
 structure EncodeState where
   exprs       : RBMap ScalarPtr   ScalarExpr compare
+  comms       : RBMap F           ScalarPtr compare
   stringCache : RBMap (List Char) ScalarPtr  compare
   astCache    : RBMap Syntax.AST  ScalarPtr  compare
   deriving Inhabited
 
 def EncodeState.store (stt : EncodeState) : ScalarStore :=
-  ⟨stt.exprs⟩
+  ⟨stt.exprs, stt.comms⟩
 
 abbrev EncodeM := StateM EncodeState
+
+def hashPtrPair (x y : ScalarPtr) : F :=
+  .ofInt $ Poseidon.Lurk.hash x.tag.toF x.val y.tag.toF y.val
 
 def addExprHash (ptr : ScalarPtr) (expr : ScalarExpr) : EncodeM ScalarPtr :=
   modifyGet fun stt => (ptr, { stt with exprs := stt.exprs.insert ptr expr })
 
-def hashPtrPair (x y : ScalarPtr) : F :=
-  .ofInt $ Poseidon.Lurk.hash x.tag.toF x.val y.tag.toF y.val
+def addCommitment (hash : F) (ptr : ScalarPtr) : EncodeM F :=
+  modifyGet fun stt => (hash, { stt with comms := stt.comms.insert hash ptr })
 
 def encodeString (s : List Char) : EncodeM ScalarPtr := do
   match (← get).stringCache.find? s with
@@ -63,7 +67,8 @@ def encodeAST (x : Syntax.AST) : EncodeM ScalarPtr := do
   
 def hideAST (secret : F) (x : Syntax.AST)  : EncodeM F := do
   let ptr ← encodeAST x
-  return hashPtrPair ⟨.comm, secret⟩ ptr
+  let hash := hashPtrPair ⟨.comm, secret⟩ ptr 
+  addCommitment hash ptr
 
 end Lurk.Hashing
 

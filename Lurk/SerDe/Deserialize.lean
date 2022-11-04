@@ -53,11 +53,14 @@ def dePtrExprPair : DeserializeM $ ScalarPtr × ScalarExpr := do
   return (ptr, expr)
 
 def deStore : DeserializeM ScalarStore := do
-  let nEntries := (← deF).val
   let mut store := default
-  for _ in [0 : nEntries] do
+  let nExprs := (← deF).val
+  for _ in [0 : nExprs] do
     let (ptr, expr) ← dePtrExprPair
     store := { store with exprs := store.exprs.insert ptr expr }
+  let nComms := (← deF).val
+  for _ in [0 : nComms] do
+    store := { store with comms := store.comms.insert (← deF) (← dePtr) }
   return store
 
 def deRoots : DeserializeM $ List ScalarPtr := do
