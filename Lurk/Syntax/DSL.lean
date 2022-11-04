@@ -80,7 +80,14 @@ partial def elabAST : TSyntax `ast → TermElabM Expr
   | `(ast| ($x . $y)) => do mkAppM ``AST.cons #[← elabAST x, ← elabAST y]
   | `(ast| ($xs* . $x)) => do elabASTCons xs (← elabAST x)
   | `(ast| ,$x:ast) => do mkAppM ``AST.mkQuote #[← elabAST x]
-  | _ => throwUnsupportedSyntax
+  | `(ast| $x) => do
+    if x.raw.isAntiquot then
+      let stx := x.raw.getAntiquotTerm
+      let e ← elabTerm stx none
+      let e ← whnf e
+      trace[debug] e
+      mkAppM ``ToAST.toAST #[e]
+    else throwUnsupportedSyntax
 
 end
 

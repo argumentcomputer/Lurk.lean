@@ -72,4 +72,34 @@ def mkLetrec (binders : List $ String × AST) (body : AST) : AST :=
 
 end ASThelpers
 
-end Lurk.Syntax.AST
+end AST
+
+class ToAST (α : Type _) where
+  toAST : α → AST
+
+namespace ToAST
+
+instance : ToAST Nat where
+  toAST := .num
+
+instance : ToAST Char where
+  toAST := .char
+
+instance : ToAST String where
+  toAST := .str
+
+instance : ToAST Lean.Name where
+  toAST := .sym ∘ Lean.Name.toString
+
+instance [ToAST α] : ToAST (List α) where
+  toAST es := AST.consWith (es.map toAST) .nil
+
+instance [ToAST α] : ToAST (Array α) where
+  toAST es := AST.consWith (es.toList.map toAST) .nil
+
+instance : ToAST String where
+  toAST := .str
+
+end ToAST
+
+end Lurk.Syntax
