@@ -39,9 +39,9 @@ def serStore : SerializeM Unit := do
   -- writing expressions
   serF $ .ofNat store.exprs.size
   store.exprs.forM fun ptr expr => do serPtr ptr; serExpr expr
-  -- writing comms
-  serF $ .ofNat store.comms.size
-  store.comms.forM fun n ptr => do serF n; serPtr ptr
+  -- -- writing comms
+  -- serF $ .ofNat store.comms.size
+  -- store.comms.forM fun n ptr => do serF n; serPtr ptr
 
 def serializeM (roots : List ScalarPtr) : SerializeM Unit := do
   serF $ .ofNat roots.length

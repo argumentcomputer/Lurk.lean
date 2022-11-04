@@ -114,21 +114,22 @@ instance : ToString ScalarExpr := ⟨ScalarExpr.toString⟩
 open Std (RBMap) in
 structure ScalarStore where
   exprs : RBMap ScalarPtr ScalarExpr compare
-  comms : RBMap F ScalarPtr compare
+  -- comms : RBMap F ScalarPtr compare
   -- conts : RBMap ScalarContPtr ScalarCont compare
   deriving Inhabited, BEq
 
 def ScalarStore.toString (s : ScalarStore) : String :=
   let body := ",\n".intercalate $ s.exprs.toList.map fun (k, v) => s!"  {k}: {v}"
   let exprs := "scalar_store: {\n" ++ body ++ "\n}"
-  let body := ",\n".intercalate $ s.comms.toList.map fun (k, v) => s!"  {k}: {v}"
-  let comms := "comm_store: {\n" ++ body ++ "\n}"
-  exprs ++ "\n" ++ comms
+  -- let body := ",\n".intercalate $ s.comms.toList.map fun (k, v) => s!"  {k}: {v}"
+  -- let comms := "comm_store: {\n" ++ body ++ "\n}"
+  exprs-- ++ "\n" ++ comms
 
 instance : ToString ScalarStore := ⟨ScalarStore.toString⟩
 
 def ScalarStore.ofExprList (exprs : List (ScalarPtr × ScalarExpr)) : ScalarStore :=
-  ⟨.ofList exprs _, default⟩
+  -- ⟨.ofList exprs _, default⟩
+  ⟨.ofList exprs _⟩
 
 end Hashing
 end Lurk
