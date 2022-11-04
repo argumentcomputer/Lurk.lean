@@ -81,12 +81,13 @@ partial def toExpr : AST → ToExprM Expr
     let bindings ← bindings.mapM fun (x, y) => return (x, ← y.toExpr)
     return bindings.foldr (init := ← body.toExpr)
       fun (n, e) acc => .letrec n e acc
+  -- `quote` keeps the AST in memory
   | ~[.sym "QUOTE", datum] => return .quote datum
   -- binary operators
   | ~[.sym op₂, x, y] => return mkOp₂ op₂ (← x.toExpr) (← y.toExpr)
-  -- everything else is just an `app`
   -- unary operators
   | ~[.sym op₁, x] => return mkOp₁ op₁ (← x.toExpr)
+  -- everything else is just an `app`
   | cons fn args => match args.telescopeCons with
     | (args, nil) =>
       return if args.isEmpty then
