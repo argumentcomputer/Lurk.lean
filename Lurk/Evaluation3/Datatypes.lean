@@ -1,8 +1,7 @@
 import Lurk.Hashing.Datatypes
-import Std.Data.HashMap
-
 
 namespace Lurk.Evaluation
+
 open Lean
 
 abbrev PoseidonCache := HashMap (Array F) F

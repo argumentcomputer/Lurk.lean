@@ -8,7 +8,7 @@
    "rev": "2dbc1d9fb167c3ea0c3995c4f816d2480081b3c4",
    "name": "Megaparsec",
    "inputRev": "2dbc1d9fb167c3ea0c3995c4f816d2480081b3c4"},
-  {"url": "https://github.com/yatima-inc/YatimaStdLib.lean",
+  {"url": "https://github.com/yatima-inc/YatimaStdLib.lean.git",
    "rev": "2b914196a8c67838e63c1c1e44eaf339b8a50eb7",
    "name": "YatimaStdLib",
    "inputRev": "2b914196a8c67838e63c1c1e44eaf339b8a50eb7"},

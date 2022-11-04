@@ -1,6 +1,7 @@
 import Lurk.Evaluation3.Datatypes
 
 namespace Lurk.Evaluation
+
 open Lean
 
 abbrev StoreM := EStateM String Store
