@@ -34,9 +34,8 @@ partial def decodeAST (ptr : ScalarPtr) : DecodeM AST := do
             | (.str, .strCons h t) => match (h.tag, ← decodeAST t) with
               | (.char, .str t) => return .str ⟨Char.ofNat h.val :: t.data⟩
               | _ => throw "Error when decoding string"
-            | (.str, .strNil) => return .str ""
-            | (.cons, .cons car cdr) =>
-              return .cons (← decodeAST car) (← decodeAST cdr)
+            | (.str, .strNil) => return .str default
+            | (.cons, .cons car cdr) => return .cons (← decodeAST car) (← decodeAST cdr)
             | _ => throw s!"Tag {ptr.tag} incompatible with expression {expr}"
       modifyGet fun stt => (ast, stt.insert ptr ast)
 

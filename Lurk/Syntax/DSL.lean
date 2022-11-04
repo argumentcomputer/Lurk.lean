@@ -24,9 +24,7 @@ scoped syntax "let" : sym
 scoped syntax "|" sym "|" : sym
 
 partial def elabSym : TSyntax `sym → TermElabM Lean.Expr
-  | `(sym| $i:ident ) => match i.getId.toString.toUpper with
-    | "NIL" => return Lean.mkConst ``AST.nil
-    | i => mkAppM ``AST.sym #[mkStrLit i]
+  | `(sym| $i:ident ) => mkAppM ``AST.sym #[mkStrLit i.getId.toString.toUpper]
   | `(sym| +)  => mkAppM ``AST.sym #[mkStrLit "+"]
   | `(sym| *)  => mkAppM ``AST.sym #[mkStrLit "*"]
   | `(sym| -)  => mkAppM ``AST.sym #[mkStrLit "-"]
@@ -77,6 +75,7 @@ partial def elabAST : TSyntax `ast → TermElabM Expr
   | `(ast| $s:sym) => elabSym s
   | `(ast| $a:sym-$b:sym) => do mkAppM ``mergeSymSym #[← elabSym a, ← elabSym b]
   | `(ast| $a:sym-$n:num) => do mkAppM ``mergeSymNat #[← elabSym a, mkNatLit n.getNat]
+  | `(ast| ()) => mkAppM ``AST.sym #[mkStrLit "NIL"]
   | `(ast| ($xs*)) => elabASTCons xs (mkConst ``AST.nil)
   | `(ast| ($x . $y)) => do mkAppM ``AST.cons #[← elabAST x, ← elabAST y]
   | `(ast| ($xs* . $x)) => do elabASTCons xs (← elabAST x)

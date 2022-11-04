@@ -50,7 +50,7 @@ partial def toExpr : AST → ToExprM Expr
   | .num  n  => return .lit $ .num (.ofNat n)
   | .char c  => return .lit $ .char c
   | .str  s  => return .lit $ .str s
-  | .sym "T" => return .lit .t
+  | .sym "T"   => return .lit .t
   | ~[.sym "CURRENT-ENV"] => return .env
   | .sym s  => return .sym s
   -- `begin` is a sequence of expressions

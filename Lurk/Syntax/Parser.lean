@@ -3,20 +3,9 @@ import Lurk.Syntax.AST
 
 namespace Lurk.Syntax
 
-open Megaparsec Parsec Common
-open Lurk.Syntax AST
-
-def isWhitespace (c : Char) : Bool :=
-  [' ', '\n', '\t'].contains c
+open Megaparsec Parsec Common Lurk.Syntax AST
 
 abbrev P := Parsec Char String Unit
-
-def nilP : P AST := attempt do
-  discard $ single 'n' <|> single 'N'
-  discard $ single 'i' <|> single 'I'
-  discard $ single 'l' <|> single 'L'
-  discard $ lookAhead (satisfy isWhitespace <|> single '(' <|> single ')' <|> single '.')
-  return .nil
 
 def numP : P AST := do
   let x ← some' (satisfy Char.isDigit)
@@ -60,10 +49,10 @@ def symP : P AST :=
   escSymP <|> noEscSymP
 
 def blanksP : P Unit := do
-  discard $ many' (satisfy isWhitespace)
+  discard $ many' $ satisfy [' ', '\n', '\t'].contains
 
 def atomP : P AST :=
-  nilP <|> symP <|> numP <|> charP <|> strP
+  symP <|> numP <|> charP <|> strP
 
 mutual
 

@@ -2,7 +2,6 @@ namespace Lurk.Syntax
 
 /-- Symbols are expected to be in uppercase -/
 inductive AST
-  | nil
   | num : Nat → AST
   | char : Char → AST
   | str : String → AST
@@ -11,6 +10,8 @@ inductive AST
   deriving Ord, BEq, Repr, Inhabited
 
 namespace AST
+
+@[match_pattern] def nil : AST := sym "NIL"
 
 def telescopeCons (acc : Array AST := #[]) : AST → Array AST × AST
   | cons x y => telescopeCons (acc.push x) y
@@ -23,7 +24,6 @@ def escapeSyms : AST → AST
 
 open Std Format in
 partial def toFormat : AST → Format
-  | nil => "NIL"
   | num n => format n
   | char c => s!"#\\{c}"
   | str s => s!"\"{s}\""
@@ -31,7 +31,7 @@ partial def toFormat : AST → Format
   | x@(.cons ..) =>
     match x.telescopeCons with
     | (xs, nil) => paren $ fmtList xs.data
-    | (xs, y)   => paren $ fmtList xs.data ++ line ++ "." ++ line ++ y.toFormat
+    | (xs, y) => paren $ fmtList xs.data ++ line ++ "." ++ line ++ y.toFormat
 where
   fmtList : List AST → Format
     | [] => .nil
