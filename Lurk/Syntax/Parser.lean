@@ -12,10 +12,16 @@ def numP : P AST := do
   let str := String.mk x
   return .num $ String.toNat! str
 
+-- def charP : P AST := attempt do
+--   discard $ single '\''
+--   let c ← satisfy fun _ => true
+--   discard $ single '\''
+--   return .char c
+
 def charP : P AST := attempt do
-  discard $ single '\''
+  discard $ single '#'
+  discard $ single '\\'
   let c ← satisfy fun _ => true
-  discard $ single '\''
   return .char c
 
 def strP : P AST := do

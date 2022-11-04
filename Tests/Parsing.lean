@@ -30,7 +30,11 @@ def code := "(begin
     (quote 1   \t  )
     (quote (1 2 3)\t)
     (('1) . ' (cons 2 3))
-    ((+ 1 2) (f x)  .    (cons 4 2)))"
+    ((+ 1 2) (f x)  .    (cons 4 2))
+    (|antiquote| |lambda| |Nat.add|)
+    (#\\bb) (#\\a #\\b))"
+
+def antiq := [`antiquote, `lambda, ``Nat.add]
 
 open Lurk.Syntax.DSL in def expectedAST := ⟦
   (begin
@@ -60,7 +64,9 @@ open Lurk.Syntax.DSL in def expectedAST := ⟦
     (quote 1)
     (quote (1 2 3))
     ((,1) . , (cons 2 3))
-    ((+ 1 2) (f x) . (cons 4 2)))
+    ((+ 1 2) (f x) . (cons 4 2))
+    $antiq
+    ('b' B) $(['a', 'b']))
 ⟧
 
 open LSpec in
