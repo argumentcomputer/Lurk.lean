@@ -1,12 +1,13 @@
 import LSpec
 import Lurk.Syntax.DSL
+import Lurk.Evaluation.FromAST
 import Lurk.Evaluation.Eval
 
-open Lurk.Syntax DSL SExpr.DSL
+open Lurk Syntax Evaluation DSL
 
 -- TODO FIXME: better error handling, `.error ""` needs to be replaced
 
-abbrev Test := Except String Lurk.Evaluation.Value × Expr
+abbrev Test := Except String Value × AST
 
 def outer_evaluate : Test := (.ok 99, ⟦((lambda (x) x) 99)⟧)
 
@@ -52,10 +53,10 @@ def outer_evaluate_quotient : Test :=
 (.ok 3, ⟦(/ 21 7)⟧)
 
 def outer_evaluate_num_equal_1 : Test :=
-(.ok TRUE, ⟦(= 5 5)⟧)
+(.ok true, ⟦(= 5 5)⟧)
 
 def outer_evaluate_num_equal_2 : Test :=
-(.ok FALSE, ⟦(= 5 6)⟧)
+(.ok false, ⟦(= 5 6)⟧)
 
 def outer_evaluate_adder : Test :=
 (.ok 5, ⟦(((lambda (x)
@@ -99,7 +100,7 @@ def outer_evaluate_arithmetic_let : Test :=
                   (* z (+ x y)))⟧)
 
 def outer_evaluate_arithmetic_comparison : Test :=
-(.ok TRUE, ⟦(let ((x 2)
+(.ok true, ⟦(let ((x 2)
                       (y 3)
                       (z 4))
                  (= 20 (* z
@@ -197,7 +198,7 @@ def outer_evaluate_tail_recursion_somewhat_optimized : Test :=
                           (((exp 5) 3) 1))⟧)
 
 def outer_evaluate_no_mutual_recursion : Test :=
-(.ok TRUE, ⟦(letrec ((even (lambda (n)
+(.ok true, ⟦(letrec ((even (lambda (n)
                                  (if (= 0 n)
                                      t
                                      (odd (- n 1)))))
@@ -441,34 +442,34 @@ def binop_restore_saved_env : Test :=
                   -- This should be an error. X should not be bound here.
                   (+ (outer 1) x))⟧)
 
-def env_let : Test :=
-(.ok [(`a, 1)], ⟦(let ((a 1)) (current-env))⟧)
+-- def env_let : Test :=
+-- (.ok [(`a, 1)], ⟦(let ((a 1)) (current-env))⟧)
 
-def env_let_nested : Test :=
-(.ok [(`b, 2), (`a, 1)], ⟦(let ((a 1)) (let ((b 2)) (current-env)))⟧)
+-- def env_let_nested : Test :=
+-- (.ok [(`b, 2), (`a, 1)], ⟦(let ((a 1)) (let ((b 2)) (current-env)))⟧)
 
-def env_letrec : Test :=
-(.ok [(`a, 1)], ⟦(letrec ((a 1)) (current-env))⟧)
+-- def env_letrec : Test :=
+-- (.ok [(`a, 1)], ⟦(letrec ((a 1)) (current-env))⟧)
 
-def env_letrec_nested : Test :=
-(.ok [(`b, 2), (`a, 1)], ⟦(letrec ((a 1)) (letrec ((b 2)) (current-env)))⟧)
+-- def env_letrec_nested : Test :=
+-- (.ok [(`b, 2), (`a, 1)], ⟦(letrec ((a 1)) (letrec ((b 2)) (current-env)))⟧)
 
-def env_let_letrec_let : Test :=
-(.ok [(`e, 5), (`d, 4), (`c, 3), (`b, 2), (`a, 1)],
-  ⟦(let ((a 1) (b 2)) (letrec ((c 3) (d 4)) (let ((e 5)) (current-env))))⟧)
+-- def env_let_letrec_let : Test :=
+-- (.ok [(`e, 5), (`d, 4), (`c, 3), (`b, 2), (`a, 1)],
+--   ⟦(let ((a 1) (b 2)) (letrec ((c 3) (d 4)) (let ((e 5)) (current-env))))⟧)
 
 def begin_emit : Test :=
 (.ok 3, ⟦(begin (emit 1) (emit 2) (emit 3))⟧)
 
 def begin_is_nil : Test := 
-(.ok FALSE, ⟦(begin)⟧)
+(.ok false, ⟦(begin)⟧)
 
-def env_let_begin_emit : Test := 
-(.ok [(`a, 1)], ⟦(let ((a 1))
-                          (begin
-                           (let ((b 2))
-                             (emit b))
-                           (current-env)))⟧)
+-- def env_let_begin_emit : Test := 
+-- (.ok [(`a, 1)], ⟦(let ((a 1))
+--                           (begin
+--                            (let ((b 2))
+--                              (emit b))
+--                            (current-env)))⟧)
 
 def multiple_apps : Test :=
 (.ok 3, ⟦(let ((f (lambda (x y z) (+ x y)))
@@ -529,7 +530,7 @@ def cdr_empty : Test :=
 
 -- The CAR of the empty string is NIL (neither a character nor a string).
 def car_empty : Test := 
-(.ok FALSE, ⟦(car "")⟧)
+(.ok false, ⟦(car "")⟧)
 
 -- CONSing two strings yields a pair, not a string.
 def cons_str_str : Test := 
@@ -629,14 +630,14 @@ def pairs : List Test := [
   lookup_restore_saved_env,
   tail_call_restore_saved_env,
   binop_restore_saved_env,
-  env_let,
-  env_let_nested,
-  env_letrec,
-  env_letrec_nested,
-  env_let_letrec_let,
+  -- env_let,
+  -- env_let_nested,
+  -- env_letrec,
+  -- env_letrec_nested,
+  -- env_let_letrec_let,
   begin_emit,
   begin_is_nil,
-  env_let_begin_emit,
+  -- env_let_begin_emit,
   multiple_apps,
   multiple_apps2,
   shadow,
@@ -656,19 +657,19 @@ def pairs : List Test := [
   strcons_char_char,
   strcons_not_char_str,
   car_unicode_char,
-  mutrec1,
-  mutrec2,
+  -- mutrec1,
+  -- mutrec2,
   closure
 ]
 
 open LSpec in
 def main := do
-  let tSeq : TestSeq ← pairs.foldlM (init := .done) fun tSeq pair => do
-    let e := Prod.snd pair
-    let res := Lurk.Evaluation.eval e
-    return match Prod.fst pair with
-    | Except.ok v => withExceptOk s!"Evaluation of {e.pprint} succeeds" res
-      fun v' => tSeq ++ test s!"Evaluation of {e.pprint} yields {v}" (v == v')
-    | .error (_ : String) => withExceptError s!"Evaluation of {e.pprint} Fails" res
-      fun _ => tSeq
+  let tSeq : TestSeq := pairs.foldl (init := .done) fun tSeq pair =>
+    let (expect, ast) := (pair : Test)
+    withExceptOk s!"{ast} converts to expression" (AST.toExpr ast) fun e =>
+      tSeq ++ match expect with
+      | .ok expect => withExceptOk s!"{ast} evaluation succeeds" e.eval
+        fun res => test s!"{ast} evaluates to {expect}" (res == expect)
+      | .error _ => withExceptError s!"{ast} fails on evaluation" e.eval
+        fun _ => .done
   lspecIO tSeq

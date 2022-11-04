@@ -1,12 +1,12 @@
 import LSpec
 import Lurk.Syntax.DSL
-import Lurk.Syntax.Printing
+import Lurk.Hashing.Encoding
 import Lurk.Hashing.Decoding
 
 open Lurk
 
-open Syntax.DSL Syntax.SExpr.DSL in
-def expressions := [
+open Syntax.DSL in
+def asts := [
   ⟦nil⟧,
   ⟦t⟧,
   ⟦current-env⟧,
@@ -25,7 +25,7 @@ def expressions := [
   ⟦(begin 1)⟧,
   ⟦(begin nil)⟧,
   ⟦(begin 1 2 3)⟧,
-  .hide (.sym `a) (.sym `b),
+  ⟦(hide a b)⟧,
   ⟦(lambda (a b c) (begin (cons a b) c))⟧,
   ⟦(let ((a 1) (b c)) (+ a b))⟧,
   ⟦(quote 1)⟧,
@@ -33,16 +33,16 @@ def expressions := [
   ⟦(quote (nil))⟧,
   ⟦(quote (nil 1))⟧,
   ⟦(quote (nil . 1))⟧,
-  ⟦(quote ((nil . 1) x))⟧
+  ⟦(quote ((nil . 1) x))⟧,
+  ⟦((+ 1 2) (f x) . (cons 4 2))⟧
 ]
 
 open LSpec in
 def main := do
-  lspecIO $ expressions.foldl (init := .done)
-    fun tSeq (e : Syntax.Expr) =>
-      let e := e.toUpper
-      let (ptr, store) := e.encode
-      withExceptOk s!"Decoding {e.pprint true false} succeeds"
-          (Lurk.Hashing.decode ptr store) fun e' =>
+  lspecIO $ asts.foldl (init := .done)
+    fun tSeq (x : Lurk.Syntax.AST) =>
+      let (ptr, store) := x.encode
+      withExceptOk s!"Decoding {x} succeeds"
+          (Lurk.Hashing.decode ptr store) fun x' =>
         tSeq ++ test
-          s!"Expected {e.pprint true false} equals {e'.pprint true false}" (e == e')
+          s!"Expected {x} equals {x'}" (x == x')

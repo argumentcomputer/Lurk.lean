@@ -1,42 +1,52 @@
-import Lurk.Syntax.Expr
-import Lurk.Syntax.FixName
+import Lurk.Evaluation2.Expr
 
-namespace Lurk.Syntax.Expr
+namespace Lurk.Evaluation
 
-open Std
+instance : ToString Op₁ where toString
+  | .atom => "atom"
+  | .car => "car"
+  | .cdr => "cdr"
+  | .emit => "emit"
+  | .commit => "commit"
+  | .comm => "comm"
+  | .open => "open"
+  | .num => "num"
+  | .char => "char"
 
-instance : ToString BinaryOp where toString
-  | .sum   => "+"
-  | .diff  => "-"
-  | .prod  => "*"
-  | .quot  => "/"
+instance : ToString Op₂ where toString
+  | .cons => "cons"
+  | .strcons => "strcons"
+  | .begin => "begin"
+  | .add => "+"
+  | .sub => "-"
+  | .mul => "*"
+  | .div => "/"
   | .numEq => "="
-  | .lt    => "<"
-  | .gt    => ">"
-  | .le    => "<="
-  | .ge    => ">="
-  | .eq    => "eq"
+  | .lt => "<"
+  | .gt => ">"
+  | .le => "<="
+  | .ge => ">="
+  | .eq => "eq"
+  | .hide => "hide"
 
 open Std.Format Std.ToFormat
 
-def escName (name : Name) (pipes : Bool) : Format :=
-  if pipes then bracket "|" (validate name) "|" else validate name
+-- def escName (name : Name) (pipes : Bool) : Format :=
+--   if pipes then bracket "|" (validate name) "|" else validate name
 
 partial def pprint (e : Expr) (pretty := true) (pipes := true) : Std.Format :=
   match e with
   | .lit l => format l
-  | .sym n => escName n pipes
-  | .ifE test con alt =>
+  | .sym s => format s -- escName n pipes
+  | .if test con alt =>
     paren <| group ("if" ++ line ++ pprint test pretty pipes) ++ line ++
       pprint con pretty pipes ++ line ++ pprint alt pretty pipes
-  | .lam formals body =>
+  | .lambda formals body =>
     paren <| "lambda" ++ line ++ paren (fmtNames formals) ++ indentD (pprint body pretty pipes)
-  | .letE bindings body =>
+  | .let n e body =>
     paren <| "let" ++ line ++ paren (fmtBinds bindings) ++ line ++ pprint body pretty pipes
-  | .letRecE bindings body =>
+  | .letrec n e body =>
     paren <| "letrec" ++ line ++ paren (fmtBinds bindings) ++ line ++ pprint body pretty pipes
-  | .mutRecE bindings body =>
-    paren <| "mutrec" ++ line ++ paren (fmtBinds bindings) ++ line ++ pprint body pretty pipes
   | e@(.app ..) =>
     let (fn, args) := telescopeApp e []
     let args := if args.length == 0 then .nil else indentD (fmtList args)
@@ -83,4 +93,4 @@ where
 instance : ToFormat Expr where
   format := pprint
 
-end Lurk.Syntax.Expr
+end Lurk.Evaluation

@@ -1,5 +1,5 @@
 import Lean
-import Lurk.Hashing.HashM
+import Lurk.Hashing.Datatypes
 
 /-!
 # Helper DSL for generating test stores
@@ -37,7 +37,7 @@ declare_syntax_cat lurk_store
 scoped syntax "scalar_store: { " store_entry,*,? " }" : lurk_store
 
 def mkF (n : Nat) : TermElabM Lean.Expr := do
-  mkAppM ``Lurk.Syntax.mkF #[mkNatLit n]
+  mkAppM ``Lurk.F.ofNat #[mkNatLit n]
 
 def mkScalarPtr (tag : Name) (n : Nat) : TermElabM Lean.Expr := do
   mkAppM ``ScalarPtr.mk #[mkConst tag, ← mkF n]

@@ -1,260 +1,188 @@
-import Lurk.Syntax.ExprUtils
-import Lurk.Syntax.Printing
+import Lean
+import Lurk.Evaluation.Expr
 
 namespace Lurk.Evaluation
 
-open Lurk.Syntax Std
+set_option genSizeOfSpec false in
+mutual
+
+inductive Env
+  | mk : Lean.RBNode String (fun _ => Thunk (Except String Value)) → Env
 
 inductive Value where
-  | lit  : Literal → Value
-  | sym  : Name → Value 
-  | lam  : List Name → List (Name × Thunk Value) →
-    (List (Name × Thunk Value)) × Expr → Value
+  | lit : Lit → Value
+  | sym : String → Value
   | cons : Value → Value → Value
-  | env  : List (Name × Value) → Value
+  | comm : F → Value
+  | «fun» : String → Env → Expr → Value
   deriving Inhabited
 
-partial def BEqVal : Value → Value → Bool
-  | .lit l₁, .lit l₂ => l₁ == l₂
-  | .lam ns₁ [] ([], b₁), .lam ns₂ [] ([], b₂) => ns₁ == ns₂ && b₁ == b₂
-  | .lam .., .lam .. => false
-  | .cons v₁ v₁', .cons v₂ v₂' => BEqVal v₁ v₂ && BEqVal v₁' v₂'
-  | .env l₁ , .env l₂ =>
-    (l₁.zip l₂).foldl (init := true) fun acc ((n₁, v₁), (n₂, v₂)) =>
-      acc && n₁ == n₂ && BEqVal v₁ v₂
-  | _, _ => false
+end
 
-instance : BEq Value where beq := BEqVal
+namespace Value
 
-notation "TRUE"  => Value.lit Literal.t
-notation "FALSE" => Value.lit Literal.nil
+partial def telescopeCons (acc : Array Value := #[]) : Value → Array Value × Value
+  | cons x y => telescopeCons (acc.push x) y
+  | x => (acc, x)
 
-open Format ToFormat in
-partial def Value.pprint (v : Value) (pretty := true) : Format :=
-  match v with
-    | .lit l => format l
-    | .sym s => format s -- TODO: maybe should escape
-    | .lam ns _ (_, lb) => paren $
-      group ("lambda" ++ line ++ paren (fmtNames ns)) ++ line ++ lb.pprint pretty
-    | e@(.cons ..) =>
-      let (es, tail) := telescopeCons [] e
-      let tail := match tail with
-      | .lit Literal.nil => Format.nil
-      | _ => line ++ "." ++ line ++ pprint tail pretty
-      paren <| fmtList es ++ tail
-    | .env e => paren <| fmtEnv e
-  where
-    telescopeCons (acc : List Value) (e : Value) : List Value × Value := match e with
-      | .cons e₁ e₂ => telescopeCons (e₁ :: acc) e₂
-      | _ => (acc.reverse, e)
-    fmtNames (xs : List Name) := match xs with
-      | [ ]   => Format.nil
-      | [n]   => format (fixName n pretty)
-      | n::ns => format (fixName n pretty) ++ line ++ fmtNames ns
-    fmtList (xs : List Value) := match xs with
-      | [ ]   => Format.nil
-      | [n]   => format (pprint n pretty)
-      | n::ns => format (pprint n pretty) ++ line ++ fmtList ns
-    fmtEnv (xs : List (Name × Value)) := match xs with
-      | []         => Format.nil
-      | [(n, v)]   =>
-        format (fixName n pretty) ++ line ++ "." ++ line ++ format (pprint v pretty)
-      | (n, v)::ns =>
-        format (fixName n pretty) ++ line ++ "." ++ line ++ format (pprint v pretty) ++ line ++ fmtEnv ns
+partial def toString : Value → String
+  | .lit l => l.toString
+  | .sym s => s
+  | v@(.cons ..) => match v.telescopeCons with
+    | (#[], .lit .nil) => "NIL"
+    | (vs, v) =>
+      let vs := vs.data.map toString |> " ".intercalate
+      match v with
+      | .lit .nil => "(" ++ vs ++ ")"
+      | _ => s!"({vs} . {v.toString})"
+  | .comm c => s!"<comm {c.asHex}>"
+  | .fun n .. => s!"<fun ({n})>"
 
-instance : ToFormat Value := ⟨Value.pprint⟩
+end Value
 
 instance : ToString Value where
-  toString x := toString x.pprint
+  toString := Value.toString
 
-abbrev EvalM := ExceptT String $ EStateM Unit Unit
+def Value.ofAST : Syntax.AST → Value
+  | .nil => .lit .nil
+  | .num n => .lit $ .num (.ofNat n)
+  | .char c => .lit $ .char c
+  | .str s => .lit $ .str s
+  | .sym "T" => .lit .t
+  | .sym s => .sym s
+  | .cons x y => .cons (Value.ofAST x) (Value.ofAST y)
 
-abbrev Env := RBMap Name (EvalM Value) compare
+instance : Inhabited Env := ⟨.mk .leaf⟩
 
-instance : Coe (EvalM Value) (Thunk Value) where coe := fun thunk =>
-  .mk $ fun _ => match (EStateM.run (ExceptT.run thunk) ()) with
-  | .error _ _ => default
-  | .ok v _ => match v with
-    | .error _ => default
-    | .ok v => v
+abbrev Result := Except String Value
 
-instance : Coe (Thunk Value) (EvalM Value) where coe := fun thunk => do
-  pure thunk.get
+namespace Env
 
-def Env.getEnvExpr (env : Env) (e : Expr) : List (Name × Thunk Value) × Expr :=
-  ⟨env.toList.map fun (n, v) => (n, v), e⟩
+def find? (s : String) : Env → Option (Thunk Result)
+  | mk e => e.find compare s
 
-def num! : Value → EvalM (Fin N)
-  | .lit (.num x) => pure x
-  | v => throw s!"expected numerical value, got\n {v}"
+def insert (s : String) (v : Thunk Result) : Env → Env
+  | mk e => mk $ e.insert compare s v
 
-def evalBinaryOp (v₁ v₂ : Value) : BinaryOp → EvalM Value
-  | .sum   => return .lit $ .num $ (← num! v₁) + (← num! v₂)
-  | .diff  => return .lit $ .num $ (← num! v₁) - (← num! v₂)
-  | .prod  => return .lit $ .num $ (← num! v₁) * (← num! v₂)
-  | .quot  => return .lit $ .num $ (← num! v₁) * (← num! v₂)⁻¹
-  | .numEq => return if (← num! v₁) == (← num! v₂) then TRUE else FALSE
-  | .lt    => return if (← num! v₁) <  (← num! v₂) then TRUE else FALSE
-  | .gt    => return if (← num! v₁) >  (← num! v₂) then TRUE else FALSE
-  | .le    => return if (← num! v₁) <= (← num! v₂) then TRUE else FALSE
-  | .ge    => return if (← num! v₁) >= (← num! v₂) then TRUE else FALSE
-  | .eq    => return if v₁ == v₂ then TRUE else FALSE
+def toArray : Env → Array (String × (Thunk Result))
+  | mk e => e.fold (init := #[]) fun acc k v => acc.push (k, v)
 
-def Value.ofSExpr : SExpr → Value
-  | .lit l => .lit l
-  | .sym s => .lit (.str (s.toString false))
-  | .cons e₁ e₂ => .cons (Value.ofSExpr e₁) (Value.ofSExpr e₂)
+end Env
 
 mutual
 
-partial def bind (a : Expr) (env : Env) (iter : Nat) :
-    List Name → EvalM ((Name × Thunk Value) × List Name)
-  | n::ns => do
-    let value ← evalM env a (iter + 1)
-    return ((n, value), ns)
-  | [] => throw "too many arguments"
+partial def Env.eqAux : List (String × Result) → List (String × Result) → Bool
+  | [], [] => true
+  | (s₁, v₁)::xs, (s₂, v₂)::ys => match (v₁, v₂) with
+    | (Except.ok v₁, Except.ok v₂) => v₁.beq v₂ && s₁ == s₂ && Env.eqAux xs ys
+    | (Except.error e₁, Except.error e₂) => e₁ == e₂ && s₁ == s₂ && Env.eqAux xs ys
+    | _ => false
+  | _, _ => false
 
-partial def evalM (env : Env) (e : Expr) (iter := 0) : EvalM Value := do 
-  -- dbg_trace s!"[iteration {iter}] ....\n{e.pprint}\n"
-  let v : Value ← match e with
-  | .lit lit => do 
-    return .lit lit
-  | .sym n => do 
-    match env.find? n with
-    | some v => v
-    | none => throw s!"{n} not found"
-  | .ifE tst con alt => do 
-    match ← evalM env tst (iter + 1) with
-    | FALSE => evalM env alt (iter + 1)
-    | _ => evalM env con (iter + 1) -- anything else is true
-  | .lam formals body => do 
-    return .lam formals [] $ env.getEnvExpr body
-  | .letE bindings body => do
-    let env' ← bindings.foldlM (init := env)
-      fun acc (n, e) => do
-        return acc.insert n $ pure $ ← evalM acc e (iter + 1)
-    evalM env' body (iter + 1)
-  | .letRecE bindings body => do 
-    let env' ← bindings.foldlM (init := env)
-      fun acc (n, e) => do
-        let e' := .letRecE [(n, e)] e
-        let acc' : Env := acc.insert n $ evalM acc e' (iter + 1)
-        return acc.insert n $ pure $ ← evalM acc' e (iter + 1)
-    evalM env' body (iter + 1)
-  | .mutRecE bindings body => do
-    let mut env' := bindings.foldl (init := env) fun acc (n', e') =>
-      let e' := .mutRecE bindings e'
-      acc.insert n' $ evalM env e' (iter + 1)
-    for (n, e) in bindings do
-      env' := env'.insert n $ pure $ ← evalM env' e (iter + 1)
-    evalM env' body (iter + 1)
-  | .app fn none => do 
-    match fn with
-    | .currEnv =>
-      return .env $ ← env.foldlM (init := default)
-        fun acc n e => 
-        return (n, ← e) :: acc
-    | _ =>
-      match ← evalM env fn (iter + 1) with
-      | .lam [] [] body => evalM env body.2 (iter + 1)
-      | _ => throw "application not a procedure"
-  | .app fn (some arg) => do 
-    match ← evalM env fn (iter + 1) with
-    | .lam ns patch lb =>
-      let (patch', ns') ← bind arg env iter ns
-      let patch := patch' :: patch
-      let patchM : List (Name × EvalM Value) := patch.map fun (n, thunk) => (n, thunk)
-      if ns'.isEmpty then
-        -- NOTE: `lb.env` is guaranteed not to have duplicates
-        -- since it is extracted directly from an RBMap
-        let ctxBinds : List (Name × EvalM Value) ← lb.1.mapM
-          fun (n, ee) => do
-              return (n, ee)
+partial def Env.eq (e₁ e₂ : Env) : Bool :=
+  Env.eqAux (e₁.toArray.data.map fun (s, v) => (s, v.get))
+    (e₂.toArray.data.map fun (s, v) => (s, v.get))
 
-        -- dbg_trace s!"[.app] patch: {patch.map fun (n, (_, e)) => (n, e.pprint)}"
-        -- dbg_trace s!"[.app] ctxBinds: {ctxBinds.map fun (n, (_, e)) => (n, e.pprint)}"
-        let env ← (ctxBinds.reverse ++ patchM.reverse).foldlM (init := default)
-          fun acc (n, value) => do
-            -- dbg_trace s!"[.app] inserting: {n}, {value}"
-            return acc.insert n value
+partial def Value.beq : Value → Value → Bool
+  | .lit l₁, .lit l₂ => l₁ == l₂
+  | .sym s₁, .sym s₂ => s₁ == s₂
+  | .cons c₁ d₁, .cons c₂ d₂ => c₁.beq c₂ && d₁.beq d₂
+  | .comm c₁, .comm c₂ => c₁ == c₂
+  | .fun ns₁ env₁ e₁, .fun ns₂ env₂ e₂ => ns₁ == ns₂ && env₁.eq env₂ && e₁ == e₂
+  | _, _ => false
 
-        -- dbg_trace s!"[.app] evaluating {fn.pprint}: {env.toList.map fun (name, (ee, _)) => (name, ee.expr.pprint)}, {lb.expr.pprint}"
-        -- a lambda body should be evaluated in the context of
-        -- *its arguments alone* (plus whatever context it originally had)
-        evalM env lb.2 (iter + 1)
-      else
-        -- -- dbg_trace s!"[.app] not enough args {fn.pprint}: {ns'}, {patch.map fun (n, (_, e)) => (n, e.pprint)}"
-        return .lam ns' patch lb
-    | v => throw s!"expected lambda value, got\n {v}"
-  | .quote s => return .ofSExpr s
-  | .binaryOp op e₁ e₂ => do 
-    evalBinaryOp (← evalM env e₁ (iter + 1)) (← evalM env e₂ (iter + 1)) op
-  | .atom e => do 
-    return match ← evalM env e (iter + 1) with
-    | .cons .. => TRUE
-    | _ => FALSE
-  | .cons e₁ e₂ => do 
-    return .cons (← evalM env e₁ (iter + 1)) (← evalM env e₂ (iter + 1))
-  | .strcons e₁ e₂ => do 
-    match (← evalM env e₁ (iter + 1)), (← evalM env e₂ (iter + 1)) with
-    | .lit (.char c), .lit (.str s) => return .lit (.str ⟨c :: s.data⟩)
-    | .lit (.char _), v => throw s!"expected string value, got\n {v}"
-    | v, _ => throw s!"expected char value, got\n {v}"
-  | .car e => do 
-    match ← evalM env e (iter + 1) with
-    | .cons v _ => return v
-    | .lit (.str s) => match s.data with
-      | c::_ => return .lit $ .char c
-      | [] => return FALSE
-    | v => throw s!"expected cons value, got\n {v}"
-  | .cdr e => do
-    match ← evalM env e (iter + 1) with
-    | .cons _ v => return v
-    | .lit (.str s) => match s.data with
-      | _::cs => return .lit $ .str ⟨cs⟩
-      | [] => return .lit $ .str ""
-    | v => throw s!"expected cons value, got\n {v}"
-  | .emit e => do
-    let v ← evalM env e (iter + 1)
-    dbg_trace v
-    pure v
-  | .begin e₁ e₂ => do
-    discard $ evalM env e₁ (iter + 1)
-    evalM env e₂ (iter + 2)
-  | .currEnv => do
-    throw "floating `current-env`, try `(current-env)` instead"
-  -- let t_val : Format := ← match env.find? `getelem with 
-  --   | some v => do return (← v).pprint
-  --   | none => return "not there"
-  -- dbg_trace s!"[`t] ....\n{t_val}\n"
-  -- dbg_trace s!"[result of {iter}] ....\n{v.pprint}\n"
-  | .commit e => evalM env (.hide (.mkNum 0) e)
-  | _ => throw "TODO"
-  return v
 end
 
-def eval (e : Expr) : Except String Value :=
-  match (ExceptT.run (evalM default e)) () with
-  | .ok res _ => res
-  | .error _ _ => .error "FIXME"
+instance : BEq Value := ⟨Value.beq⟩
 
-def ppEval (e : Expr) : IO Format :=
-  match (ExceptT.run (evalM default e)) () with
-  | .ok res _ => match res with
-    | .ok v => pure v.pprint
-    | .error s => throw $ .otherError 0 s -- FIXME
-  | .error _ _ => throw $ .otherError 0 "HERE" -- FIXME
+def Value.num : Value → Except String F
+  | .lit (.num x) => pure x
+  | v => throw s!"expected number, got\n  {v}"
 
-instance : OfNat Value n where 
-  ofNat := .lit $ .num $ Fin.ofNat n
+instance : Coe Bool Value where coe
+  | true  => .lit .t
+  | false => .lit .nil
 
-instance : Coe Char Value where 
+instance : Coe Char Value where
   coe c := .lit (.char c)
 
-instance : Coe String Value where 
-  coe s := .lit (.str s)
+instance : Coe String Value where
+  coe c := .lit (.str c)
 
-instance : Coe (List (Name × Nat)) Value where
-  coe l := .env $ l.map fun (name, n) => (name, .lit $ .num $ Fin.ofNat n)
+instance : OfNat Value n where
+  ofNat := .lit $ .num (.ofNat n)
+
+partial def Expr.evalOp₁ : Op₁ → Value → Result
+  | .atom, .cons .. => return .lit .nil
+  | .atom, _ => return .lit .t
+  | .car, .cons car _ => return car
+  | .car, .lit (.str ⟨[]⟩) => return .lit .nil
+  | .car, .lit (.str ⟨h::_⟩) => return .lit (.char h)
+  | .car, v => throw s!"expected cons value, got\n  {v}"
+  | .cdr, .cons _ cdr => return cdr
+  | .cdr, .lit (.str ⟨[]⟩) => return .lit (.str "")
+  | .cdr, .lit (.str ⟨_::t⟩) => return .lit (.str ⟨t⟩)
+  | .cdr, v => throw s!"expected cons value, got\n  {v}"
+  | .emit, v => dbg_trace s!"{v.toString}"; return v
+  | .commit, _ => throw "TODO commit"
+  | .comm, v => return .comm (← v.num)
+  | .open, _ => throw "TODO open"
+  | .num, .lit (.num n) => return .lit (.num n)
+  | .num, .lit (.char c) => return .lit $ .num (.ofNat c.toNat)
+  | .num, .comm c => return .lit (.num c)
+  | .num, v => throw s!"expected char, num, or comm value, got\n  {v}"
+  | .char, .lit (.char c) => return .lit (.char c)
+  | .char, .lit (.num ⟨n, _⟩) =>
+    if h : isValidChar n.toUInt32 then
+      return .lit (.char ⟨n.toUInt32, h⟩)
+    else
+      throw s!"{n.toUInt32} is not a valid char value"
+  | .char, v => throw s!"expected char or num value, got\n  {v}"
+
+partial def Expr.evalOp₂ : Op₂ → Value → Value → Result
+  | .cons, v₁, v₂ => return .cons v₁ v₂
+  | .strcons, .lit (.char c), .lit (.str s) => return .lit (.str ⟨c :: s.data⟩)
+  | .strcons, v₁, v₂ => throw s!"expected char and string value, got\n  {v₁}\n  {v₂}"
+  | .add, v₁, v₂ => return .lit $ .num ((← v₁.num) + (← v₂.num))
+  | .sub, v₁, v₂ => return .lit $ .num ((← v₁.num) - (← v₂.num))
+  | .mul, v₁, v₂ => return .lit $ .num ((← v₁.num) * (← v₂.num))
+  | .div, v₁, v₂ => return .lit $ .num ((← v₁.num) / (← v₂.num))
+  | .numEq, v₁, v₂ => return (← v₁.num) == (← v₂.num)
+  | .lt, v₁, v₂ => return decide $ (← v₁.num) < (← v₂.num)
+  | .gt, v₁, v₂ => return decide $ (← v₁.num) > (← v₂.num)
+  | .le, v₁, v₂ => return decide $ (← v₁.num) <= (← v₂.num)
+  | .ge, v₁, v₂ => return decide $ (← v₁.num) >= (← v₂.num)
+  | .eq, v₁, v₂ => return v₁.beq v₂
+  | .hide, _, _ => throw "TODO hide"
+
+partial def Expr.eval (env : Env := default) : Expr → Result
+  | .lit l => return .lit l
+  | .sym n => match env.find? n with
+    | some v => v.get
+    | none => throw s!"{n} not found"
+  | .env => do
+    env.toArray.foldrM (init := .lit .nil)
+      fun (k, v) acc => return .cons (.cons (.sym k) (← v.get)) acc
+  | .begin x (.lit .nil) => x.eval env
+  | .begin x y => do discard $ x.eval env; y.eval env
+  | .if x y z => do match ← x.eval env with
+    | .lit .t => y.eval env
+    | _ => z.eval env
+  | .app₀ fn => do match ← fn.eval env with
+    | .fun "_" env' body => body.eval env'
+    | _ => throw s!"invalid 0-arity app"
+  | .app fn arg => do match ← fn.eval env with
+    | .fun "_" .. => throw "cannot apply argument to 0-arg lambda"
+    | .fun n env' body => body.eval (env'.insert n (arg.eval env))
+    | _ => throw "lambda was expected"
+  | .op₁ op e => do evalOp₁ op (← e.eval env)
+  | .op₂ op e₁ e₂ => do evalOp₂ op (← e₁.eval env) (← e₂.eval env)
+  | .lambda s e => return .fun s env e
+  | .let s v b => b.eval (env.insert s (v.eval env))
+  | .letrec s v b => do
+    let v' : Expr := .letrec s v v
+    let env' := env.insert s $ .mk fun _ => eval env v'
+    b.eval (env.insert s (eval env' v))
+  | .quote x => return .ofAST x
 
 end Lurk.Evaluation
