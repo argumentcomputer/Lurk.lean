@@ -16,6 +16,11 @@ def telescopeCons (acc : Array AST := #[]) : AST → Array AST × AST
   | cons x y => telescopeCons (acc.push x) y
   | x => (acc, x)
 
+def escapeSyms : AST → AST
+  | sym s => sym s!"|{s}|"
+  | cons x y => cons x.escapeSyms y.escapeSyms
+  | x => x
+
 open Std Format in
 partial def toFormat : AST → Format
   | nil => "NIL"
@@ -49,6 +54,21 @@ macro_rules
 
 def mkQuote (x : AST) : AST :=
   ~[sym "QUOTE", x]
+
+def mkLambda (args : List String) (body : AST) : AST :=
+  ~[sym "LAMBDA", consWith (args.map sym) nil, body]
+
+def mkBindings (binders : List $ String × AST) : AST :=
+  consWith (binders.map fun (s, v) => ~[sym s, v]) nil
+
+def mkBlock (kind : String) (binders : List $ String × AST) (body : AST) : AST :=
+  ~[sym kind, mkBindings binders, body]
+
+def mkLet (binders : List $ String × AST) (body : AST) : AST :=
+  mkBlock "LET" binders body
+
+def mkLetrec (binders : List $ String × AST) (body : AST) : AST :=
+  mkBlock "LETREC" binders body
 
 end ASThelpers
 
