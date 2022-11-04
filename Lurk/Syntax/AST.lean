@@ -44,10 +44,8 @@ scoped syntax "~[" withoutPosition(term,*) "]"  : term
 
 macro_rules
   | `(~[$xs,*]) => do
-    let mut x ← `(AST.nil)
-    for i in xs.getElems.reverse do
-      x ← `(AST.cons $i $x)
-    return x
+    let ret ← xs.getElems.foldrM (fun x xs => `(AST.cons $x $xs)) (← `(AST.nil))
+    return ret
 
 def mkQuote (x : AST) : AST :=
   ~[sym "QUOTE", x]
