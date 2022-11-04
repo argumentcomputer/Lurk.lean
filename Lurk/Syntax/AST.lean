@@ -89,7 +89,7 @@ instance : ToAST String where
   toAST := .str
 
 instance : ToAST Lean.Name where
-  toAST := .sym ∘ Lean.Name.toString
+  toAST n := .sym (n.toString false)
 
 instance [ToAST α] : ToAST (List α) where
   toAST es := AST.consWith (es.map toAST) .nil
