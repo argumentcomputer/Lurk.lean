@@ -22,7 +22,7 @@ def F.zero : F :=
   let bytes := n.val.toByteArrayLE
   bytes.pushZeros $ 32 - bytes.size
 
-@[inline] def F.ofBytes (bytes : ByteArray) :=
-  bytes.asLEtoNat
+@[inline] def F.ofBytes (bytes : ByteArray) : F :=
+  .ofNat bytes.asLEtoNat
 
 end Lurk

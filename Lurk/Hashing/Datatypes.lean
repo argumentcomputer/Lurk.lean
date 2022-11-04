@@ -1,4 +1,4 @@
-import Lurk.Arithmetic
+import Lurk.Field
 import Std.Data.RBMap
 
 namespace Lurk
@@ -19,17 +19,6 @@ def Tag.toString : Tag → String
   | comm  => "comm"
 
 instance : ToString Tag := ⟨Tag.toString⟩
-
-def Tag.toNat : Tag → Nat
-  | .nil   => 0
-  | .cons  => 1
-  | .sym   => 2
-  | .fun   => 3
-  | .num   => 4
-  | .thunk => 5
-  | .str   => 6
-  | .char  => 7
-  | .comm  => 8
 
 def Tag.toF : Tag → F
   | .nil   => .ofNat 0

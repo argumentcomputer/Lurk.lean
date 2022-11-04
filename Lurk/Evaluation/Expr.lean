@@ -1,4 +1,4 @@
-import Lurk.Arithmetic
+import Lurk.Field
 import Lurk.Syntax.AST
 
 open Std
