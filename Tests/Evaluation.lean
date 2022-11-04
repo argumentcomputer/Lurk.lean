@@ -668,7 +668,8 @@ def main := do
     let (expect, ast) := (pair : Test)
     withExceptOk s!"{ast} converts to expression" (AST.toExpr ast) fun e =>
       tSeq ++ match expect with
-      | .ok expect => withExceptOk s!"{ast} evaluates to {expect}" e.eval fun res =>
-        test (toString res) (res == expect)
-      | .error _ => withExceptError s!"{ast} fails on evaluation" e.eval fun _ => .done
+      | .ok expect => withExceptOk s!"{ast} evaluation succeeds" e.eval
+        fun res => test s!"{ast} evaluates to {expect}" (res == expect)
+      | .error _ => withExceptError s!"{ast} fails on evaluation" e.eval
+        fun _ => .done
   lspecIO tSeq

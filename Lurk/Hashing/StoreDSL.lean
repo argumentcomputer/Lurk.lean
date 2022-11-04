@@ -99,7 +99,7 @@ def elabLurkStore : Syntax → TermElabM Lean.Expr
     let entries ← entries.getElems.mapM elabStoreEntry
     let type ← mkAppM ``Prod #[mkConst ``ScalarPtr, mkConst ``ScalarExpr]
     let entries ← mkListLit type entries.toList
-    mkAppM ``ScalarStore.ofExprList #[entries]
+    mkAppM ``ScalarStore.ofList #[entries]
   | _ => throwUnsupportedSyntax
 
 elab "[store| " e:lurk_store "]" : term =>
