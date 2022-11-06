@@ -4,7 +4,7 @@ import Std.Data.RBMap
 namespace Lurk
 
 inductive Tag
-  | nil | cons | sym | «fun» | num | thunk | str | char | comm
+  | nil | cons | sym | «fun» | num | thunk | str | empty | char | comm
   deriving Ord, BEq, Inhabited, Hashable
 
 def Tag.toString : Tag → String
@@ -15,6 +15,7 @@ def Tag.toString : Tag → String
   | num   => "num"
   | thunk => "thunk"
   | str   => "str"
+  | empty => "empty"
   | char  => "char"
   | comm  => "comm"
 
@@ -28,8 +29,9 @@ def Tag.toF : Tag → F
   | .num   => .ofNat 4
   | .thunk => .ofNat 5
   | .str   => .ofNat 6
-  | .char  => .ofNat 7
-  | .comm  => .ofNat 8
+  | .empty => .ofNat 7
+  | .char  => .ofNat 8
+  | .comm  => .ofNat 9
 
 inductive ContTag
   | outermost | call₀ | call | callnext | tail | error | lookup | op₁ | op₂
@@ -94,9 +96,8 @@ inductive ScalarExpr
   | sym (sym : ScalarPtr)
   | «fun» (arg : ScalarPtr) (body : ScalarPtr) (env : ScalarPtr)
   | num (val : F)
-  | strNil
-  | strCons (head : ScalarPtr) (tail : ScalarPtr)
   | char (x : F)
+  | empty
   deriving BEq
 
 def ScalarExpr.toString : ScalarExpr → String
@@ -105,9 +106,8 @@ def ScalarExpr.toString : ScalarExpr → String
   | .sym ptr => s!"Sym({ptr})"
   | .fun arg body env => s!"Fun({arg}, {body}, {env})"
   | .num x => s!"Num({x.asHex})"
-  | .strNil => "StrNil"
-  | .strCons head tail => s!"StrCons({head}, {tail})"
   | .char x => s!"Char({x})"
+  | .empty => "Empty"
 
 instance : ToString ScalarExpr := ⟨ScalarExpr.toString⟩
 

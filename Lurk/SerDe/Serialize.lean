@@ -30,9 +30,8 @@ def serExpr : ScalarExpr → SerializeM Unit
   | .sym ptr => serPtr ptr
   | .fun arg body env => do serPtr arg; serPtr body; serPtr env
   | .num n => serF n
-  | .strNil => serPtr ⟨.str, F.zero⟩
-  | .strCons head tail => do serPtr head; serPtr tail
   | .char c => serF c
+  | .empty => pure ()
 
 def serStore : SerializeM Unit := do
   let store ← read

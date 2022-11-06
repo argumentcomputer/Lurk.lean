@@ -17,6 +17,7 @@ scoped syntax "(fun, Scalar(" num "))"   : scalar_ptr
 scoped syntax "(num, " num ")"           : scalar_ptr
 scoped syntax "(thunk, Scalar(" num "))" : scalar_ptr
 scoped syntax "(str, Scalar(" num "))"   : scalar_ptr
+scoped syntax "(empty, Scalar(" num "))" : scalar_ptr
 scoped syntax "(char, " char ")"         : scalar_ptr
 scoped syntax "(comm, Scalar(" num "))"  : scalar_ptr
 
@@ -26,8 +27,7 @@ scoped syntax "Comm(" num ", " scalar_ptr ")"                       : scalar_exp
 scoped syntax "Sym(" scalar_ptr ")"                                 : scalar_expr
 scoped syntax "Fun(" scalar_ptr ", " scalar_ptr ", " scalar_ptr ")" : scalar_expr
 scoped syntax "Num(" num ")"                                        : scalar_expr
-scoped syntax "StrNil"                                              : scalar_expr
-scoped syntax "StrCons(" scalar_ptr ", " scalar_ptr ")"             : scalar_expr
+scoped syntax "Empty"                                               : scalar_expr
 scoped syntax "Char(" char ")"                                      : scalar_expr
 
 declare_syntax_cat store_entry
@@ -57,6 +57,8 @@ def elabScalarPtr : Syntax → TermElabM Lean.Expr
     mkScalarPtr ``Tag.thunk n.getNat
   | `(scalar_ptr| (str, Scalar( $n ))) =>
     mkScalarPtr ``Tag.str n.getNat
+  | `(scalar_ptr| (empty, Scalar( $n ))) =>
+    mkScalarPtr ``Tag.empty n.getNat
   | `(scalar_ptr| (char, $c) ) =>
     mkScalarPtr ``Tag.char c.getChar.toNat
   | `(scalar_ptr| (comm, Scalar( $n ))) =>
@@ -74,10 +76,8 @@ def elabScalarExpr : Syntax → TermElabM Lean.Expr
     mkAppM ``ScalarExpr.fun #[← elabScalarPtr p1, ← elabScalarPtr p2, ← elabScalarPtr p3]
   | `(scalar_expr| Num($n) ) => do
     mkAppM ``ScalarExpr.num #[← mkF n.getNat]
-  | `(scalar_expr| StrNil ) => do
-    return mkConst ``ScalarExpr.strNil
-  | `(scalar_expr| StrCons($p1, $p2) ) => do
-    mkAppM ``ScalarExpr.strCons #[← elabScalarPtr p1, ← elabScalarPtr p2]
+  | `(scalar_expr| Empty ) => do
+    return mkConst ``ScalarExpr.empty
   | `(scalar_expr| Char($c) ) => do
     mkAppM ``ScalarExpr.char #[← mkF c.getChar.toNat]
   | _ => throwUnsupportedSyntax

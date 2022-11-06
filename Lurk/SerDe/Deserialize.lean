@@ -28,8 +28,9 @@ def deTag : DeserializeM Tag := do
   | 4 => return .num
   | 5 => return .thunk
   | 6 => return .str
-  | 7 => return .char
-  | 8 => return .comm
+  | 7 => return .empty
+  | 8 => return .char
+  | 9 => return .comm
   | x => throw s!"Invalid data for a tag: {x}"
 
 def dePtr : DeserializeM ScalarPtr :=
@@ -44,12 +45,10 @@ def dePtrExprPair : DeserializeM $ ScalarPtr × ScalarExpr := do
   | .fun   => pure $ .fun (← dePtr) (← dePtr) (← dePtr)
   | .num   => pure $ .num (← deF)
   | .thunk => throw "TODO"
-  | .str   =>
-    let head ← dePtr
-    if head.val == F.zero then pure .strNil
-    else pure $ .strCons head (← dePtr)
-  | .char => pure $ .char (← deF)
-  | .comm => pure $ .comm (← deF) (← dePtr)
+  | .str   => pure $ .cons (← dePtr) (← dePtr)
+  | .empty => pure $ .empty
+  | .char  => pure $ .char (← deF)
+  | .comm  => pure $ .comm (← deF) (← dePtr)
   return (ptr, expr)
 
 def deStore : DeserializeM ScalarStore := do
