@@ -21,16 +21,18 @@ def deF : DeserializeM F := do
 
 def deTag : DeserializeM Tag := do
   match (← deF).val with
-  | 0 => return .nil
-  | 1 => return .cons
-  | 2 => return .sym
-  | 3 => return .fun
-  | 4 => return .num
-  | 5 => return .thunk
-  | 6 => return .str
-  | 7 => return .char
-  | 8 => return .comm
-  | x => throw s!"Invalid data for a tag: {x}"
+  | 0  => return .nil
+  | 1  => return .cons
+  | 2  => return .sym
+  | 3  => return .fun
+  | 4  => return .num
+  | 5  => return .thunk
+  | 6  => return .str
+  | 7  => return .strCons
+  | 8  => return .strNil
+  | 9  => return .char
+  | 10 => return .comm
+  | x  => throw s!"Invalid data for a tag: {x}"
 
 def dePtr : DeserializeM ScalarPtr :=
   return ⟨← deTag, ← deF⟩
@@ -39,17 +41,16 @@ def dePtrExprPair : DeserializeM $ ScalarPtr × ScalarExpr := do
   let ptr ← dePtr
   let expr : ScalarExpr ← match ptr.tag with
   | .nil
-  | .sym   => pure $ .sym (← dePtr)
-  | .cons  => pure $ .cons (← dePtr) (← dePtr)
-  | .fun   => pure $ .fun (← dePtr) (← dePtr) (← dePtr)
-  | .num   => pure $ .num (← deF)
-  | .thunk => throw "TODO"
-  | .str   =>
-    let head ← dePtr
-    if head.val == F.zero then pure .strNil
-    else pure $ .strCons head (← dePtr)
-  | .char => pure $ .char (← deF)
-  | .comm => pure $ .comm (← deF) (← dePtr)
+  | .sym     => pure $ .sym (← dePtr)
+  | .cons    => pure $ .cons (← dePtr) (← dePtr)
+  | .fun     => pure $ .fun (← dePtr) (← dePtr) (← dePtr)
+  | .num     => pure $ .num (← deF)
+  | .thunk   => throw "TODO"
+  | .str     => pure $ .str (← dePtr)
+  | .strCons => pure $ .strCons (← dePtr) (← dePtr)
+  | .strNil  => pure .strNil
+  | .char    => pure $ .char (← deF)
+  | .comm    => pure $ .comm (← deF) (← dePtr)
   return (ptr, expr)
 
 def deStore : DeserializeM ScalarStore := do

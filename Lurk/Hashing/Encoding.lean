@@ -32,13 +32,13 @@ def encodeString (s : List Char) : EncodeM ScalarPtr := do
   | some ptr => pure ptr
   | none => 
     let ptr ← match s with
-      | [] => addExprHash ⟨Tag.str, F.zero⟩ .strNil
+      | [] => return ⟨.strNil, F.zero⟩
       | c :: cs => do
         let headPtr := ⟨.char, .ofNat c.toNat⟩
         let tailPtr ← encodeString cs
-        let ptr := ⟨Tag.str, hashPtrPair headPtr tailPtr⟩
+        let ptr := ⟨.strCons, hashPtrPair headPtr tailPtr⟩
         let expr := .strCons headPtr tailPtr
-        addExprHash ptr expr 
+        addExprHash ptr expr
     modifyGet fun stt =>
       (ptr, { stt with stringCache := stt.stringCache.insert s ptr })
 
@@ -50,14 +50,18 @@ def encodeAST (x : Syntax.AST) : EncodeM ScalarPtr := do
       | .nil =>
         -- `nil` has its own tag instead of `.sym`. Thus we need to manually
         -- hash it as a string and make a `.nil` pointer with it
-        let ptr ← encodeString ['N', 'I', 'L']
-        addExprHash ⟨.nil, ptr.val⟩ (.sym ptr)
-      | .num n => return ⟨.num, .ofNat n⟩ -- not storing numbers
+        let strConsPtr ← encodeString ['N', 'I', 'L']
+        let strPtr ← addExprHash ⟨.str, strConsPtr.val⟩ (.str strConsPtr)
+        addExprHash ⟨.nil, strPtr.val⟩ (.sym strPtr)
+      | .num n => return ⟨.num, .ofNat n⟩
       | .char c => return ⟨.char, .ofNat c.toNat⟩
-      | .str s => encodeString s.data
+      | .str s => do
+        let strConsPtr ← encodeString s.data
+        addExprHash ⟨.str, strConsPtr.val⟩ (.str strConsPtr)
       | .sym s =>
-        let ptr ← encodeString s.data
-        addExprHash ⟨.sym, ptr.val⟩ (.sym ptr)
+        let strConsPtr ← encodeString s.data
+        let strPtr ← addExprHash ⟨.str, strConsPtr.val⟩ (.str strConsPtr)
+        addExprHash ⟨.sym, strPtr.val⟩ (.sym strPtr)
       | .cons car cdr =>
         let car ← encodeAST car
         let cdr ← encodeAST cdr
