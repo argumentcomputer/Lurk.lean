@@ -32,13 +32,11 @@ def encodeString (s : List Char) : EncodeM ScalarPtr := do
   | some ptr => pure ptr
   | none => 
     let ptr ← match s with
-      | [] => addExprHash ⟨Tag.str, F.zero⟩ .strNil
-      | c :: cs => do
+      | [] => return ⟨.str, F.zero⟩
+      | c :: cs =>
         let headPtr := ⟨.char, .ofNat c.toNat⟩
         let tailPtr ← encodeString cs
-        let ptr := ⟨Tag.str, hashPtrPair headPtr tailPtr⟩
-        let expr := .strCons headPtr tailPtr
-        addExprHash ptr expr 
+        addExprHash ⟨.str, hashPtrPair headPtr tailPtr⟩ (.strCons headPtr tailPtr) 
     modifyGet fun stt =>
       (ptr, { stt with stringCache := stt.stringCache.insert s ptr })
 
@@ -52,7 +50,7 @@ def encodeAST (x : Syntax.AST) : EncodeM ScalarPtr := do
         -- hash it as a string and make a `.nil` pointer with it
         let ptr ← encodeString ['N', 'I', 'L']
         addExprHash ⟨.nil, ptr.val⟩ (.sym ptr)
-      | .num n => return ⟨.num, .ofNat n⟩ -- not storing numbers
+      | .num n => return ⟨.num, .ofNat n⟩
       | .char c => return ⟨.char, .ofNat c.toNat⟩
       | .str s => encodeString s.data
       | .sym s =>
@@ -79,7 +77,11 @@ open Lurk.Hashing
 def encode (x : Syntax.AST) : ScalarPtr × ScalarStore :=
   match StateT.run (encodeAST x) default with
   | (ptr, stt) => (ptr, stt.store)
-  
+
+def encode' (x : Syntax.AST) (stt : EncodeState := default) :
+    ScalarPtr × EncodeState :=
+  StateT.run (encodeAST x) stt
+
 def hide (secret : F) (x : Syntax.AST) : F × ScalarStore :=
   match StateT.run (hideAST secret x) default with
   | (hash, stt) => (hash, stt.store)
