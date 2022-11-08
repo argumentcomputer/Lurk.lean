@@ -28,10 +28,10 @@ def deTag : DeserializeM Tag := do
   | 4  => return .num
   | 5  => return .thunk
   | 6  => return .str
-  | 7  => return .strCons
-  | 8  => return .strNil
-  | 9  => return .char
-  | 10 => return .comm
+  | 7  => return .char
+  | 8  => return .comm
+  | 9  => return .strCons
+  | 10 => return .strNil
   | x  => throw s!"Invalid data for a tag: {x}"
 
 def dePtr : DeserializeM ScalarPtr :=

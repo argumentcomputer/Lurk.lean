@@ -16,10 +16,10 @@ def Tag.toString : Tag → String
   | num     => "num"
   | thunk   => "thunk"
   | str     => "str"
-  | strCons => "strCons"
-  | strNil  => "strNil"
   | char    => "char"
   | comm    => "comm"
+  | strCons => "strCons"
+  | strNil  => "strNil"
 
 instance : ToString Tag := ⟨Tag.toString⟩
 
@@ -31,10 +31,10 @@ def Tag.toF : Tag → F
   | num     => .ofNat 4
   | thunk   => .ofNat 5
   | str     => .ofNat 6
-  | strCons => .ofNat 7
-  | strNil  => .ofNat 8
-  | char    => .ofNat 9
-  | comm    => .ofNat 10
+  | char    => .ofNat 7
+  | comm    => .ofNat 8
+  | strCons => .ofNat 9
+  | strNil  => .ofNat 10
 
 inductive ContTag
   | outermost | call₀ | call | callnext | tail | error | lookup | op₁ | op₂
@@ -100,9 +100,9 @@ inductive ScalarExpr
   | «fun» (arg : ScalarPtr) (body : ScalarPtr) (env : ScalarPtr)
   | num (val : F)
   | str (strCons : ScalarPtr)
+  | char (x : F)
   | strCons (head : ScalarPtr) (tail : ScalarPtr)
   | strNil
-  | char (x : F)
   deriving BEq
 
 def ScalarExpr.toString : ScalarExpr → String
@@ -112,9 +112,9 @@ def ScalarExpr.toString : ScalarExpr → String
   | .fun arg body env => s!"Fun({arg}, {body}, {env})"
   | .num x => s!"Num({x.asHex})"
   | .str x => s!"Str({x})"
+  | .char x => s!"Char({x})"
   | .strCons head tail => s!"StrCons({head}, {tail})"
   | .strNil => "StrNil"
-  | .char x => s!"Char({x})"
 
 instance : ToString ScalarExpr := ⟨ScalarExpr.toString⟩
 

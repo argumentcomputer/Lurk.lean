@@ -51,8 +51,7 @@ def encodeAST (x : Syntax.AST) : EncodeM ScalarPtr := do
         -- `nil` has its own tag instead of `.sym`. Thus we need to manually
         -- hash it as a string and make a `.nil` pointer with it
         let strConsPtr ← encodeString ['N', 'I', 'L']
-        let strPtr ← addExprHash ⟨.str, strConsPtr.val⟩ (.str strConsPtr)
-        addExprHash ⟨.nil, strPtr.val⟩ (.sym strPtr)
+        addExprHash ⟨.nil, strConsPtr.val⟩ (.sym strConsPtr)
       | .num n => return ⟨.num, .ofNat n⟩
       | .char c => return ⟨.char, .ofNat c.toNat⟩
       | .str s => do
@@ -60,8 +59,7 @@ def encodeAST (x : Syntax.AST) : EncodeM ScalarPtr := do
         addExprHash ⟨.str, strConsPtr.val⟩ (.str strConsPtr)
       | .sym s =>
         let strConsPtr ← encodeString s.data
-        let strPtr ← addExprHash ⟨.str, strConsPtr.val⟩ (.str strConsPtr)
-        addExprHash ⟨.sym, strPtr.val⟩ (.sym strPtr)
+        addExprHash ⟨.sym, strConsPtr.val⟩ (.sym strConsPtr)
       | .cons car cdr =>
         let car ← encodeAST car
         let cdr ← encodeAST cdr

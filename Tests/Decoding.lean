@@ -17,6 +17,7 @@ def asts := [
   ⟦(nil t)⟧,
   ⟦(t nil)⟧,
   ⟦(current-env t nil)⟧,
+  ⟦(f "abc" . q)⟧,
   ⟦(f)⟧,
   ⟦(f a)⟧,
   ⟦(f 1 q)⟧,
