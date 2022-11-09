@@ -22,6 +22,9 @@ require LSpec from git
 require Megaparsec from git
   "https://github.com/yatima-inc/Megaparsec.lean" @ "2dbc1d9fb167c3ea0c3995c4f816d2480081b3c4"
 
+require std from git
+  "https://github.com/leanprover/std4/" @ "f648e43ef696ce1cf7f6ec534ec44c06816380f9"
+
 lean_exe Tests.Parsing
 lean_exe Tests.Evaluation
 lean_exe Tests.Encoding
