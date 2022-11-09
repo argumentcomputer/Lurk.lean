@@ -86,7 +86,7 @@ partial def elabAST : TSyntax `ast → TermElabM Expr
       let e ← elabTerm stx none
       let e ← whnf e
       trace[debug] e
-      mkAppM ``ToAST.toAST #[e]
+      mkAppM ``AST.toAST #[e]
     else throwUnsupportedSyntax
 
 end
