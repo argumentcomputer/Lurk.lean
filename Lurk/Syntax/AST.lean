@@ -95,10 +95,12 @@ instance [ToAST α] : ToAST (List α) where
   toAST es := AST.consWith (es.map toAST) .nil
 
 instance [ToAST α] : ToAST (Array α) where
-  toAST es := AST.consWith (es.toList.map toAST) .nil
+  toAST es := AST.consWith (es.data.map toAST) .nil
 
 instance : ToAST String where
   toAST := .str
+
+instance : ToAST AST := ⟨id⟩
 
 end ToAST
 
