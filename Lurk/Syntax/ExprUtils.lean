@@ -62,6 +62,13 @@ def mkIfElses (ifThens : List (AST × AST)) (finalElse : AST) : AST :=
   | [(cond, body)] => ⟦(if $cond $body $finalElse)⟧
   | (cond, body) :: es => ⟦(if $cond $body $(mkIfElses es finalElse))⟧
 
+/--
+Transforms a list of named expressions that were mutually defined into a
+"switch" function `S` and a set of projections (named after the original names)
+that call `S` with their respective indices.
+
+Important: the resulting expressions must be bound in a `letrec`.
+-/
 def mkMutualBlock (mutuals : List (Name × AST)) : List (Name × AST) :=
   match mutuals with
   | [_] => mutuals
