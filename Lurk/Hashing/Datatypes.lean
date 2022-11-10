@@ -4,7 +4,7 @@ import Std.Data.RBMap
 namespace Lurk
 
 inductive Tag
-  | nil | cons | sym | «fun» | num | thunk | str | char | comm
+  | nil | cons | sym | «fun» | num | thunk | str | char | comm | u64
   deriving Ord, BEq, Inhabited, Hashable
 
 def Tag.toString : Tag → String
@@ -17,6 +17,7 @@ def Tag.toString : Tag → String
   | str   => "str"
   | char  => "char"
   | comm  => "comm"
+  | u64   => "u64"
 
 instance : ToString Tag := ⟨Tag.toString⟩
 
@@ -30,6 +31,7 @@ def Tag.toF : Tag → F
   | .str   => .ofNat 6
   | .char  => .ofNat 7
   | .comm  => .ofNat 8
+  | .u64   => .ofNat 9
 
 inductive ContTag
   | outermost | call₀ | call | callnext | tail | error | lookup | op₁ | op₂
@@ -84,7 +86,7 @@ structure ScalarPtr where
 def ScalarPtr.toString : ScalarPtr → String
   | ⟨.num, n⟩ => s!"(num, {n.asHex})"
   | ⟨.char, val⟩ => s!"(char, \'{Char.ofNat val}\')"
-  | ⟨tag, val⟩ => s!"({tag}, Scalar({val.asHex}))"
+  | ⟨tag, val⟩ => s!"({tag}, {val.asHex})"
 
 instance : ToString ScalarPtr := ⟨ScalarPtr.toString⟩
 
@@ -94,9 +96,11 @@ inductive ScalarExpr
   | sym (sym : ScalarPtr)
   | «fun» (arg : ScalarPtr) (body : ScalarPtr) (env : ScalarPtr)
   | num (val : F)
-  | strNil
   | strCons (head : ScalarPtr) (tail : ScalarPtr)
+  | strNil
+  -- | thunk (thk : ScalarThunk)
   | char (x : F)
+  | uInt (x : F)
   deriving BEq
 
 def ScalarExpr.toString : ScalarExpr → String
@@ -105,30 +109,38 @@ def ScalarExpr.toString : ScalarExpr → String
   | .sym ptr => s!"Sym({ptr})"
   | .fun arg body env => s!"Fun({arg}, {body}, {env})"
   | .num x => s!"Num({x.asHex})"
-  | .strNil => "StrNil"
   | .strCons head tail => s!"StrCons({head}, {tail})"
-  | .char x => s!"Char({x})"
+  | .strNil => "StrNil"
+  | .char x => s!"Char(\'{Char.ofNat x}\')"
+  | .uInt x => s!"UInt({x})"
 
 instance : ToString ScalarExpr := ⟨ScalarExpr.toString⟩
 
 open Std (RBMap) in
 structure ScalarStore where
-  exprs : RBMap ScalarPtr ScalarExpr compare
-  -- conts : RBMap ScalarContPtr ScalarCont compare
+  exprs : RBMap ScalarPtr (Option ScalarExpr) compare
+  -- conts : RBMap ScalarContPtr (Option ScalarCont) compare
   comms : RBMap F ScalarPtr compare
   deriving Inhabited, BEq
 
-def ScalarStore.toString (s : ScalarStore) : String :=
-  let body := ",\n".intercalate $ s.exprs.toList.map fun (k, v) => s!"  {k}: {v}"
-  let exprs := "scalar_store: {\n" ++ body ++ "\n}"
+namespace ScalarStore
+
+def toString (s : ScalarStore) : String :=
+  let body := ",\n".intercalate $ s.exprs.toList.map fun (k, v) =>
+    match v with
+    | some v => s!"  {k}: {v}"
+    | none   => s!"  {k}: _"
+  let exprs := "exprs: {\n" ++ body ++ "\n}"
   let body := ",\n".intercalate $ s.comms.toList.map fun (k, v) => s!"  {k}: {v}"
-  let comms := "comm_store: {\n" ++ body ++ "\n}"
+  let comms := "comms: {\n" ++ body ++ "\n}"
   exprs ++ "\n" ++ comms
 
 instance : ToString ScalarStore := ⟨ScalarStore.toString⟩
 
-def ScalarStore.ofList (exprs : List (ScalarPtr × ScalarExpr)) : ScalarStore :=
+def ofList (exprs : List $ ScalarPtr × Option ScalarExpr) : ScalarStore :=
   ⟨.ofList exprs _, default⟩
+
+end ScalarStore
 
 end Hashing
 end Lurk

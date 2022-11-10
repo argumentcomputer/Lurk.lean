@@ -33,12 +33,22 @@ def serExpr : ScalarExpr → SerializeM Unit
   | .strNil => serPtr ⟨.str, F.zero⟩
   | .strCons head tail => do serPtr head; serPtr tail
   | .char c => serF c
+  | .uInt n => serF n
 
 def serStore : SerializeM Unit := do
   let store ← read
+  let mut opqPtrs := #[]
+  let mut exprs := #[]
+  for (ptr, expr?) in store.exprs do
+    match expr? with
+    | none => opqPtrs := opqPtrs.push ptr
+    | some expr => exprs := exprs.push (ptr, expr)
+  -- writing opaque pointers
+  serF $ .ofNat opqPtrs.size
+  opqPtrs.forM fun ptr => serPtr ptr
   -- writing expressions
-  serF $ .ofNat store.exprs.size
-  store.exprs.forM fun ptr expr => do serPtr ptr; serExpr expr
+  serF $ .ofNat exprs.size
+  exprs.forM fun (ptr, expr) => do serPtr ptr; serExpr expr
   -- writing comms
   serF $ .ofNat store.comms.size
   store.comms.forM fun n ptr => do serF n; serPtr ptr

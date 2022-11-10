@@ -1,3 +1,4 @@
+import Lurk.Syntax.ExprUtils
 import Lurk.Evaluation.Expr
 
 namespace Lurk.Syntax.AST
@@ -5,16 +6,6 @@ namespace Lurk.Syntax.AST
 open Evaluation (Expr)
 
 abbrev ToExprM := Except String
-
-def asArgs : AST → ToExprM (List String)
-  | .nil => return []
-  | .cons (.sym x) xs => return x :: (← xs.asArgs)
-  | x => throw s!"expected list of symbols but got {x}"
-
-def asBindings : AST → ToExprM (List (String × AST))
-  | .nil => return []
-  | .cons ~[.sym x, y] xs => return (x, y) :: (← xs.asBindings)
-  | x => throw s!"expected list of (symbol, body) pairs but got {x}"
 
 def mkOp₁ (op₁ : String) : Expr → Expr := match op₁ with
   | "ATOM"   => .op₁ .atom

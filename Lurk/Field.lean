@@ -15,7 +15,7 @@ def F.asHex (n : F) : String :=
 
 instance : Inhabited F := ⟨.ofNat 0⟩
 
-def F.zero : F :=
+@[match_pattern] def F.zero : F :=
   .ofNat 0
 
 @[inline] def F.toBytes (n : F) : ByteArray :=
