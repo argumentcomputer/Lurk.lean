@@ -1,4 +1,4 @@
-import Megaparsec.String
+import Megaparsec.Common
 import Lurk.Syntax.AST
 
 namespace Lurk.Syntax
@@ -92,7 +92,7 @@ end
 
 protected def parse (code : String) : Except String AST :=
   match parse astP code with
-  | .right x => return x
-  | .left x => throw $ toString x
+  | .ok x => return x
+  | .error x => throw $ toString x
 
 end Lurk.Syntax
