@@ -73,6 +73,4 @@ open LSpec in
 def main := lspecIO $
   withExceptOk "Parsing succeeds" (Lurk.Syntax.parse code)
     fun resultingAST => 
-      dbg_trace (resultingAST.toString false)
-      dbg_trace (expectedAST.toString false)
       test "Parsed correctly" (resultingAST == expectedAST)
