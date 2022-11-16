@@ -20,26 +20,36 @@ scoped syntax ">="  : sym
 -- these can't be simple idents because they'd clash with Lean's syntax
 scoped syntax "if"  : sym
 scoped syntax "let" : sym
+scoped syntax "current-env" : sym
+scoped syntax "CURRENT-ENV" : sym
 -- escaping symbols
 scoped syntax "|" sym "|" : sym
 
 partial def elabSym : TSyntax `sym → TermElabM Lean.Expr
-  | `(sym| $i:ident ) => mkAppM ``AST.sym #[mkStrLit i.getId.toString.toUpper]
-  | `(sym| +)  => mkAppM ``AST.sym #[mkStrLit "+"]
-  | `(sym| *)  => mkAppM ``AST.sym #[mkStrLit "*"]
-  | `(sym| -)  => mkAppM ``AST.sym #[mkStrLit "-"]
-  | `(sym| /)  => mkAppM ``AST.sym #[mkStrLit "/"]
-  | `(sym| =)  => mkAppM ``AST.sym #[mkStrLit "="]
-  | `(sym| <)  => mkAppM ``AST.sym #[mkStrLit "<"]
-  | `(sym| >)  => mkAppM ``AST.sym #[mkStrLit ">"]
-  | `(sym| <=) => mkAppM ``AST.sym #[mkStrLit "<="]
-  | `(sym| >=) => mkAppM ``AST.sym #[mkStrLit ">="]
-  | `(sym| if) => mkAppM ``AST.sym #[mkStrLit "IF"]
+  | `(sym| $i:ident) =>
+    let i  := i.getId.toString
+    let iU := i.toUpper
+    if AST.reservedSyms.contains iU then
+      mkAppM ``AST.sym #[mkStrLit iU]
+    else
+      mkAppM ``AST.sym #[mkStrLit i]
+  | `(sym| +)  | `(sym| | + |)  => mkAppM ``AST.sym #[mkStrLit "+"]
+  | `(sym| *)  | `(sym| | * |)  => mkAppM ``AST.sym #[mkStrLit "*"]
+  | `(sym| -)  | `(sym| | - |)  => mkAppM ``AST.sym #[mkStrLit "-"]
+  | `(sym| /)  | `(sym| | / |)  => mkAppM ``AST.sym #[mkStrLit "/"]
+  | `(sym| =)  | `(sym| | = |)  => mkAppM ``AST.sym #[mkStrLit "="]
+  | `(sym| <)  | `(sym| | < |)  => mkAppM ``AST.sym #[mkStrLit "<"]
+  | `(sym| >)  | `(sym| | > |)  => mkAppM ``AST.sym #[mkStrLit ">"]
+  | `(sym| <=) | `(sym| | <= |) => mkAppM ``AST.sym #[mkStrLit "<="]
+  | `(sym| >=) | `(sym| | >= |) => mkAppM ``AST.sym #[mkStrLit ">="]
+  | `(sym| CURRENT-ENV)  => mkAppM ``AST.sym #[mkStrLit "CURRENT-ENV"]
+  | `(sym| current-env)  => mkAppM ``AST.sym #[mkStrLit "CURRENT-ENV"]
+  | `(sym| | current-env |)  => mkAppM ``AST.sym #[mkStrLit "current-env"]
+  | `(sym| if)  => mkAppM ``AST.sym #[mkStrLit "IF"]
   | `(sym| let) => mkAppM ``AST.sym #[mkStrLit "LET"]
-  | `(sym| |$i:ident|) => mkAppM ``AST.sym #[mkStrLit i.getId.toString]
-  | `(sym| |if|) => mkAppM ``AST.sym #[mkStrLit "if"]
-  | `(sym| |let|) => mkAppM ``AST.sym #[mkStrLit "let"]
-  | `(sym| |$s:sym|) => elabSym s
+  | `(sym| | $i:ident |) => mkAppM ``AST.sym #[mkStrLit i.getId.toString]
+  | `(sym| | if |)  => mkAppM ``AST.sym #[mkStrLit "if"]
+  | `(sym| | let |) => mkAppM ``AST.sym #[mkStrLit "let"]
   | _ => throwUnsupportedSyntax
 
 declare_syntax_cat                     ast
@@ -50,17 +60,6 @@ scoped syntax sym                    : ast
 scoped syntax "(" ast* ")"           : ast
 scoped syntax "(" ast+ " . " ast ")" : ast
 scoped syntax "," ast                : ast -- quoting
--- symbols separated by a dash (only handles one dash)
-scoped syntax sym noWs "-" noWs sym  : ast
-scoped syntax sym noWs "-" noWs num  : ast
-
-def mergeSymSym : AST → AST → AST
-  | .sym a, .sym b => .sym s!"{a}-{b}"
-  | x, _ => x
-
-def mergeSymNat : AST → Nat → AST
-  | .sym a, n => .sym s!"{a}-{n}"
-  | x, _ => x
 
 mutual
 
@@ -73,9 +72,7 @@ partial def elabAST : TSyntax `ast → TermElabM Expr
     mkAppM ``AST.char #[← mkAppM ``Char.ofNat #[mkNatLit c.getChar.val.toNat]]
   | `(ast| $s:str) => mkAppM ``AST.str #[mkStrLit s.getString]
   | `(ast| $s:sym) => elabSym s
-  | `(ast| $a:sym-$b:sym) => do mkAppM ``mergeSymSym #[← elabSym a, ← elabSym b]
-  | `(ast| $a:sym-$n:num) => do mkAppM ``mergeSymNat #[← elabSym a, mkNatLit n.getNat]
-  | `(ast| ()) => mkAppM ``AST.sym #[mkStrLit "NIL"]
+  | `(ast| ()) => pure $ mkConst ``AST.nil
   | `(ast| ($xs*)) => elabASTCons xs (mkConst ``AST.nil)
   | `(ast| ($x . $y)) => do mkAppM ``AST.cons #[← elabAST x, ← elabAST y]
   | `(ast| ($xs* . $x)) => do elabASTCons xs (← elabAST x)
@@ -91,7 +88,7 @@ partial def elabAST : TSyntax `ast → TermElabM Expr
 
 end
 
-elab "⟦ " x:ast " ⟧" : term =>
+elab "⟦" x:ast "⟧" : term =>
   elabAST x
 
 end DSL

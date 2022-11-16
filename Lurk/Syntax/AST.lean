@@ -1,6 +1,8 @@
+import YatimaStdLib.RBMap
+
 namespace Lurk.Syntax
 
-/-- Symbols are expected to be in uppercase -/
+/-- Reserved symbols are expected to be in uppercase -/
 inductive AST
   | num : Nat → AST
   | char : Char → AST
@@ -20,23 +22,60 @@ def telescopeCons (acc : Array AST := #[]) : AST → Array AST × AST
 def consWith (xs : List AST) (init : AST) : AST :=
   xs.foldr (init := init) fun x acc => cons x acc
 
+def reservedSyms : Std.RBSet String compare := .ofList [
+  "NIL",
+  "T",
+  "CURRENT-ENV",
+  "BEGIN",
+  "IF",
+  "LAMBDA",
+  "LET",
+  "LETREC",
+  "QUOTE",
+  "ATOM",
+  "CAR",
+  "CDR",
+  "EMIT",
+  "COMMIT",
+  "COMM",
+  "OPEN",
+  "NUM",
+  "CHAR",
+  "CONS",
+  "STRCONS",
+  "+" ,
+  "-" ,
+  "*" ,
+  "/" ,
+  "=" ,
+  "<" ,
+  ">" ,
+  "<=" ,
+  ">=" ,
+  "EQ",
+  "HIDE"
+] _
+
 open Std Format in
-partial def toFormat : AST → Format
+partial def toFormat (esc : Bool) : AST → Format
   | num n => format n
   | char c => s!"#\\{c}"
   | str s => s!"\"{s}\""
-  | sym s => s
+  | sym s => if esc && !reservedSyms.contains s then s!"|{s}|" else s
   | x@(.cons ..) =>
     match x.telescopeCons with
     | (xs, nil) => paren $ fmtList xs.data
-    | (xs, y) => paren $ fmtList xs.data ++ line ++ "." ++ line ++ y.toFormat
+    | (xs, y) => paren $ fmtList xs.data ++ line ++ "." ++ line ++ (y.toFormat esc)
 where
   fmtList : List AST → Format
     | [] => .nil
-    | x::xs => xs.foldl (fun acc x => acc ++ line ++ x.toFormat) x.toFormat
+    | x::xs => xs.foldl (fun acc x => acc ++ line ++ (x.toFormat esc)) (x.toFormat esc)
 
-instance : Std.ToFormat AST := ⟨toFormat⟩
-instance : ToString AST := ⟨toString ∘ toFormat⟩
+def toString (esc : Bool) : AST → String :=
+  ToString.toString ∘ toFormat esc
+
+instance : Std.ToFormat AST := ⟨toFormat false⟩
+instance : ToString AST := ⟨toString false⟩
 
 scoped syntax "~[" withoutPosition(term,*) "]"  : term
 

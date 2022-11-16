@@ -15,20 +15,20 @@ open Syntax.DSL in def ast := ⟦
     (t)
     (current-env)
     (nil t)
-    (lambda (x y) (+ x y))
+    (lambda (X Y) (+ X Y))
     (cons 1 2)
-    (strcons a b)
-    (f)
-    (g x y)
+    (strcons A B)
+    (F)
+    (G X Y)
     (let (
-        (n1 nil)
-        (n2 (quote (nil)))
-        (n3 (begin)))
+        (N1 nil)
+        (N2 (quote (nil)))
+        (N3 (begin)))
       (current-env))
     (quote nil)
     (quote 1)
     (quote (1 2 3))
-    ((+ 1 2) (f x) . (cons 4 2)))
+    ((+ 1 2) (F X) . (cons 4 2)))
 ⟧
 
 open Hashing.DSL in def expectedStore := [store| {
