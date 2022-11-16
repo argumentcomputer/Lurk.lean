@@ -28,6 +28,20 @@ def asBindings : AST → Except String (List (String × AST))
   | .cons ~[.sym x, y] xs => return (x, y) :: (← xs.asBindings)
   | x => throw s!"expected list of (symbol, body) pairs but got {x}"
 
+/-- Given a list of ASTs `xs := [x₁, x₂, ..]` and `tail`, 
+  create the explicit list `(cons x₁ (cons x₂ (cons .. tail)))`.
+  Note that this is *different* from creating the literal list
+  `(x₁ x₂ .. . tail)` -/
+def mkConsListWith (xs : List AST) (tail : AST) : AST :=
+  xs.foldr (init := tail) fun x acc => ~[.sym "CONS", x, acc]
+
+/-- Given a list of ASTs `xs := [x₁, x₂, ..]`, 
+  create the explicit list `(cons x₁ (cons x₂ (cons .. nil)))`.
+  Note that this is *different* from creating the literal list
+  `(x₁ x₂ ..)` -/
+def mkConsList (xs : List AST) : AST :=
+  mkConsListWith xs (.sym "NIL")
+
 open Lurk.Syntax.DSL
 
 mutual
