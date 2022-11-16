@@ -1,48 +1,7 @@
 import Lurk.Syntax.AST
 import Lurk.Syntax.DSL
-import YatimaStdLib.RBMap
 
 namespace Lurk.Syntax.AST
-
-def reservedAppSyms : Std.RBSet String compare := .ofList [
-  "CURRENT-ENV",
-  "BEGIN",
-  "IF",
-  "LAMBDA",
-  "LET",
-  "LETREC",
-  "QUOTE",
-  "ATOM",
-  "CAR",
-  "CDR",
-  "EMIT",
-  "COMMIT",
-  "COMM",
-  "OPEN",
-  "NUM",
-  "CHAR",
-  "CONS",
-  "STRCONS",
-  "+" ,
-  "-" ,
-  "*" ,
-  "/" ,
-  "=" ,
-  "<" ,
-  ">" ,
-  "<=" ,
-  ">=" ,
-  "EQ",
-  "HIDE"
-] _
-
-def escapeSyms : AST → AST
-  | sym s => if ["NIL", "T"].contains s then sym s else sym s!"|{s}|"
-  | cons (sym s) y =>
-    if reservedAppSyms.contains s then cons (sym s) y.escapeSyms
-    else cons (sym s!"|{s}|") y.escapeSyms
-  | cons x y => cons x.escapeSyms y.escapeSyms
-  | x => x
 
 def mkLambda (args : List String) (body : AST) : AST :=
   ~[sym "LAMBDA", consWith (args.map sym) nil, body]
@@ -102,9 +61,10 @@ partial def replaceFreeVars (map : Std.RBMap String AST compare) :
   | x@(num _)
   | x@(char _)
   | x@(str _) => return x
-  | sym s => return if ["NIL", "T"].contains s then sym s else match map.find? s with
-    | some x => x
-    | none => sym s
+  | sym s =>
+    return if reservedSyms.contains s then sym s else match map.find? s with
+      | some x => x
+      | none => sym s
   | ~[sym "LAMBDA", as, b] => do
     let b ← b.replaceFreeVars (map.filterOut (.ofList (← asArgs as) _))
     return ~[sym "LAMBDA", as, b]
@@ -120,11 +80,6 @@ partial def replaceFreeVars (map : Std.RBMap String AST compare) :
     let bs := mkBindings $ ← replaceBindersFreeVars map bs true
     let b ← replaceFreeVars map' b
     return ~[sym "LETREC", bs, b]
-  | cons (sym s) y =>
-    return if reservedAppSyms.contains s then cons (sym s) (← y.replaceFreeVars map)
-    else
-      let head := match map.find? s with | some x => x | none => sym s
-      cons head (← y.replaceFreeVars map)
   | cons a b => return cons (← a.replaceFreeVars map) (← b.replaceFreeVars map)
 
 end
@@ -154,6 +109,5 @@ def mkMutualBlock : List (String × AST) → Except String (List $ String × AST
       fun (i, _, e) => do pure (⟦(= mutidx $i)⟧, ← replaceFreeVars map e)
     let mutualBlock := mkIfElses ifThens
     return (mutualName, ⟦(lambda (mutidx) $mutualBlock)⟧) :: fnProjs
-
 
 end Lurk.Syntax.AST

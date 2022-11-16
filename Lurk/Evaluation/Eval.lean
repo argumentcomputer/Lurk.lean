@@ -112,7 +112,7 @@ instance : Coe String Value where
 instance : OfNat Value n where
   ofNat := .lit $ .num (.ofNat n)
 
-partial def Expr.evalOp₁ : Op₁ → Value → Result
+def Expr.evalOp₁ : Op₁ → Value → Result
   | .atom, .cons .. => return .lit .nil
   | .atom, _ => return .lit .t
   | .car, .cons car _ => return car
@@ -139,7 +139,7 @@ partial def Expr.evalOp₁ : Op₁ → Value → Result
       throw s!"{n.toUInt32} is not a valid char value"
   | .char, v => throw s!"expected char or num value, got\n  {v}"
 
-partial def Expr.evalOp₂ : Op₂ → Value → Value → Result
+def Expr.evalOp₂ : Op₂ → Value → Value → Result
   | .cons, v₁, v₂ => return .cons v₁ v₂
   | .strcons, .lit (.char c), .lit (.str s) => return .lit (.str ⟨c :: s.data⟩)
   | .strcons, v₁, v₂ => throw s!"expected char and string value, got\n  {v₁}\n  {v₂}"

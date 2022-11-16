@@ -43,7 +43,12 @@ def validSpecialSymChar : Char → Bool
 def noEscSymP : P AST := do
   let c ← satisfy fun c => c.isAlpha || validSpecialSymChar c
   let x ← many' (satisfy fun c => c.isAlphanum || validSpecialSymChar c)
-  return .sym $ String.toUpper ⟨c :: x⟩
+  let i : String := ⟨c :: x⟩
+  let iU := i.toUpper
+  if AST.reservedSyms.contains iU then
+    return .sym iU
+  else
+    return .sym i
 
 def escSymP : P AST := do
   discard $ single '|'
