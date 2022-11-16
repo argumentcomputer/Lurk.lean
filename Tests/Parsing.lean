@@ -32,7 +32,7 @@ def code := "(begin
     (('1) . ' (cons 2 3))
     ((+ 1 2) (f x)  .    (cons 4 2))
     (|antiquote| |lambda| |Nat.add|)
-    (#\\bb) (#\\a #\\b))"
+    (#\\bB) (#\\a #\\b))"
 
 def antiq := [`antiquote, `lambda, ``Nat.add]
 
@@ -72,4 +72,7 @@ open Lurk.Syntax.DSL in def expectedAST := ⟦
 open LSpec in
 def main := lspecIO $
   withExceptOk "Parsing succeeds" (Lurk.Syntax.parse code)
-    fun resultingAST => test "Parsed correctly" (resultingAST == expectedAST)
+    fun resultingAST => 
+      dbg_trace (resultingAST.toString false)
+      dbg_trace (expectedAST.toString false)
+      test "Parsed correctly" (resultingAST == expectedAST)
