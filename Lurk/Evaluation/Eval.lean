@@ -45,12 +45,14 @@ instance : ToString Value where
 
 def Value.ofAST : Syntax.AST → Value
   | .nil => .lit .nil
+  | .t   => .lit .t
   | .num n => .lit $ .num (.ofNat n)
   | .char c => .lit $ .char c
   | .str s => .lit $ .str s
-  | .sym "T" => .lit .t
   | .sym s => .sym s
   | .cons x y => .cons (Value.ofAST x) (Value.ofAST y)
+
+instance : Coe Syntax.AST Value := ⟨Value.ofAST⟩
 
 instance : Inhabited Env := ⟨.mk .leaf⟩
 
@@ -160,7 +162,7 @@ partial def Expr.eval (env : Env := default) : Expr → Result
   | .sym n => match env.find? n with
     | some v => v.get
     | none => throw s!"{n} not found"
-  | .env => do
+  | .env =>
     env.toArray.foldrM (init := .lit .nil)
       fun (k, v) acc => return .cons (.cons (.sym k) (← v.get)) acc
   | .begin x (.lit .nil) => x.eval env
@@ -170,11 +172,11 @@ partial def Expr.eval (env : Env := default) : Expr → Result
     | _ => z.eval env
   | .app₀ fn => do match ← fn.eval env with
     | .fun "_" env' body => body.eval env'
-    | _ => throw s!"invalid 0-arity app"
+    | _ => throw "invalid 0-arity app"
   | .app fn arg => do match ← fn.eval env with
     | .fun "_" .. => throw "cannot apply argument to 0-arg lambda"
     | .fun n env' body => body.eval (env'.insert n (arg.eval env))
-    | _ => throw "lambda was expected"
+    | x => throw s!"lambda was expected, got {x}"
   | .op₁ op e => do evalOp₁ op (← e.eval env)
   | .op₂ op e₁ e₂ => do evalOp₂ op (← e₁.eval env) (← e₂.eval env)
   | .lambda s e => return .fun s env e

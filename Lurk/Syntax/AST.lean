@@ -14,13 +14,14 @@ inductive AST
 namespace AST
 
 @[match_pattern] def nil : AST := sym "NIL"
+@[match_pattern] def t   : AST := sym "T"
 
 def telescopeCons (acc : Array AST := #[]) : AST → Array AST × AST
   | cons x y => telescopeCons (acc.push x) y
   | x => (acc, x)
 
 def consWith (xs : List AST) (init : AST) : AST :=
-  xs.foldr (init := init) fun x acc => cons x acc
+  xs.foldr (init := init) cons
 
 def reservedSyms : Std.RBSet String compare := .ofList [
   "NIL",

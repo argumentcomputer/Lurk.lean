@@ -17,7 +17,7 @@ inductive Lit
   | char : Char → Lit
   deriving Repr, BEq
 
-namespace Lit 
+namespace Lit
 
 def toString : Lit → String
   | .nil        => "NIL"
@@ -38,7 +38,7 @@ instance : ToFormat Lit where
 
 def toAST : Lit → Syntax.AST
   | .nil    => .nil
-  | .t      => .sym "T"
+  | .t      => .t
   | .num n  => .num n
   | .str s  => .str s
   | .char c => .char c

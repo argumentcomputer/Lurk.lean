@@ -38,10 +38,10 @@ def mkOp₂ (op₂ : String) : Expr → Expr → Expr := match op₂ with
 partial def toExpr : AST → ToExprM Expr
   -- trivial cases
   | .nil     => return .lit .nil
+  | .t       => return .lit .t
   | .num  n  => return .lit $ .num (.ofNat n)
   | .char c  => return .lit $ .char c
   | .str  s  => return .lit $ .str s
-  | .sym "T" => return .lit .t
   | ~[.sym "CURRENT-ENV"] => return .env
   | .sym s  => return .sym s
   -- `begin` is a sequence of expressions

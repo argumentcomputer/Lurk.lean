@@ -442,34 +442,31 @@ def binop_restore_saved_env : Test :=
                   -- This should be an error. X should not be bound here.
                   (+ (outer 1) x))⟧)
 
--- def env_let : Test :=
--- (.ok [(`a, 1)], ⟦(let ((a 1)) (current-env))⟧)
+def env_let : Test :=
+(.ok ⟦((a . 1))⟧, ⟦(let ((a 1)) (current-env))⟧)
 
--- def env_let_nested : Test :=
--- (.ok [(`b, 2), (`a, 1)], ⟦(let ((a 1)) (let ((b 2)) (current-env)))⟧)
+def env_let_nested : Test :=
+(.ok ⟦((a . 1) (b . 2))⟧, ⟦(let ((a 1)) (let ((b 2)) (current-env)))⟧)
 
--- def env_letrec : Test :=
--- (.ok [(`a, 1)], ⟦(letrec ((a 1)) (current-env))⟧)
+def env_letrec : Test :=
+(.ok ⟦((a . 1))⟧, ⟦(letrec ((a 1)) (current-env))⟧)
 
--- def env_letrec_nested : Test :=
--- (.ok [(`b, 2), (`a, 1)], ⟦(letrec ((a 1)) (letrec ((b 2)) (current-env)))⟧)
+def env_letrec_nested : Test :=
+(.ok ⟦((a . 1) (b . 2))⟧, ⟦(letrec ((a 1)) (letrec ((b 2)) (current-env)))⟧)
 
--- def env_let_letrec_let : Test :=
--- (.ok [(`e, 5), (`d, 4), (`c, 3), (`b, 2), (`a, 1)],
---   ⟦(let ((a 1) (b 2)) (letrec ((c 3) (d 4)) (let ((e 5)) (current-env))))⟧)
+def env_let_letrec_let : Test :=
+(.ok ⟦((a . 1) (b . 2) (c . 3) (d . 4) (e . 5))⟧,
+  ⟦(let ((a 1) (b 2)) (letrec ((c 3) (d 4)) (let ((e 5)) (current-env))))⟧)
 
 def begin_emit : Test :=
 (.ok 3, ⟦(begin (emit 1) (emit 2) (emit 3))⟧)
 
-def begin_is_nil : Test := 
+def begin_is_nil : Test :=
 (.ok false, ⟦(begin)⟧)
 
--- def env_let_begin_emit : Test := 
--- (.ok [(`a, 1)], ⟦(let ((a 1))
---                           (begin
---                            (let ((b 2))
---                              (emit b))
---                            (current-env)))⟧)
+def env_let_begin_emit : Test :=
+(.ok ⟦((a . 1))⟧, ⟦(let ((a 1))
+                    (begin (let ((b 2)) (emit b)) (current-env)))⟧)
 
 def multiple_apps : Test :=
 (.ok 3, ⟦(let ((f (lambda (x y z) (+ x y)))
@@ -481,75 +478,75 @@ def multiple_apps2 : Test :=
               (g (lambda (x) (f x))))
             (g 1 2 3))⟧)
 
-def shadow : Test := 
+def shadow : Test :=
 (.ok 2, ⟦((lambda (f) (f 2)) ((lambda (x x) x) 1))⟧)
 
-def shadow2 : Test := 
+def shadow2 : Test :=
 (.ok 4, ⟦(((lambda (x x) (+ x x)) 1) 2)⟧)
 
--- def begin_emitted : Test := 
+-- def begin_emitted : Test :=
 -- !(:assert_emitted '(1 2 3) (begin (emit 1) (emit 2) (emit 3)))
 
 -- Strings are proper lists of characters and are tagged as such.
 
 -- Get the first character of a string with CAR
-def car_str : Test := 
+def car_str : Test :=
 (.ok 'a', ⟦(car "asdf")⟧)
 
 -- Get the tail with CDR
-def cdr_str : Test := 
+def cdr_str : Test :=
 (.ok "sdf", ⟦(cdr "asdf")⟧)
 
 -- Construct a string from a character and another string.
-def strcons_char_str : Test := 
+def strcons_char_str : Test :=
 (.ok "dog", ⟦(strcons 'd' "og")⟧)
 
 -- Including the empty string.
-def strcons_char_empty : Test := 
+def strcons_char_empty : Test :=
 (.ok "z", ⟦(strcons 'z' "")⟧)
 
 infix:75 " .ᵥ " => Lurk.Evaluation.Value.cons
 
 -- Construct a pair from a character and another string.
 -- should be `'(#\d . "og")`
-def cons_char_str : Test := 
+def cons_char_str : Test :=
 (.ok ('d' .ᵥ "og"), ⟦(cons 'd' "og")⟧)
 
 -- Including the empty string.
--- should be `'('z' . "")` 
-def cons_char_empty : Test := 
+-- should be `'('z' . "")`
+def cons_char_empty : Test :=
 (.ok ('z' .ᵥ ""), ⟦(cons 'z' "")⟧)
 
 -- The empty string is the string terminator ("")
-def cdr_str_is_empty : Test := 
+def cdr_str_is_empty : Test :=
 (.ok "", ⟦(cdr "x")⟧)
 
 -- The CDR of the empty string is the empty string.
-def cdr_empty : Test := 
+def cdr_empty : Test :=
 (.ok "", ⟦(cdr "")⟧)
 
 -- The CAR of the empty string is NIL (neither a character nor a string).
-def car_empty : Test := 
+def car_empty : Test :=
 (.ok false, ⟦(car "")⟧)
 
 -- CONSing two strings yields a pair, not a string.
-def cons_str_str : Test := 
+def cons_str_str : Test :=
 (.ok ("a" .ᵥ "b"), ⟦(cons "a" "b")⟧)
 
 -- CONSing two characters yields a pair, not a string.
-def cons_char_char : Test := 
+def cons_char_char : Test :=
 (.ok ('a' .ᵥ 'b'), ⟦(cons 'a' 'b')⟧)
 
 -- STRCONSing two strings is an error.
-def strcons_str_str : Test := 
+def strcons_str_str : Test :=
 (.error "", ⟦(strcons "a" "b")⟧)
 
 -- STRCONSing two characters is an error.
-def strcons_char_char : Test := 
+def strcons_char_char : Test :=
 (.error "", ⟦(strcons 'a' 'b')⟧)
 
 -- STRCONSing anything but a character and a string is an error.
-def strcons_not_char_str : Test := 
+def strcons_not_char_str : Test :=
 (.error "", ⟦(strcons 1 ,"foo")⟧)
 
 -- A char is any 32_bit unicode character, but we currently only have reader
@@ -630,14 +627,14 @@ def pairs : List Test := [
   lookup_restore_saved_env,
   tail_call_restore_saved_env,
   binop_restore_saved_env,
-  -- env_let,
-  -- env_let_nested,
-  -- env_letrec,
-  -- env_letrec_nested,
-  -- env_let_letrec_let,
+  env_let,
+  env_let_nested,
+  env_letrec,
+  env_letrec_nested,
+  env_let_letrec_let,
   begin_emit,
   begin_is_nil,
-  -- env_let_begin_emit,
+  env_let_begin_emit,
   multiple_apps,
   multiple_apps2,
   shadow,
@@ -663,8 +660,8 @@ def pairs : List Test := [
 ]
 
 open LSpec in
-def main := do
-  let tSeq : TestSeq := pairs.foldl (init := .done) fun tSeq pair =>
+def main := lspecIO $
+  pairs.foldl (init := .done) fun tSeq pair =>
     let (expect, ast) := (pair : Test)
     withExceptOk s!"{ast} converts to expression" (AST.toExpr ast) fun e =>
       tSeq ++ match expect with
@@ -672,4 +669,3 @@ def main := do
         fun res => test s!"{ast} evaluates to {expect}" (res == expect)
       | .error _ => withExceptError s!"{ast} fails on evaluation" e.eval
         fun _ => .done
-  lspecIO tSeq
