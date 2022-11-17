@@ -20,10 +20,16 @@ scoped syntax ">="  : sym
 -- these can't be simple idents because they'd clash with Lean's syntax
 scoped syntax "if"  : sym
 scoped syntax "let" : sym
+-- a workaround for the dash
 scoped syntax "current-env" : sym
 scoped syntax "CURRENT-ENV" : sym
 -- escaping symbols
 scoped syntax "|" sym "|" : sym
+-- symbols with a dot followed by a number
+scoped syntax ident noWs "." noWs num : sym
+
+def mergeWithDot (s : String) (n : Nat) : String :=
+  s!"{s}.{n}"
 
 partial def elabSym : TSyntax `sym → TermElabM Lean.Expr
   | `(sym| $i:ident) =>
@@ -50,6 +56,10 @@ partial def elabSym : TSyntax `sym → TermElabM Lean.Expr
   | `(sym| | $i:ident |) => mkAppM ``AST.sym #[mkStrLit i.getId.toString]
   | `(sym| | if |)  => mkAppM ``AST.sym #[mkStrLit "if"]
   | `(sym| | let |) => mkAppM ``AST.sym #[mkStrLit "let"]
+  | `(sym| | $i:ident.$n:num |)
+  | `(sym| $i:ident.$n:num) => do
+    let sym ← mkAppM ``mergeWithDot #[mkStrLit i.getId.toString, mkNatLit n.getNat]
+    mkAppM ``AST.sym #[sym]
   | _ => throwUnsupportedSyntax
 
 declare_syntax_cat                     ast

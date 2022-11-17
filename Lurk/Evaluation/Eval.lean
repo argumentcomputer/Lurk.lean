@@ -120,31 +120,31 @@ def Expr.evalOp₁ : Op₁ → Value → Result
   | .car, .cons car _ => return car
   | .car, .lit (.str ⟨[]⟩) => return .lit .nil
   | .car, .lit (.str ⟨h::_⟩) => return .lit (.char h)
-  | .car, v => throw s!"expected cons value, got\n  {v}"
+  | .car, v => throw s!"expected cons value, got {v}"
   | .cdr, .cons _ cdr => return cdr
   | .cdr, .lit (.str ⟨[]⟩) => return .lit (.str "")
   | .cdr, .lit (.str ⟨_::t⟩) => return .lit (.str ⟨t⟩)
-  | .cdr, v => throw s!"expected cons value, got\n  {v}"
-  | .emit, v => dbg_trace s!"{v.toString}"; return v
+  | .cdr, v => throw s!"expected cons value, got {v}"
+  | .emit, v => dbg_trace v; return v
   | .commit, _ => throw "TODO commit"
   | .comm, v => return .comm (← v.num)
   | .open, _ => throw "TODO open"
   | .num, .lit (.num n) => return .lit (.num n)
   | .num, .lit (.char c) => return .lit $ .num (.ofNat c.toNat)
   | .num, .comm c => return .lit (.num c)
-  | .num, v => throw s!"expected char, num, or comm value, got\n  {v}"
+  | .num, v => throw s!"expected char, num, or comm value, got {v}"
   | .char, .lit (.char c) => return .lit (.char c)
   | .char, .lit (.num ⟨n, _⟩) =>
     if h : isValidChar n.toUInt32 then
       return .lit (.char ⟨n.toUInt32, h⟩)
     else
       throw s!"{n.toUInt32} is not a valid char value"
-  | .char, v => throw s!"expected char or num value, got\n  {v}"
+  | .char, v => throw s!"expected char or num value, got {v}"
 
 def Expr.evalOp₂ : Op₂ → Value → Value → Result
   | .cons, v₁, v₂ => return .cons v₁ v₂
   | .strcons, .lit (.char c), .lit (.str s) => return .lit (.str ⟨c :: s.data⟩)
-  | .strcons, v₁, v₂ => throw s!"expected char and string value, got\n  {v₁}\n  {v₂}"
+  | .strcons, v₁, v₂ => throw s!"expected char and string value, got {v₁} and {v₂}"
   | .add, v₁, v₂ => return .lit $ .num ((← v₁.num) + (← v₂.num))
   | .sub, v₁, v₂ => return .lit $ .num ((← v₁.num) - (← v₂.num))
   | .mul, v₁, v₂ => return .lit $ .num ((← v₁.num) * (← v₂.num))
