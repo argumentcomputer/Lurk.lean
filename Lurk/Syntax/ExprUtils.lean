@@ -95,7 +95,7 @@ partial def pruneBlocks : AST → Except String AST
           if accFVars.contains s || reservedSyms.contains s then
             return (
               (s, ← v.pruneBlocks) :: accBinders,
-              accFVars.union $ ← v.getFreeVars (.single s))
+              accFVars.union $ ← v.getFreeVars (.single s)) -- s is not free in v
           else return (accBinders, accFVars) -- drop binder
       return mkLetrec newBinders.1 (← b.pruneBlocks)
   | .cons x y => return .cons (← x.pruneBlocks) (← y.pruneBlocks)
