@@ -42,7 +42,64 @@ def mkConsListWith (xs : List AST) (tail : AST) : AST :=
 def mkConsList (xs : List AST) : AST :=
   mkConsListWith xs (.sym "NIL")
 
-open Lurk.Syntax.DSL
+partial def getFreeVars (bVars acc : Std.RBSet String compare := default) :
+    AST → Except String (Std.RBSet String compare)
+  | .sym s =>
+    return if bVars.contains s || reservedSyms.contains s then acc else acc.insert s
+  | ~[.sym "LAMBDA", as, b] => do
+    let bVars := (← as.asArgs).foldl (init := bVars) fun acc a => acc.insert a
+    b.getFreeVars bVars acc
+  | ~[.sym "LET", bs, b] => do
+    let (bindersNames, bindersFreeVars) ← (← bs.asBindings).foldlM
+      (init := default)
+      fun (prevBinders, fVars) (s, v) =>
+        return (
+          prevBinders.insert s,
+          fVars.union $ ← v.getFreeVars (bVars.union prevBinders) acc)
+    b.getFreeVars (bVars.union bindersNames) (acc.union bindersFreeVars)
+  | ~[.sym "LETREC", bs, b] => do
+    let (bindersNames, bindersFreeVars) ← (← bs.asBindings).foldlM
+      (init := default)
+      fun (prevBinders, fVars) (s, v) =>
+        let allBinders := prevBinders.insert s -- s is a bound variable in v
+        return (
+          allBinders,
+          fVars.union $ ← v.getFreeVars (bVars.union allBinders) acc)
+    b.getFreeVars (bVars.union bindersNames) (acc.union bindersFreeVars)
+  | .cons x y => return (← x.getFreeVars bVars acc).union $ ← y.getFreeVars bVars acc
+  | _ => return acc
+
+def containsCurrentEnv : AST → Bool
+  | .sym "CURRENT-ENV" => true
+  | .cons x y => x.containsCurrentEnv || y.containsCurrentEnv
+  | _ => false
+
+/-- Eagerly remove unecessary binders from `let` and `letrec` blocks. -/
+partial def pruneBlocks : AST → Except String AST
+  | x@~[.sym "LET", bs, b] =>
+    if b.containsCurrentEnv then pure x else do
+      let newBinders ← (← bs.asBindings).foldrM
+        (init := (default, ← b.getFreeVars))
+        fun (s, v) (accBinders, accFVars) =>
+          if accFVars.contains s || reservedSyms.contains s then
+            return (
+              (s, ← v.pruneBlocks) :: accBinders,
+              accFVars.union $ ← v.getFreeVars)
+          else return (accBinders, accFVars) -- drop binder
+      return mkLet newBinders.1 (← b.pruneBlocks)
+  | x@~[.sym "LETREC", bs, b] =>
+    if b.containsCurrentEnv then pure x else do
+      let newBinders ← (← bs.asBindings).foldrM
+        (init := (default, ← b.getFreeVars))
+        fun (s, v) (accBinders, accFVars) =>
+          if accFVars.contains s || reservedSyms.contains s then
+            return (
+              (s, ← v.pruneBlocks) :: accBinders,
+              accFVars.union $ ← v.getFreeVars (.single s))
+          else return (accBinders, accFVars) -- drop binder
+      return mkLetrec newBinders.1 (← b.pruneBlocks)
+  | .cons x y => return .cons (← x.pruneBlocks) (← y.pruneBlocks)
+  | x => pure x
 
 mutual
 
@@ -97,6 +154,8 @@ partial def replaceFreeVars (map : Std.RBMap String AST compare) :
   | cons a b => return cons (← a.replaceFreeVars map) (← b.replaceFreeVars map)
 
 end
+
+open Lurk.Syntax.DSL
 
 def mkIfElses (ifThens : List (AST × AST)) (finalElse : AST := .nil) : AST :=
   match ifThens with
