@@ -5,8 +5,6 @@ namespace Lurk.Syntax.AST
 
 open Evaluation (Expr)
 
-abbrev ToExprM := Except String
-
 def mkOp₁ (op₁ : String) : Expr → Expr := match op₁ with
   | "ATOM"   => .op₁ .atom
   | "CAR"    => .op₁ .car
@@ -35,7 +33,7 @@ def mkOp₂ (op₂ : String) : Expr → Expr → Expr := match op₂ with
   | "HIDE"    => .op₂ .hide
   | x => fun y z => .app (.app (.sym x) y) z
 
-partial def toExpr : AST → ToExprM Expr
+partial def toExpr : AST → Except String Expr
   -- trivial cases
   | .nil     => return .lit .nil
   | .t       => return .lit .t

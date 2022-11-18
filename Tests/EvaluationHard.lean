@@ -208,8 +208,200 @@ def stringAppend : Test := ("abcdefg", ⟦
  |stringAppend|)
 ⟧)
 
+def stringLength : Test := (4, ⟦
+(LETREC
+ ((|getelem| (LAMBDA (|xs| |n|) (IF (= |n| 0) (CAR |xs|) (|getelem| (CDR |xs|) (- |n| 1)))))
+  (|lurk_string_mk| (LAMBDA (|cs|) (IF |cs| (STRCONS (CAR |cs|) (|lurk_string_mk| (CDR |cs|))) "")))
+  (|lurk_string_data| (LAMBDA (|s|) (IF (EQ |s| "") NIL (CONS (CAR |s|) (|lurk_string_data| (CDR |s|))))))
+  (|str_append| (LAMBDA (|xs| |ys|) (IF (EQ "" |xs|) |ys| (STRCONS (CAR |xs|) (|str_append| (CDR |xs|) |ys|)))))
+  (|String.rec| (LAMBDA (|motive| |mk| |_t|) (|mk| (|lurk_string_data| |_t|))))
+  (|String.casesOn| (LAMBDA (|motive| |t| |mk|) (|String.rec| |motive| (LAMBDA (|data|) (|mk| |data|)) |t|)))
+  (|String.length.match_1|
+   (LAMBDA
+    (|motive| |_hyg_.2| |h_1|)
+    (|String.casesOn| (LAMBDA (|x|) (|motive| |x|)) |_hyg_.2| (LAMBDA (|_hyg_.3|) (|h_1| |_hyg_.3|)))))
+  (|Nat| (QUOTE ("Nat" 0 0)))
+  (|List.rec|
+   (LAMBDA
+    (|_lurk_1| |motive| |_nil| |_cons| |_t|)
+    (IF |_t| (|_cons| (CAR |_t|) (CDR |_t|) (|List.rec| |_lurk_1| |motive| |_nil| |_cons| (CDR |_t|))) |_nil|)))
+  (|PProd| (LAMBDA (|α| |β|) (QUOTE ("PProd" 2 0))))
+  (|PProd.mk|
+   (LAMBDA
+    (|α| |β| |fst| |snd|)
+    (CONS
+     (QUOTE ("PProd" 2 0))
+     (CONS 0 (CONS (CONS |α| (CONS |β| NIL)) (CONS NIL (CONS (CONS |fst| (CONS |snd| NIL)) NIL)))))))
+  (|PProd.rec|
+   (LAMBDA
+    (|α| |β| |motive| |mk| |t|)
+    (IF
+     (= (CAR (CDR |t|)) 0)
+     (LET
+      ((|_lurk_ctor_args| (|getelem| (CDR (CDR |t|)) 2))
+       (|fst| (|getelem| |_lurk_ctor_args| 0))
+       (|snd| (|getelem| |_lurk_ctor_args| 1)))
+      (|mk| |fst| |snd|))
+     NIL)))
+  (|PUnit| (QUOTE ("PUnit" 0 0)))
+  (|PUnit.unit| (CONS (QUOTE ("PUnit" 0 0)) (CONS 0 NIL)))
+  (|PUnit.rec|
+   (LAMBDA
+    (|motive| |unit| |t|)
+    (IF (= (CAR (CDR |t|)) 0) (LET ((|_lurk_ctor_args| (|getelem| (CDR (CDR |t|)) 2))) |unit|) NIL)))
+  (|List.below|
+   (LAMBDA
+    (|α| |motive| |t|)
+    (|List.rec|
+     |α|
+     (LAMBDA (|t|) NIL)
+     |PUnit|
+     (LAMBDA (|head| |tail| |tail_ih|) (|PProd| (|PProd| (|motive| |tail|) |tail_ih|) |PUnit|))
+     |t|)))
+  (|List.nil| (LAMBDA (|_lurk_1|) NIL))
+  (|List.cons| (LAMBDA (|_lurk_1| |head| |tail|) (CONS |head| |tail|)))
+  (|List.brecOn|
+   (LAMBDA
+    (|α| |motive| |t| |F_1|)
+    (|getelem|
+     (|getelem|
+      (CDR
+       (CDR
+        (|List.rec|
+         |α|
+         (LAMBDA (|t|) (|PProd| (|motive| |t|) (|List.below| |α| |motive| |t|)))
+         (|PProd.mk| (|motive| (|List.nil| |α|)) |PUnit| (|F_1| (|List.nil| |α|) |PUnit.unit|) |PUnit.unit|)
+         (LAMBDA
+          (|head| |tail| |tail_ih|)
+          (|PProd.mk|
+           (|motive| (|List.cons| |α| |head| |tail|))
+           (|PProd| (|PProd| (|motive| |tail|) (|List.below| |α| |motive| |tail|)) |PUnit|)
+           (|F_1|
+            (|List.cons| |α| |head| |tail|)
+            (|PProd.mk| (|PProd| (|motive| |tail|) (|List.below| |α| |motive| |tail|)) |PUnit| |tail_ih| |PUnit.unit|))
+           (|PProd.mk| (|PProd| (|motive| |tail|) (|List.below| |α| |motive| |tail|)) |PUnit| |tail_ih| |PUnit.unit|)))
+         |t|)))
+      2)
+     0)))
+  (|List.casesOn|
+   (LAMBDA
+    (|α| |motive| |t| |nil| |cons|)
+    (|List.rec| |α| |motive| |nil| (LAMBDA (|head| |tail| |tail_ih|) (|cons| |head| |tail|)) |t|)))
+  (|Unit.unit| |PUnit.unit|)
+  (|List.length.match_1|
+   (LAMBDA
+    (|α| |motive| |_hyg_.5| |h_1| |h_2|)
+    (|List.casesOn|
+     |α|
+     (LAMBDA (|x|) (|motive| |x|))
+     |_hyg_.5|
+     (|h_1| |Unit.unit|)
+     (LAMBDA (|_hyg_.6| |_hyg_.7|) (|h_2| |_hyg_.6| |_hyg_.7|)))))
+  (|OfNat.ofNat| (LAMBDA (|α| |_hyg_.9| |self|) (|getelem| (|getelem| (CDR (CDR |self|)) 2) 0)))
+  (|OfNat| (LAMBDA (|α| |_hyg_.9|) (QUOTE ("OfNat" 2 0))))
+  (|OfNat.mk|
+   (LAMBDA
+    (|α| |_hyg_.9| |ofNat|)
+    (CONS
+     (QUOTE ("OfNat" 2 0))
+     (CONS 0 (CONS (CONS |α| (CONS |_hyg_.9| NIL)) (CONS NIL (CONS (CONS |ofNat| NIL) NIL)))))))
+  (|OfNat.rec|
+   (LAMBDA
+    (|α| |_hyg_.9| |motive| |mk| |t|)
+    (IF
+     (= (CAR (CDR |t|)) 0)
+     (LET ((|_lurk_ctor_args| (|getelem| (CDR (CDR |t|)) 2)) (|ofNat| (|getelem| |_lurk_ctor_args| 0))) (|mk| |ofNat|))
+     NIL)))
+  (|instOfNatNat| (LAMBDA (|n|) (|OfNat.mk| |Nat| |n| |n|)))
+  (|HAdd.hAdd| (LAMBDA (|α| |β| |γ| |self|) (|getelem| (|getelem| (CDR (CDR |self|)) 2) 0)))
+  (|HAdd| (LAMBDA (|α| |β| |γ|) (QUOTE ("HAdd" 3 0))))
+  (|HAdd.mk|
+   (LAMBDA
+    (|α| |β| |γ| |hAdd|)
+    (CONS
+     (QUOTE ("HAdd" 3 0))
+     (CONS 0 (CONS (CONS |α| (CONS |β| (CONS |γ| NIL))) (CONS NIL (CONS (CONS |hAdd| NIL) NIL)))))))
+  (|HAdd.rec|
+   (LAMBDA
+    (|α| |β| |γ| |motive| |mk| |t|)
+    (IF
+     (= (CAR (CDR |t|)) 0)
+     (LET ((|_lurk_ctor_args| (|getelem| (CDR (CDR |t|)) 2)) (|hAdd| (|getelem| |_lurk_ctor_args| 0))) (|mk| |hAdd|))
+     NIL)))
+  (|Add.add| (LAMBDA (|α| |self|) (|getelem| (|getelem| (CDR (CDR |self|)) 2) 0)))
+  (|instHAdd| (LAMBDA (|α| |_hyg_.11|) (|HAdd.mk| |α| |α| |α| (LAMBDA (|a| |b|) (|Add.add| |α| |_hyg_.11| |a| |b|)))))
+  (|Add| (LAMBDA (|α|) (QUOTE ("Add" 1 0))))
+  (|Add.mk|
+   (LAMBDA
+    (|α| |add|)
+    (CONS (QUOTE ("Add" 1 0)) (CONS 0 (CONS (CONS |α| NIL) (CONS NIL (CONS (CONS |add| NIL) NIL)))))))
+  (|Add.rec|
+   (LAMBDA
+    (|α| |motive| |mk| |t|)
+    (IF
+     (= (CAR (CDR |t|)) 0)
+     (LET ((|_lurk_ctor_args| (|getelem| (CDR (CDR |t|)) 2)) (|add| (|getelem| |_lurk_ctor_args| 0))) (|mk| |add|))
+     NIL)))
+  (|Nat.add| (LAMBDA (|a| |b|) (+ |a| |b|)))
+  (|instAddNat| (|Add.mk| |Nat| |Nat.add|))
+  (|PProd.fst| (LAMBDA (|α| |β| |self|) (|getelem| (|getelem| (CDR (CDR |self|)) 2) 0)))
+  (|List.length|
+   (LAMBDA
+    (|α| |_hyg_.4|)
+    (|List.brecOn|
+     |α|
+     (LAMBDA (|_hyg_.4|) |Nat|)
+     |_hyg_.4|
+     (LAMBDA
+      (|_hyg_.4| |f|)
+      (|List.length.match_1|
+       |α|
+       (LAMBDA (|_hyg_.5|) NIL)
+       |_hyg_.4|
+       (LAMBDA (|[anonymous]| |_hyg_.8|) 0)
+       (LAMBDA
+        (|_hyg_.10| |as| |_hyg_.8|)
+        (|HAdd.hAdd|
+         |Nat|
+         |Nat|
+         |Nat|
+         (|instHAdd| |Nat| |instAddNat|)
+         (|PProd.fst|
+          ((LAMBDA (|_hyg_.4|) |Nat|) |as|)
+          (|List.rec|
+           |α|
+           (LAMBDA (|t|) NIL)
+           |PUnit|
+           (LAMBDA (|head| |tail| |tail_ih|) (|PProd| (|PProd| ((LAMBDA (|_hyg_.4|) |Nat|) |tail|) |tail_ih|) |PUnit|))
+           |as|)
+          (|PProd.fst|
+           (|PProd|
+            ((LAMBDA (|_hyg_.4|) |Nat|) |as|)
+            (|List.rec|
+             |α|
+             (LAMBDA (|t|) NIL)
+             |PUnit|
+             (LAMBDA
+              (|head| |tail| |tail_ih|)
+              (|PProd| (|PProd| ((LAMBDA (|_hyg_.4|) |Nat|) |tail|) |tail_ih|) |PUnit|))
+             |as|))
+           |PUnit|
+           |_hyg_.8|))
+         1))
+       |f|)))))
+  (|Char| (QUOTE ("Char" 0 0)))
+  (|String.length|
+   (LAMBDA
+    (|_hyg_.1|)
+    (|String.length.match_1| (LAMBDA (|_hyg_.2|) |Nat|) |_hyg_.1| (LAMBDA (|s|) (|List.length| |Char| |s|)))))
+  (|abcd| "abcd")
+  (|stringLength| (|String.length| |abcd|)))
+ |stringLength|)
+⟧)
+
 def pairs : List Test := [
-  -- stringAppend
+  -- stringAppend,
+  -- stringLength
 ]
 
 open LSpec in

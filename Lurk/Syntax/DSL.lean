@@ -27,6 +27,7 @@ scoped syntax "CURRENT-ENV" : sym
 scoped syntax "|" sym "|" : sym
 -- symbols with a dot followed by a number
 scoped syntax ident noWs "." noWs num : sym
+scoped syntax "[anonymous]" : sym
 
 def mergeWithDot (s : String) (n : Nat) : String :=
   s!"{s}.{n}"
@@ -56,10 +57,12 @@ partial def elabSym : TSyntax `sym → TermElabM Lean.Expr
   | `(sym| | $i:ident |) => mkAppM ``AST.sym #[mkStrLit i.getId.toString]
   | `(sym| | if |)  => mkAppM ``AST.sym #[mkStrLit "if"]
   | `(sym| | let |) => mkAppM ``AST.sym #[mkStrLit "let"]
-  | `(sym| | $i:ident.$n:num |)
-  | `(sym| $i:ident.$n:num) => do
+  | `(sym| $i:ident.$n:num)
+  | `(sym| | $i:ident.$n:num |) => do
     let sym ← mkAppM ``mergeWithDot #[mkStrLit i.getId.toString, mkNatLit n.getNat]
     mkAppM ``AST.sym #[sym]
+  | `(sym| [anonymous])
+  | `(sym| |[anonymous]|) => mkAppM ``AST.sym #[mkStrLit "[anonymous]"]
   | _ => throwUnsupportedSyntax
 
 declare_syntax_cat                     ast
