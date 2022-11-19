@@ -54,7 +54,12 @@ def reservedSyms : Std.RBSet String compare := .ofList [
   "<=" ,
   ">=" ,
   "EQ",
-  "HIDE"
+  "HIDE",
+  "_",
+  "TERMINAL",
+  "DUMMY",
+  "OUTERMOST",
+  "ERROR"
 ] _
 
 open Std Format in
