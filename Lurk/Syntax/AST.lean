@@ -103,8 +103,9 @@ instance : ToAST Char where
 instance : ToAST String where
   toAST := .str
 
+/-- This instance is dangerously lossy -/
 instance (priority := low) : ToAST Lean.Name where
-  toAST n := .sym (n.toString false)
+  toAST n := .sym n.toString
 
 instance [ToAST α] : ToAST (List α) where
   toAST es := AST.consWith (es.map toAST) .nil
