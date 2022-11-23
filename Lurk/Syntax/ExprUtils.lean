@@ -1,5 +1,6 @@
 import Lurk.Syntax.AST
 import Lurk.Syntax.DSL
+import Lurk.Syntax.StringSucc
 
 namespace Lurk.Syntax.AST
 
@@ -168,19 +169,110 @@ Transforms a list of named expressions that were mutually defined into a
 "switch" function `S` and a set of projections (named after the original names)
 that call `S` with their respective indices.
 
-Important: the resulting expressions must be bound in a `letrec`.
+For example, suppose we have two binders `(a (+ a 1))` and `(b (+ b 2))`.
+Calling `mkMutualBlock` on them will generate the binders:
+
+1. (mut_a_b (LAMBDA (key)
+    (IF (= key 0)
+      (+ (mut_a_b 0) 1)
+      (IF (= key 1)
+        (+ (mut_a_b 1) 2)
+        NIL))))
+2. (a (mut_a_b 0))
+3. (b (mut_a_b 1))
+
+Important: the resulting binders must be in a `letrec` block.
 -/
-def mkMutualBlock : List (String × AST) → Except String (List $ String × AST)
-  | [] => throw "can't make a mutual block with an empty list of binders"
+def mkMutualBlock
+  (binders : List $ String × AST)
+  (init := "mut")
+  (merge : String → String → String := fun acc n => s!"{acc}_{n}")
+  (key := "key") :
+    Except String (List $ String × AST) :=
+  match binders with
+  | x@([ ])
   | x@([_]) => return x
-  | mutuals => do
-    let names := mutuals.map Prod.fst
-    let mutualName := names.foldl (fun acc n => s!"{acc}.{n}") "__mutual__"
-    let fnProjs := names.enum.map fun (i, n) => (n, ~[.sym mutualName, .num i])
-    let map := fnProjs.foldl (init := default) fun acc (n, e) => acc.insert n e
-    let ifThens ← mutuals.enum.mapM
-      fun (i, _, e) => do pure (⟦(= mutidx $i)⟧, ← replaceFreeVars map e)
+  | _ => do
+    let names := binders.map Prod.fst
+    let mutualName := names.foldl merge init
+    let projs := names.enum.map fun (i, n) => (n, ~[.sym mutualName, .num i])
+    let map := projs.foldl (init := default) fun acc (n, e) => acc.insert n e
+    let key := AST.sym key
+    let ifThens ← binders.enum.mapM
+      fun (i, (_, e)) => do pure (⟦(= $key $i)⟧, ← replaceFreeVars map e)
     let mutualBlock := mkIfElses ifThens
-    return (mutualName, ⟦(lambda (mutidx) $mutualBlock)⟧) :: fnProjs
+    return (mutualName, ⟦(lambda ($key) $mutualBlock)⟧) :: projs
+
+namespace Anon
+
+structure AnonCtx where
+  highest : String
+  map : Std.RBMap String String compare
+  deriving Inhabited
+
+def AnonCtx.next (ctx : AnonCtx) (k : String) : String × AnonCtx :=
+  if reservedSyms.contains k then (k, ctx)
+  else
+    let v := ctx.highest.succ
+    -- avoiding a clash with a reserved symbol
+    let v := if reservedSyms.contains v then v.succ else v
+    (v, ⟨v, ctx.map.insert k v⟩)
+
+def AnonCtx.update (ctx : AnonCtx) (k v : String) : AnonCtx :=
+  if ctx.highest.lt v then ⟨v, ctx.map.insert k v⟩
+  else { ctx with map := ctx.map.insert k v }
+
+end Anon
+
+open Anon in
+/--
+Anonymizes variable names with incrementing strings whose most significant
+characters are on the left. This function is meant to generate Lurk code that
+can be hashed more efficiently, with symbol names that share maximized tails.
+-/
+partial def anon (x : AST) : Except String AST :=
+  let rec aux (ctx : AnonCtx) : AST → Except String (AST × AnonCtx)
+    | sym s => if reservedSyms.contains s then return (sym s, ctx) else
+      match ctx.map.find? s with
+      | some s => return (sym s, ctx)
+      | none => let (next, ctx) := ctx.next s; return (sym next, ctx)
+    | x@~[sym "QUOTE", _] => return (x, ctx)
+    | x@~[sym "LAMBDA", as, b] =>
+      if b.containsCurrentEnv then return (x, ctx) else do
+        let as ← as.asArgs
+        let (as, ctx) := as.foldl (init := (#[], ctx))
+          fun (as, ctx) s =>
+            let (curr, ctx) := ctx.next s
+            (as.push curr, ctx.update s curr)
+        let (b, ctx) ← aux ctx b
+        return (mkLambda as.data b, ctx)
+    | x@~[sym "LET", bs, b] =>
+      if b.containsCurrentEnv then return (x, ctx) else do
+        let bs ← bs.asBindings
+        let (bs, ctx) ← bs.foldlM (init := (#[], ctx))
+          fun (bs, ctx) (s, v) => do
+            let (curr, ctx) := ctx.next s
+            let (v, ctx) ← aux ctx v
+            let ctx := ctx.update s curr
+            pure (bs.push (curr, v), ctx)
+        let (b, ctx) ← aux ctx b
+        return (mkLet bs.data b, ctx)
+    | x@~[sym "LETREC", bs, b] =>
+      if b.containsCurrentEnv then return (x, ctx) else do
+        let bs ← bs.asBindings
+        let (bs, ctx) ← bs.foldlM (init := (#[], ctx))
+          fun (bs, ctx) (s, v) => do
+            let (curr, ctx) := ctx.next s
+            let ctx := ctx.update s curr
+            let (v, ctx) ← aux ctx v
+            pure (bs.push (curr, v), ctx)
+        let (b, ctx) ← aux ctx b
+        return (mkLetrec bs.data b, ctx)
+    | cons x y => do
+      let (x, ctx) ← aux ctx x
+      let (y, ctx) ← aux ctx y
+      return (cons x y, ctx)
+    | x => pure (x, ctx)
+  aux default x |>.map Prod.fst
 
 end Lurk.Syntax.AST
