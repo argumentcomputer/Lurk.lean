@@ -251,9 +251,8 @@ partial def anon (x : AST) : Except String AST :=
         let bs ← bs.asBindings
         let (bs, ctx) ← bs.foldlM (init := (#[], ctx))
           fun (bs, ctx) (s, v) => do
+            let (v, _) ← aux ctx v
             let (curr, ctx) := ctx.next s
-            let (v, ctx) ← aux ctx v
-            let ctx := ctx.update s curr
             pure (bs.push (curr, v), ctx)
         let (b, ctx) ← aux ctx b
         return (mkLet bs.data b, ctx)
@@ -263,8 +262,7 @@ partial def anon (x : AST) : Except String AST :=
         let (bs, ctx) ← bs.foldlM (init := (#[], ctx))
           fun (bs, ctx) (s, v) => do
             let (curr, ctx) := ctx.next s
-            let ctx := ctx.update s curr
-            let (v, ctx) ← aux ctx v
+            let (v, _) ← aux ctx v
             pure (bs.push (curr, v), ctx)
         let (b, ctx) ← aux ctx b
         return (mkLetrec bs.data b, ctx)
