@@ -108,42 +108,42 @@ inductive Expr
 namespace Expr
 
 /-- Telescopes `(lambda (x₁ x₂ ..) body)` into `(body, [x₁, x₂])` -/
-def telescopeLam (expr : Expr) : Expr × Array String :=
-  telescopeLamAux expr #[]
+def telescopeLam (expr : Expr) : Expr × List String :=
+  telescopeLamAux expr []
 where
-  telescopeLamAux (expr : Expr) (bindAcc : Array String) :=
+  telescopeLamAux (expr : Expr) (bindAcc : List String) :=
     match expr with
-    | .lambda name body => telescopeLamAux body $ bindAcc.push name
-    | _ => (expr, bindAcc.reverse)
+    | .lambda name body => telescopeLamAux body $ name :: bindAcc
+    | _ => (expr, bindAcc)
 
 /-- Telescopes `(fn a₁ a₂ ..)` into `(fn, [a₁, a₂, ..])` -/
-def telescopeApp (expr : Expr) : Expr × Array Expr:=
-  telescopeAppAux expr #[]
+def telescopeApp (expr : Expr) : Expr × List Expr:=
+  telescopeAppAux expr []
 where
-  telescopeAppAux (expr : Expr) (bindAcc : Array Expr) :=
+  telescopeAppAux (expr : Expr) (bindAcc : List Expr) :=
     match expr with
-    | .app fn arg => telescopeAppAux fn $ bindAcc.push arg
-    | _ => (expr, bindAcc)
+    | .app fn arg => telescopeAppAux fn $ arg :: bindAcc
+    | _ => (expr, bindAcc.reverse)
 
 /-- Telescopes `(let ((n₁ e₁) (n₂ e₂) ..) body)` into 
   `(body, [(n₁, e₁), (n₂, e₂), ..])` -/
-def telescopeLet (expr : Expr) : Expr × Array (String × Expr) :=
-  telescopeLetAux expr #[]
+def telescopeLet (expr : Expr) : Expr × List (String × Expr) :=
+  telescopeLetAux expr []
 where
-  telescopeLetAux (expr : Expr) (bindAcc : Array (String × Expr)) :=
+  telescopeLetAux (expr : Expr) (bindAcc : List (String × Expr)) :=
     match expr with
-    | .let name value body => telescopeLetAux body $ bindAcc.push (name, value)
-    | _ => (expr, bindAcc)
+    | .let name value body => telescopeLetAux body $ (name, value) :: bindAcc
+    | _ => (expr, bindAcc.reverse)
 
 /-- Telescopes `(letrec ((n₁ e₁) (n₂ e₂) ..) body)` into 
   `(body, [(n₁, e₁), (n₂, e₂), ..])` -/
-def telescopeLetrec (expr : Expr) : Expr × Array (String × Expr) :=
-  telescopeLetrecAux expr #[]
+def telescopeLetrec (expr : Expr) : Expr × List (String × Expr) :=
+  telescopeLetrecAux expr []
 where
-  telescopeLetrecAux (expr : Expr) (bindAcc : Array (String × Expr)) :=
+  telescopeLetrecAux (expr : Expr) (bindAcc : List (String × Expr)) :=
     match expr with
-    | .letrec name value body => telescopeLetrecAux body $ bindAcc.push (name, value)
-    | _ => (expr, bindAcc)
+    | .letrec name value body => telescopeLetrecAux body $ (name, value) :: bindAcc
+    | _ => (expr, bindAcc.reverse)
 
 open Std Format Syntax.AST in
 partial def toFormat (esc := false) (e : Expr) : Format := 
@@ -162,19 +162,19 @@ partial def toFormat (esc := false) (e : Expr) : Format :=
     paren <| "if " ++ cond.toFormat esc ++ indentD (e₁.toFormat esc ++ line ++ e₂.toFormat esc)
   | .app₀ fn => paren <| fn.toFormat esc
   | e@(.app ..) => 
-    let (fn, ⟨args⟩) := telescopeApp e
+    let (fn, args) := telescopeApp e
     let args := args.map $ toFormat esc
     paren <| fn.toFormat esc ++ indentD (joinSep args " ")
   | e@(.lambda ..) => 
-    let (body, ⟨args⟩) := telescopeLam e
+    let (body, args) := telescopeLam e
     let args := args.map formatSym
     paren <| "lambda " ++ nest 2 (paren (joinSep args " ")) ++ indentD (body.toFormat esc)
   | e@(.let ..) => 
-    let (body, ⟨binds⟩) := telescopeLet e
+    let (body, binds) := telescopeLet e
     let binds := binds.map fun (n, e) => paren <| formatSym n ++ indentD (e.toFormat esc)
     paren <| "let " ++ nest 4 (paren <| joinSep binds line) ++ indentD (body.toFormat esc)
   | e@(.letrec ..) => 
-    let (body, ⟨binds⟩) := telescopeLetrec e
+    let (body, binds) := telescopeLetrec e
     let binds := binds.map fun (n, e) => paren <| formatSym n ++ indentD (e.toFormat esc)
     paren <| "letrec " ++ nest 7 (paren <| joinSep binds line) ++ indentD (body.toFormat esc)
   | .quote datum => paren <| "quote" ++ line ++ format datum
