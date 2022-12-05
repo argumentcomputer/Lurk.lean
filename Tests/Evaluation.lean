@@ -662,7 +662,7 @@ def main := lspecIO $
     tSeq ++ withExceptOk s!"{ast} anonymizes" ast.anon fun ast =>
       withExceptOk s!"{ast} converts to expression" ast.toExpr fun e =>
         match expect with
-        | some expect => withExceptOk s!"{ast} evaluation succeeds" e.eval
-          fun res => test s!"{ast} evaluates to {expect}" (res == expect)
-        | none => withExceptError s!"{ast} fails on evaluation" e.eval
+        | some expect => withExceptOk s!"{e} evaluation succeeds" e.eval
+          fun res => test s!"{e} evaluates to {expect}" (res == expect)
+        | none => withExceptError s!"{e} fails on evaluation" e.eval
           fun _ => .done

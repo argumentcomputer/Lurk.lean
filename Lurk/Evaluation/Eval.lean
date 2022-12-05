@@ -120,11 +120,11 @@ def Expr.evalOp₁ : Op₁ → Value → Result
   | .car, .cons car _ => return car
   | .car, .lit (.str ⟨[]⟩) => return .lit .nil
   | .car, .lit (.str ⟨h::_⟩) => return .lit (.char h)
-  | .car, v => throw s!"expected cons value, got {v}"
+  | .car, v => throw s!"expected cons value, got\n  {v}"
   | .cdr, .cons _ cdr => return cdr
   | .cdr, .lit (.str ⟨[]⟩) => return .lit (.str "")
   | .cdr, .lit (.str ⟨_::t⟩) => return .lit (.str ⟨t⟩)
-  | .cdr, v => throw s!"expected cons value, got {v}"
+  | .cdr, v => throw s!"expected cons value, got\n  {v}"
   | .emit, v => dbg_trace v; return v
   | .commit, _ => throw "TODO commit"
   | .comm, v => return .comm (← v.num)
@@ -132,14 +132,14 @@ def Expr.evalOp₁ : Op₁ → Value → Result
   | .num, .lit (.num n) => return .lit (.num n)
   | .num, .lit (.char c) => return .lit $ .num (.ofNat c.toNat)
   | .num, .comm c => return .lit (.num c)
-  | .num, v => throw s!"expected char, num, or comm value, got {v}"
+  | .num, v => throw s!"expected char, num, or comm value, got\n  {v}"
   | .char, .lit (.char c) => return .lit (.char c)
   | .char, .lit (.num ⟨n, _⟩) =>
     if h : isValidChar n.toUInt32 then
       return .lit (.char ⟨n.toUInt32, h⟩)
     else
       throw s!"{n.toUInt32} is not a valid char value"
-  | .char, v => throw s!"expected char or num value, got {v}"
+  | .char, v => throw s!"expected char or num value, got\n  {v}"
 
 def Expr.evalOp₂ : Op₂ → Value → Value → Result
   | .cons, v₁, v₂ => return .cons v₁ v₂
@@ -172,11 +172,11 @@ partial def Expr.eval (env : Env := default) : Expr → Result
     | _ => z.eval env
   | .app₀ fn => do match ← fn.eval env with
     | .fun "_" env' body => body.eval env'
-    | _ => throw "invalid 0-arity app"
+    | _ => throw s!"error evaluating\n{fn}\ninvalid 0-arity app"
   | .app fn arg => do match ← fn.eval env with
-    | .fun "_" .. => throw "cannot apply argument to 0-arg lambda"
+    | .fun "_" .. => throw s!"error evaluating\n{fn}\ncannot apply argument to 0-arg lambda"
     | .fun n env' body => body.eval (env'.insert n (arg.eval env))
-    | x => throw s!"lambda was expected, got {x}"
+    | x => throw s!"error evaluating\n{fn}\nlambda was expected, got\n  {x}"
   | .op₁ op e => do evalOp₁ op (← e.eval env)
   | .op₂ op e₁ e₂ => do evalOp₂ op (← e₁.eval env) (← e₂.eval env)
   | .lambda s e => return .fun s env e
