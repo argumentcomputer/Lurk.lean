@@ -145,12 +145,12 @@ where
     | .letrec name value body => telescopeLetrecAux body $ bindAcc.push (name, value)
     | _ => (expr, bindAcc)
 
-open Std Format in
+open Std Format Syntax.AST in
 partial def toFormat (esc := false) (e : Expr) : Format := 
   let _ : ToFormat Expr := ⟨toFormat⟩ 
   match e with
   | .lit l => format l
-  | .sym s => format s
+  | .sym s => if esc && !reservedSyms.contains s then s!"|{s}|" else s
   | .env => .text "CURRENT-ENV"
   | .op₁ op e => 
     paren <| format op ++ line ++ e.toFormat esc
