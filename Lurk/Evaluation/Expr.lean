@@ -114,7 +114,7 @@ where
   telescopeLamAux (expr : Expr) (bindAcc : Array String) :=
     match expr with
     | .lambda name body => telescopeLamAux body $ bindAcc.push name
-    | _ => (expr, bindAcc)
+    | _ => (expr, bindAcc.reverse)
 
 /-- Telescopes `(fn a₁ a₂ ..)` into `(fn, [a₁, a₂, ..])` -/
 def telescopeApp (expr : Expr) : Expr × Array Expr:=
@@ -150,12 +150,12 @@ partial def toFormat (esc := false) (e : Expr) : Format :=
   let _ : ToFormat Expr := ⟨toFormat⟩ 
   match e with
   | .lit l => format l
-  | .sym s => if esc && !reservedSyms.contains s then s!"|{s}|" else s
+  | .sym s => formatSym s
   | .env => .text "CURRENT-ENV"
   | .op₁ op e => 
-    paren <| format op ++ line ++ e.toFormat esc
+    paren <| format op ++ " " ++ e.toFormat esc
   | .op₂ op e₁ e₂ => 
-    paren <| format op ++ line ++ e₁.toFormat esc ++ line ++ e₂.toFormat esc
+    paren <| format op ++ " " ++ e₁.toFormat esc ++ line ++ e₂.toFormat esc
   | .begin e₁ e₂ => 
     paren <| "begin" ++ line ++ e₁.toFormat esc ++ line ++ e₂.toFormat esc
   | .if cond e₁ e₂ => 
@@ -163,19 +163,23 @@ partial def toFormat (esc := false) (e : Expr) : Format :=
   | .app₀ fn => paren <| fn.toFormat esc
   | e@(.app ..) => 
     let (fn, ⟨args⟩) := telescopeApp e
+    let args := args.map $ toFormat esc
     paren <| fn.toFormat esc ++ indentD (joinSep args " ")
   | e@(.lambda ..) => 
     let (body, ⟨args⟩) := telescopeLam e
-    paren <| "lambda" ++ indentD (paren (joinSep args " ") ++ body.toFormat esc)
+    let args := args.map formatSym
+    paren <| "lambda " ++ nest 2 (paren (joinSep args " ")) ++ indentD (body.toFormat esc)
   | e@(.let ..) => 
     let (body, ⟨binds⟩) := telescopeLet e
-    let binds := binds.map fun (n, e) => paren <| format n ++ line ++ e.toFormat esc
-    paren <| "let" ++ indentD (joinSep binds " " ++ body.toFormat esc)
+    let binds := binds.map fun (n, e) => paren <| formatSym n ++ indentD (e.toFormat esc)
+    paren <| "let " ++ nest 4 (paren <| joinSep binds line) ++ indentD (body.toFormat esc)
   | e@(.letrec ..) => 
     let (body, ⟨binds⟩) := telescopeLetrec e
-    let binds := binds.map fun (n, e) => paren <| format n ++ line ++ e.toFormat esc
-    paren <| "let" ++ indentD (joinSep binds " " ++ body.toFormat esc)
+    let binds := binds.map fun (n, e) => paren <| formatSym n ++ indentD (e.toFormat esc)
+    paren <| "letrec " ++ nest 7 (paren <| joinSep binds line) ++ indentD (body.toFormat esc)
   | .quote datum => paren <| "quote" ++ line ++ format datum
+where 
+  formatSym s := if esc && !reservedSyms.contains s then s!"|{s}|" else s
 
 def toString (esc := false) : Expr → String :=
   ToString.toString ∘ toFormat esc
