@@ -570,6 +570,9 @@ def closure : Test :=
                       (* base ((exp base) (- exponent 1))))))))
             (let ((myexp exp) (exp (lambda (base) (lambda (exponent) 10)))) ((myexp 5) 3)))⟧)
 
+def any_non_nil_is_true : Test :=
+  (some 1, ⟦(IF (cons 3 4) 1 0)⟧)
+
 def pairs : List Test := [
   outer_evaluate,
   outer_evaluate2,
@@ -652,7 +655,8 @@ def pairs : List Test := [
   car_unicode_char,
   -- mutrec1,
   -- mutrec2,
-  closure
+  closure,
+  any_non_nil_is_true
 ]
 
 open LSpec in
