@@ -30,7 +30,7 @@ scoped syntax "(" value+ ")"          : value
 
 open Lean Meta Elab Term in
 partial def elabValue : Lean.TSyntax `value → TermElabM Lean.Expr
-  | `(value| $i:ident) => mkAppM ``Value.sym #[mkStrLit i.getId.toString]
+  | `(value| $i:ident) => mkAppM ``Value.sym #[mkStrLit i.getId.toString.toUpper]
   | `(value| $c:char) => do
     mkAppM ``Value.atom #[← mkAppM ``Atom.char #[← mkAppM ``Char.ofNat #[mkNatLit c.getChar.val.toNat]]]
   | `(value| $n:num) => do

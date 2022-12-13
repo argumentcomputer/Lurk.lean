@@ -131,7 +131,9 @@ mutual
 
 partial def elabExpr : TSyntax `expr → TermElabM Lean.Expr
   | `(expr| $a:atom_) => do mkAppM ``Expr.atom #[← elabAtom a]
+  | `(expr| ($a:atom_)) => do mkAppM ``Expr.app₀ #[← mkAppM ``Expr.atom #[← elabAtom a]]
   | `(expr| $s:sym) => do mkAppM ``Expr.sym #[← elabSymStr s]
+  | `(expr| ($s:sym)) => do mkAppM ``Expr.app₀ #[← mkAppM ``Expr.sym #[← elabSymStr s]]
   | `(expr| (current-env)) | `(expr| (CURRENT-ENV)) => return mkConst ``Expr.env
   | `(expr| $o:op₁ $e:expr) => do mkAppM ``Expr.op₁ #[← elabOp₁ o, ← elabExpr e]
   | `(expr| $o:op₂ $e₁:expr $e₂:expr) => do
@@ -149,6 +151,9 @@ partial def elabExpr : TSyntax `expr → TermElabM Lean.Expr
   | `(expr| LAMBDA () $b:expr)
   | `(expr| lambda () $b:expr) => do
     mkAppM ``Expr.lambda #[mkStrLit "_", ← elabExpr b]
+  | `(expr| ((LAMBDA () $b:expr)))
+  | `(expr| ((lambda () $b:expr))) => do
+    mkAppM ``Expr.app₀ #[← mkAppM ``Expr.lambda #[mkStrLit "_", ← elabExpr b]]
   | `(expr| LAMBDA ($ss:sym* $s:sym) $b:expr)
   | `(expr| lambda ($ss:sym* $s:sym) $b:expr) => do
     let init ← mkAppM ``Expr.lambda #[← elabSymStr s, ← elabExpr b]
