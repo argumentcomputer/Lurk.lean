@@ -55,6 +55,8 @@ def Op₁.toFormat : Op₁ → Format
 | .num    => "NUM"
 | .char   => "CHAR"
 
+def Op₁.toString := ToString.toString ∘ Op₁.toFormat
+
 instance : Std.ToFormat Op₁ := ⟨Op₁.toFormat⟩
 
 inductive Op₂
@@ -78,6 +80,8 @@ def Op₂.toFormat : Op₂ → Format
   | .ge      => ">="
   | .eq      => "EQ"
   | .hide    => "HIDE"
+
+def Op₂.toString := ToString.toString ∘ Op₂.toFormat
 
 instance : Std.ToFormat Op₂ := ⟨Op₂.toFormat⟩
 
@@ -134,6 +138,10 @@ def telescopeLet (acc : Array $ String × Expr := #[]) :
 def telescopeApp (acc : List Expr) : Expr → List Expr
   | .app f a => f.telescopeApp (a :: acc)
   | x => x :: acc
+
+def telescopeBegin : Expr → Array Expr
+  | .begin e₁ e₂ => e₁.telescopeBegin ++ e₂.telescopeBegin
+  | x => #[x]
 
 open Std Format in
 partial def toFormat (esc := false) (e : Expr) : Format :=

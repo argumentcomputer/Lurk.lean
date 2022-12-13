@@ -32,9 +32,11 @@ open Lean Meta Elab Term in
 partial def elabValue : Lean.TSyntax `value → TermElabM Lean.Expr
   | `(value| $i:ident) => mkAppM ``Value.sym #[mkStrLit i.getId.toString.toUpper]
   | `(value| $c:char) => do
-    mkAppM ``Value.atom #[← mkAppM ``Atom.char #[← mkAppM ``Char.ofNat #[mkNatLit c.getChar.val.toNat]]]
+    mkAppM ``Value.atom #[← mkAppM ``Atom.char
+      #[← mkAppM ``Char.ofNat #[mkNatLit c.getChar.val.toNat]]]
   | `(value| $n:num) => do
-    mkAppM ``Value.atom #[← mkAppM ``Atom.num #[← mkAppM ``F.ofNat #[mkNatLit n.getNat]]]
+    mkAppM ``Value.atom
+      #[← mkAppM ``Atom.num #[← mkAppM ``F.ofNat #[mkNatLit n.getNat]]]
   | `(value| $s:str) => do
     mkAppM ``Value.atom #[← mkAppM ``Atom.str #[mkStrLit s.getString]]
   | `(value| ($v₁:value . $v₂:value)) => do
@@ -46,6 +48,9 @@ partial def elabValue : Lean.TSyntax `value → TermElabM Lean.Expr
 
 scoped elab "⦃" v:value "⦄" : term =>
   elabValue v
+
+def consWith (vs : Array Value) (v : Value := .atom .nil) : Value :=
+  vs.foldr .cons v
 
 partial def telescopeCons (acc : Array Value := #[]) : Value → Array Value × Value
   | cons x y => telescopeCons (acc.push x) y
@@ -150,10 +155,8 @@ def Expr.evalOp₁ : Op₁ → Value → Result
   | .num, v => throw s!"expected char, num, or comm value, got\n  {v}"
   | .char, .atom (.char c) => return .atom (.char c)
   | .char, .atom (.num ⟨n, _⟩) =>
-    if h : isValidChar n.toUInt32 then
-      return .atom (.char ⟨n.toUInt32, h⟩)
-    else
-      throw s!"{n.toUInt32} is not a valid char value"
+    if h : isValidChar n.toUInt32 then return .atom (.char ⟨n.toUInt32, h⟩)
+    else throw s!"{n.toUInt32} is not a valid char value"
   | .char, v => throw s!"expected char or num value, got\n  {v}"
 
 def Expr.evalOp₂ : Op₂ → Value → Value → Result
@@ -171,6 +174,30 @@ def Expr.evalOp₂ : Op₂ → Value → Value → Result
   | .ge, v₁, v₂ => return decide $ (← v₁.num) >= (← v₂.num)
   | .eq, v₁, v₂ => return v₁.beq v₂
   | .hide, _, _ => throw "TODO hide"
+
+partial def Expr.asValue : Expr → Value
+  | .atom a => .atom a
+  | .sym s => .sym s
+  | .env => .consWith #[.sym "CURRENT-ENV"]
+  | .op₁ o e => .consWith #[.sym o.toString, e.asValue]
+  | .op₂ o e₁ e₂ => .consWith #[.sym o.toString, e₁.asValue, e₂.asValue]
+  | e@(.begin ..) =>
+    .consWith $ #[Value.sym "BEGIN"] ++ (e.telescopeBegin.map asValue)
+  | .if a b c => .consWith #[.sym "IF", a.asValue, b.asValue, c.asValue]
+  | .app₀ e => .consWith #[e.asValue]
+  | .app f a => .consWith ⟨(f.telescopeApp [a]).map asValue⟩
+  | .lambda s b =>
+    let (ss, b) := b.telescopeLam #[s]
+    .consWith #[.sym "LAMBDA", .consWith $ ss.map Value.sym, b.asValue]
+  | .let s v b =>
+    let (bs, b) := b.telescopeLet #[(s, v)]
+    let bs := bs.map fun (s, v) => .consWith #[.sym s, v.asValue]
+    .consWith #[.sym "LET", .consWith bs, b.asValue]
+  | .letrec s v b =>
+    let (bs, b) := b.telescopeLet #[(s, v)]
+    let bs := bs.map fun (s, v) => .consWith #[.sym s, v.asValue]
+    .consWith #[.sym "LETREC", .consWith bs, b.asValue]
+  | .quote e => .consWith #[.sym "QUOTE", e.asValue]
 
 partial def Expr.eval (env : Env := default) : Expr → Result
   | .atom l => return .atom l
@@ -200,6 +227,6 @@ partial def Expr.eval (env : Env := default) : Expr → Result
     let v' : Expr := .letrec s v v
     let env' := env.insert s $ .mk fun _ => eval env v'
     b.eval (env.insert s (eval env' v))
-  | .quote _ => throw "TODO quote"
+  | .quote e => return e.asValue
 
 end Lurk.Backend
