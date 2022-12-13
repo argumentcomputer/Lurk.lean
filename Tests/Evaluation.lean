@@ -1,6 +1,7 @@
 import LSpec
 import Lurk.Backend.DSL
 import Lurk.Backend.Eval
+import Lurk.Backend.ExprUtils
 
 open Lurk Backend DSL
 
@@ -663,5 +664,5 @@ def main := lspecIO $
     let (expect, e) := (pair : Test)
     tSeq ++ match expect with
       | none => withExceptError s!"{e} fails on evaluation" e.eval fun _ => .done
-      | some expect => withExceptOk s!"{e} evaluation succeeds" e.eval
+      | some expect => withExceptOk s!"{e.anon} evaluation succeeds" e.anon.eval
         fun res => test s!"{e} evaluates to {expect}" (res == expect)

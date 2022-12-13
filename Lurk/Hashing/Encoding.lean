@@ -1,16 +1,18 @@
-import Lurk.Syntax.AST
+import Lurk.Frontend.AST
 import Lurk.Hashing.Datatypes
 import YatimaStdLib.Fin
 import Poseidon.ForLurk
 
 namespace Lurk.Hashing
 
+open Frontend (AST)
+
 open Std (RBMap) in
 structure EncodeState where
   exprs       : RBMap ScalarPtr   (Option ScalarExpr) compare
   comms       : RBMap F           ScalarPtr           compare
   stringCache : RBMap (List Char) ScalarPtr           compare
-  astCache    : RBMap Syntax.AST  ScalarPtr           compare
+  astCache    : RBMap AST         ScalarPtr           compare
   deriving Inhabited
 
 def EncodeState.store (stt : EncodeState) : ScalarStore :=
@@ -41,7 +43,7 @@ def encodeString (s : List Char) : EncodeM ScalarPtr := do
     modifyGet fun stt =>
       (ptr, { stt with stringCache := stt.stringCache.insert s ptr })
 
-def encodeAST (x : Syntax.AST) : EncodeM ScalarPtr := do
+def encodeAST (x : AST) : EncodeM ScalarPtr := do
   match (← get).astCache.find? x with
   | some ptr => pure ptr
   | none =>
@@ -64,13 +66,13 @@ def encodeAST (x : Syntax.AST) : EncodeM ScalarPtr := do
     modifyGet fun stt =>
       (ptr, { stt with astCache := stt.astCache.insert x ptr })
   
-def hideAST (secret : F) (x : Syntax.AST) : EncodeM F := do
+def hideAST (secret : F) (x : AST) : EncodeM F := do
   let ptr ← encodeAST x
   addCommitment (hashPtrPair ⟨.comm, secret⟩ ptr ) ptr
 
 end Lurk.Hashing
 
-namespace Lurk.Syntax.AST
+namespace Lurk.Frontend.AST
 
 open Lurk.Hashing
 
@@ -90,4 +92,4 @@ def commit (x : AST) : F × ScalarStore :=
   match StateT.run (hideAST (.ofNat 0) x) default with
   | (hash, stt) => (hash, stt.store)
 
-end Lurk.Syntax.AST
+end Lurk.Frontend.AST

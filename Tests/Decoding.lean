@@ -1,11 +1,11 @@
 import LSpec
-import Lurk.Syntax.DSL
+import Lurk.Frontend.DSL
 import Lurk.Hashing.Encoding
 import Lurk.Hashing.Decoding
 
 open Lurk
 
-open Syntax.DSL in
+open Frontend.DSL in
 def asts := [
   ⟦nil⟧,
   ⟦t⟧,
@@ -40,7 +40,7 @@ def asts := [
 open LSpec in
 def main := do
   lspecIO $ asts.foldl (init := .done)
-    fun tSeq (x : Lurk.Syntax.AST) =>
+    fun tSeq (x : Lurk.Frontend.AST) =>
       let (ptr, store) := x.encode
       withExceptOk s!"Decoding {x} succeeds"
           (Lurk.Hashing.decode ptr store) fun x' =>

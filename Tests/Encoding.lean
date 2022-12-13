@@ -1,11 +1,11 @@
 import LSpec
-import Lurk.Syntax.DSL
+import Lurk.Frontend.DSL
 import Lurk.Hashing.StoreDSL
 import Lurk.Hashing.Encoding
 
 open Lurk
 
-open Syntax.DSL in def ast := ⟦
+open Frontend.DSL in def ast := ⟦
   (begin
     nil
     t

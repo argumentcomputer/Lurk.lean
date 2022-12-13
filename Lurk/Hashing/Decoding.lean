@@ -1,9 +1,9 @@
-import Lurk.Syntax.AST
+import Lurk.Frontend.AST
 import Lurk.Hashing.Datatypes
 
 namespace Lurk.Hashing
 
-open Syntax
+open Frontend (AST)
 
 structure DecodeContext where
   store : ScalarStore

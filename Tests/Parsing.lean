@@ -1,6 +1,6 @@
 import LSpec
-import Lurk.Syntax.Parser
-import Lurk.Syntax.DSL
+import Lurk.Frontend.Parser
+import Lurk.Frontend.DSL
 
 def code := "(begin
     nil
@@ -30,13 +30,9 @@ def code := "(begin
     (quote 1   \t  )
     (quote (1 2 3)\t)
     (('1) . ' (cons 2 3))
-    ((+ 1 2) (f x)  .    (cons 4 2))
-    (|antiquote| |lambda| |Nat.add|)
-    (#\\bB) (#\\a #\\b))"
+    ((+ 1 2) (f x)  .    (cons 4 2)))"
 
-def antiq := [`antiquote, `lambda, ``Nat.add]
-
-open Lurk.Syntax.DSL in def expectedAST := ⟦
+open Lurk.Frontend.DSL in def expectedAST := ⟦
   (begin
     nil
     t
@@ -64,13 +60,11 @@ open Lurk.Syntax.DSL in def expectedAST := ⟦
     (quote 1)
     (quote (1 2 3))
     ((,1) . , (cons 2 3))
-    ((+ 1 2) (f x) . (cons 4 2))
-    $antiq
-    ('b' B) $(['a', 'b']))
+    ((+ 1 2) (f x) . (cons 4 2)))
 ⟧
 
 open LSpec in
 def main := lspecIO $
-  withExceptOk "Parsing succeeds" (Lurk.Syntax.parse code)
+  withExceptOk "Parsing succeeds" (Lurk.Frontend.Parser.parse code)
     fun resultingAST => 
       test "Parsed correctly" (resultingAST == expectedAST)

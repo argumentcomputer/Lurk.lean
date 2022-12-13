@@ -1,4 +1,5 @@
 import Lurk.Backend.Expr
+import Lurk.Backend.StringSucc
 import Std.Data.RBMap
 
 namespace Lurk.Backend.Expr
@@ -140,5 +141,69 @@ def mkMutualBlock
       fun (i, (_, e)) => (.op₂ .numEq keySym (toExpr i), e.replaceFreeVars map)
     let mutualBlock := mkIfElses ifThens
     (mutualName, .lambda key mutualBlock) :: projs
+
+namespace Anon
+
+structure AnonCtx where
+  highest : String
+  map : Std.RBMap String String compare
+  deriving Inhabited
+
+def AnonCtx.next (ctx : AnonCtx) (k : String) : String × AnonCtx :=
+  let v := ctx.highest.succ
+  (v, ⟨v, ctx.map.insert k v⟩)
+
+def AnonCtx.update (ctx : AnonCtx) (k v : String) : AnonCtx :=
+  if ctx.highest.lt v then ⟨v, ctx.map.insert k v⟩
+  else { ctx with map := ctx.map.insert k v }
+
+end Anon
+
+open Anon in
+/--
+Anonymizes variable names with incrementing strings whose most significant
+characters are on the left. This function is meant to generate Lurk code that
+can be hashed more efficiently, with short symbol names that share maximized tails.
+-/
+partial def anon (x : Expr) : Expr :=
+  let rec aux (ctx : AnonCtx) : Expr → Expr × AnonCtx
+    | sym s => match ctx.map.find? s with
+      | some s => (sym s, ctx)
+      | none => let (next, ctx) := ctx.next s; (sym next, ctx)
+    | .lambda "_" b => (.lambda "_" (aux ctx b).1, ctx)
+    | x@(.lambda ..) =>
+      let (as, b) := x.telescopeLam
+      if b.containsCurrentEnv then (x, ctx) else
+        let (as, ctx) := as.foldl (init := (#[], ctx))
+          fun (as, ctx) s =>
+            let (curr, ctx) := ctx.next s
+            (as.push curr, ctx.update s curr)
+        (mkLambda as.data (aux ctx b).1, ctx)
+    | x@(.let ..) =>
+      let (bs, b) := x.telescopeLet
+      if b.containsCurrentEnv then (x, ctx) else
+        let (bs, ctx) := bs.foldl (init := (#[], ctx))
+          fun (bs, ctx) (s, v) =>
+            let (v, _) := aux ctx v
+            let (curr, ctx) := ctx.next s
+            (bs.push (curr, v), ctx)
+        (mkLet bs.data (aux ctx b).1, ctx)
+    | x@(.letrec ..) =>
+      let (bs, b) := x.telescopeLet
+      if b.containsCurrentEnv then (x, ctx) else
+        let (bs, ctx) := bs.foldl (init := (#[], ctx))
+          fun (bs, ctx) (s, v) =>
+            let (curr, ctx) := ctx.next s
+            let (v, _) := aux ctx v
+            (bs.push (curr, v), ctx)
+        (mkLetrec bs.data (aux ctx b).1, ctx)
+    | .op₁    o e => (.op₁ o (aux ctx e).1, ctx)
+    | .app₀     e => (.app₀  (aux ctx e).1, ctx)
+    | .op₂    o e₁ e₂ => (.op₂ o (aux ctx e₁).1 (aux ctx e₂).1, ctx)
+    | .begin    e₁ e₂ => (.begin (aux ctx e₁).1 (aux ctx e₂).1, ctx)
+    | .app      e₁ e₂ => (.app   (aux ctx e₁).1 (aux ctx e₂).1, ctx)
+    | .if       e₁ e₂ e₃ => (.if (aux ctx e₁).1 (aux ctx e₂).1 (aux ctx e₃).1, ctx)
+    | x => (x, ctx)
+  (aux default x).1
 
 end Lurk.Backend.Expr
