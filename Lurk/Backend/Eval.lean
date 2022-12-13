@@ -1,6 +1,6 @@
-import Lurk.Evaluation.Expr
+import Lurk.Backend.Expr
 
-namespace Lurk.Evaluation
+namespace Lurk.Backend
 
 set_option genSizeOfSpec false in
 mutual
@@ -9,10 +9,10 @@ inductive Env
   | mk : Lean.RBNode String (fun _ => Thunk (Except String Value)) → Env
 
 inductive Value where
-  | lit : Lit → Value
-  | sym : String → Value
-  | cons : Value → Value → Value
-  | comm : F → Value
+  | atom  : Atom → Value
+  | sym   : String → Value
+  | cons  : Value → Value → Value
+  | comm  : F → Value
   | «fun» : String → Env → Expr → Value
   deriving Inhabited
 
@@ -20,19 +20,46 @@ end
 
 namespace Value
 
+declare_syntax_cat                      value
+scoped syntax ident                   : value
+scoped syntax char                    : value
+scoped syntax num                     : value
+scoped syntax str                     : value
+scoped syntax "(" value "." value ")" : value
+scoped syntax "(" value+ ")"          : value
+
+open Lean Meta Elab Term in
+partial def elabValue : Lean.TSyntax `value → TermElabM Lean.Expr
+  | `(value| $i:ident) => mkAppM ``Value.sym #[mkStrLit i.getId.toString]
+  | `(value| $c:char) => do
+    mkAppM ``Value.atom #[← mkAppM ``Atom.char #[← mkAppM ``Char.ofNat #[mkNatLit c.getChar.val.toNat]]]
+  | `(value| $n:num) => do
+    mkAppM ``Value.atom #[← mkAppM ``Atom.num #[← mkAppM ``F.ofNat #[mkNatLit n.getNat]]]
+  | `(value| $s:str) => do
+    mkAppM ``Value.atom #[← mkAppM ``Atom.str #[mkStrLit s.getString]]
+  | `(value| ($v₁:value . $v₂:value)) => do
+    mkAppM ``Value.cons #[← elabValue v₁, ← elabValue v₂]
+  | `(value| ($vs:value*)) => do
+    vs.foldrM (init := ← mkAppM ``Value.atom #[mkConst ``Atom.nil])
+      fun v acc => do mkAppM ``Value.cons #[← elabValue v, acc]
+  | _ => throwUnsupportedSyntax
+
+scoped elab "⦃" v:value "⦄" : term =>
+  elabValue v
+
 partial def telescopeCons (acc : Array Value := #[]) : Value → Array Value × Value
   | cons x y => telescopeCons (acc.push x) y
   | x => (acc, x)
 
 partial def toString : Value → String
-  | .lit l => l.toString
+  | .atom a => a.toString
   | .sym s => s
   | v@(.cons ..) => match v.telescopeCons with
-    | (#[], .lit .nil) => "NIL"
+    | (#[], .atom .nil) => "NIL"
     | (vs, v) =>
       let vs := vs.data.map toString |> " ".intercalate
       match v with
-      | .lit .nil => "(" ++ vs ++ ")"
+      | .atom .nil => "(" ++ vs ++ ")"
       | _ => s!"({vs} . {v.toString})"
   | .comm c => s!"<comm {c.asHex}>"
   | .fun n .. => s!"<fun ({n})>"
@@ -41,17 +68,6 @@ end Value
 
 instance : ToString Value where
   toString := Value.toString
-
-def Value.ofAST : Syntax.AST → Value
-  | .nil => .lit .nil
-  | .t   => .lit .t
-  | .num n => .lit $ .num (.ofNat n)
-  | .char c => .lit $ .char c
-  | .str s => .lit $ .str s
-  | .sym s => .sym s
-  | .cons x y => .cons (Value.ofAST x) (Value.ofAST y)
-
-instance : Coe Syntax.AST Value := ⟨Value.ofAST⟩
 
 instance : Inhabited Env := ⟨.mk .leaf⟩
 
@@ -85,7 +101,7 @@ partial def Env.eq (e₁ e₂ : Env) : Bool :=
     (e₂.toArray.data.map fun (s, v) => (s, v.get))
 
 partial def Value.beq : Value → Value → Bool
-  | .lit l₁, .lit l₂ => l₁ == l₂
+  | .atom l₁, .atom l₂ => l₁ == l₂
   | .sym s₁, .sym s₂ => s₁ == s₂
   | .cons c₁ d₁, .cons c₂ d₂ => c₁.beq c₂ && d₁.beq d₂
   | .comm c₁, .comm c₂ => c₁ == c₂
@@ -97,57 +113,57 @@ end
 instance : BEq Value := ⟨Value.beq⟩
 
 def Value.num : Value → Except String F
-  | .lit (.num x) => pure x
+  | .atom (.num x) => pure x
   | v => throw s!"expected number, got\n  {v}"
 
 instance : Coe Bool Value where coe
-  | true  => .lit .t
-  | false => .lit .nil
+  | true  => .atom .t
+  | false => .atom .nil
 
 instance : Coe Char Value where
-  coe c := .lit (.char c)
+  coe c := .atom (.char c)
 
 instance : Coe String Value where
-  coe c := .lit (.str c)
+  coe c := .atom (.str c)
 
 instance : OfNat Value n where
-  ofNat := .lit $ .num (.ofNat n)
+  ofNat := .atom $ .num (.ofNat n)
 
 def Expr.evalOp₁ : Op₁ → Value → Result
-  | .atom, .cons .. => return .lit .nil
-  | .atom, _ => return .lit .t
+  | .atom, .cons .. => return .atom .nil
+  | .atom, _ => return .atom .t
   | .car, .cons car _ => return car
-  | .car, .lit (.str ⟨[]⟩) => return .lit .nil
-  | .car, .lit (.str ⟨h::_⟩) => return .lit (.char h)
+  | .car, .atom (.str ⟨[]⟩) => return .atom .nil
+  | .car, .atom (.str ⟨h::_⟩) => return .atom (.char h)
   | .car, v => throw s!"expected cons value, got\n  {v}"
   | .cdr, .cons _ cdr => return cdr
-  | .cdr, .lit (.str ⟨[]⟩) => return .lit (.str "")
-  | .cdr, .lit (.str ⟨_::t⟩) => return .lit (.str ⟨t⟩)
+  | .cdr, .atom (.str ⟨[]⟩) => return .atom (.str "")
+  | .cdr, .atom (.str ⟨_::t⟩) => return .atom (.str ⟨t⟩)
   | .cdr, v => throw s!"expected cons value, got\n  {v}"
   | .emit, v => dbg_trace v; return v
   | .commit, _ => throw "TODO commit"
   | .comm, v => return .comm (← v.num)
   | .open, _ => throw "TODO open"
-  | .num, .lit (.num n) => return .lit (.num n)
-  | .num, .lit (.char c) => return .lit $ .num (.ofNat c.toNat)
-  | .num, .comm c => return .lit (.num c)
+  | .num, .atom (.num n) => return .atom (.num n)
+  | .num, .atom (.char c) => return .atom $ .num (.ofNat c.toNat)
+  | .num, .comm c => return .atom (.num c)
   | .num, v => throw s!"expected char, num, or comm value, got\n  {v}"
-  | .char, .lit (.char c) => return .lit (.char c)
-  | .char, .lit (.num ⟨n, _⟩) =>
+  | .char, .atom (.char c) => return .atom (.char c)
+  | .char, .atom (.num ⟨n, _⟩) =>
     if h : isValidChar n.toUInt32 then
-      return .lit (.char ⟨n.toUInt32, h⟩)
+      return .atom (.char ⟨n.toUInt32, h⟩)
     else
       throw s!"{n.toUInt32} is not a valid char value"
   | .char, v => throw s!"expected char or num value, got\n  {v}"
 
 def Expr.evalOp₂ : Op₂ → Value → Value → Result
   | .cons, v₁, v₂ => return .cons v₁ v₂
-  | .strcons, .lit (.char c), .lit (.str s) => return .lit (.str ⟨c :: s.data⟩)
+  | .strcons, .atom (.char c), .atom (.str s) => return .atom (.str ⟨c :: s.data⟩)
   | .strcons, v₁, v₂ => throw s!"expected char and string value, got {v₁} and {v₂}"
-  | .add, v₁, v₂ => return .lit $ .num ((← v₁.num) + (← v₂.num))
-  | .sub, v₁, v₂ => return .lit $ .num ((← v₁.num) - (← v₂.num))
-  | .mul, v₁, v₂ => return .lit $ .num ((← v₁.num) * (← v₂.num))
-  | .div, v₁, v₂ => return .lit $ .num ((← v₁.num) / (← v₂.num))
+  | .add, v₁, v₂ => return .atom $ .num ((← v₁.num) + (← v₂.num))
+  | .sub, v₁, v₂ => return .atom $ .num ((← v₁.num) - (← v₂.num))
+  | .mul, v₁, v₂ => return .atom $ .num ((← v₁.num) * (← v₂.num))
+  | .div, v₁, v₂ => return .atom $ .num ((← v₁.num) / (← v₂.num))
   | .numEq, v₁, v₂ => return (← v₁.num) == (← v₂.num)
   | .lt, v₁, v₂ => return decide $ (← v₁.num) < (← v₂.num)
   | .gt, v₁, v₂ => return decide $ (← v₁.num) > (← v₂.num)
@@ -157,17 +173,17 @@ def Expr.evalOp₂ : Op₂ → Value → Value → Result
   | .hide, _, _ => throw "TODO hide"
 
 partial def Expr.eval (env : Env := default) : Expr → Result
-  | .lit l => return .lit l
+  | .atom l => return .atom l
   | .sym n => match env.find? n with
     | some v => v.get
     | none => throw s!"{n} not found"
   | .env =>
-    env.toArray.foldrM (init := .lit .nil)
+    env.toArray.foldrM (init := .atom .nil)
       fun (k, v) acc => return .cons (.cons (.sym k) (← v.get)) acc
-  | .begin x (.lit .nil) => x.eval env
+  | .begin x (.atom .nil) => x.eval env
   | .begin x y => do discard $ x.eval env; y.eval env
   | .if x y z => do match ← x.eval env with
-    | .lit .nil => z.eval env
+    | .atom .nil => z.eval env
     | _ => y.eval env
   | .app₀ fn => do match ← fn.eval env with
     | .fun "_" env' body => body.eval env'
@@ -184,6 +200,6 @@ partial def Expr.eval (env : Env := default) : Expr → Result
     let v' : Expr := .letrec s v v
     let env' := env.insert s $ .mk fun _ => eval env v'
     b.eval (env.insert s (eval env' v))
-  | .quote x => return .ofAST x
+  | .quote _ => throw "TODO quote"
 
-end Lurk.Evaluation
+end Lurk.Backend

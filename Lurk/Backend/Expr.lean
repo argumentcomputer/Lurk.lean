@@ -105,13 +105,13 @@ class ToExpr (α : Type _) where
 export ToExpr (toExpr)
 
 instance : ToExpr Nat where
-  toExpr := .atom ∘ Atom.num ∘ F.ofNat
+  toExpr := .atom ∘ .num ∘ .ofNat
 
 instance : ToExpr Char where
-  toExpr := .atom ∘ Atom.char
+  toExpr := .atom ∘ .char
 
 instance : ToExpr String where
-  toExpr := .atom ∘ Atom.str
+  toExpr := .atom ∘ .str
 
 instance : ToExpr Expr := ⟨id⟩
 
@@ -137,7 +137,7 @@ def telescopeApp (acc : List Expr) : Expr → List Expr
 
 open Std Format in
 partial def toFormat (esc := false) (e : Expr) : Format :=
-  let _ : ToFormat Expr := ⟨toFormat⟩
+  have : ToFormat Expr := ⟨toFormat⟩
   match e with
   | .atom l => format l
   | .sym s => formatSym s
@@ -176,5 +176,4 @@ def toString (esc := false) : Expr → String :=
 instance : Std.ToFormat Expr := ⟨toFormat⟩
 instance : ToString Expr := ⟨toString⟩
 
-end Expr
-end Lurk.Backend
+end Lurk.Backend.Expr

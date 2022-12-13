@@ -107,24 +107,25 @@ scoped syntax "(" "current-env" ")"      : expr
 scoped syntax "(" "CURRENT-ENV" ")"      : expr
 scoped syntax op₁ expr                   : expr
 scoped syntax op₂ expr expr              : expr
-scoped syntax "begin" expr+              : expr
-scoped syntax "BEGIN" expr+              : expr
+scoped syntax "begin" expr*              : expr
+scoped syntax "BEGIN" expr*              : expr
 scoped syntax "if" expr expr expr        : expr
 scoped syntax "IF" expr expr expr        : expr
 scoped syntax "(" expr+ ")"              : expr
-scoped syntax "lambda" "(" sym+ ")" expr : expr
-scoped syntax "LAMBDA" "(" sym+ ")" expr : expr
+scoped syntax "lambda" "(" sym* ")" expr : expr
+scoped syntax "LAMBDA" "(" sym* ")" expr : expr
 scoped syntax "quote" expr               : expr
 scoped syntax "QUOTE" expr               : expr
+scoped syntax "," expr                   : expr
 scoped syntax "(" expr ")"               : expr
 
 declare_syntax_cat binder
 scoped syntax "(" sym expr ")" : binder
 
-scoped syntax "let"    "(" binder+ ")" expr : expr
-scoped syntax "LET"    "(" binder+ ")" expr : expr
-scoped syntax "letrec" "(" binder+ ")" expr : expr
-scoped syntax "LETREC" "(" binder+ ")" expr : expr
+scoped syntax "let"    "(" binder* ")" expr : expr
+scoped syntax "LET"    "(" binder* ")" expr : expr
+scoped syntax "letrec" "(" binder* ")" expr : expr
+scoped syntax "LETREC" "(" binder* ")" expr : expr
 
 mutual
 
@@ -135,6 +136,7 @@ partial def elabExpr : TSyntax `expr → TermElabM Lean.Expr
   | `(expr| $o:op₁ $e:expr) => do mkAppM ``Expr.op₁ #[← elabOp₁ o, ← elabExpr e]
   | `(expr| $o:op₂ $e₁:expr $e₂:expr) => do
     mkAppM ``Expr.op₂ #[← elabOp₂ o, ← elabExpr e₁, ← elabExpr e₂]
+  | `(expr| BEGIN) | `(expr| begin) => mkAppM ``Expr.atom #[mkConst ``Atom.nil]
   | `(expr| BEGIN $es:expr* $e:expr) | `(expr| begin $es:expr* $e:expr) => do
     es.foldrM (init := ← elabExpr e) fun e acc => do
       mkAppM ``Expr.begin #[← elabExpr e, acc]
@@ -144,24 +146,31 @@ partial def elabExpr : TSyntax `expr → TermElabM Lean.Expr
   | `(expr| ($e:expr $es:expr*)) => do
     es.foldlM (init := ← elabExpr e) fun acc e => do
       mkAppM ``Expr.app #[acc, ← elabExpr e]
-  | `(expr| LAMBDA ($ss:sym* $s:sym) $b:expr) |
-    `(expr| lambda ($ss:sym* $s:sym) $b:expr) => do
+  | `(expr| LAMBDA () $b:expr)
+  | `(expr| lambda () $b:expr) => do
+    mkAppM ``Expr.lambda #[mkStrLit "_", ← elabExpr b]
+  | `(expr| LAMBDA ($ss:sym* $s:sym) $b:expr)
+  | `(expr| lambda ($ss:sym* $s:sym) $b:expr) => do
     let init ← mkAppM ``Expr.lambda #[← elabSymStr s, ← elabExpr b]
     ss.foldrM (init := init) fun s acc => do
       mkAppM ``Expr.lambda #[← elabSymStr s, acc]
+  | `(expr| LET () $bd:expr)
+  | `(expr| let () $bd:expr) => elabExpr bd
   | `(expr| LET ($bs:binder* $b:binder) $bd:expr)
   | `(expr| let ($bs:binder* $b:binder) $bd:expr) => do
     let (initS, initV) ← elabBinder b
     let init ← mkAppM ``Expr.let #[initS, initV, ← elabExpr bd]
     bs.foldrM (init := init) fun b acc => do
       let (s, v) ← elabBinder b; mkAppM ``Expr.let #[s, v, acc]
+  | `(expr| LETREC () $bd:expr)
+  | `(expr| letrec () $bd:expr) => elabExpr bd
   | `(expr| LETREC ($bs:binder* $b:binder) $bd:expr)
   | `(expr| letrec ($bs:binder* $b:binder) $bd:expr) => do
     let (initS, initV) ← elabBinder b
     let init ← mkAppM ``Expr.letrec #[initS, initV, ← elabExpr bd]
     bs.foldrM (init := init) fun b acc => do
       let (s, v) ← elabBinder b; mkAppM ``Expr.letrec #[s, v, acc]
-  | `(expr| QUOTE $e:expr) | `(expr| quote $e:expr) => do
+  | `(expr| QUOTE $e:expr) | `(expr| quote $e:expr) | `(expr| ,$e:expr) => do
     mkAppM ``Expr.quote #[← elabExpr e]
   | `(expr| ($e:expr)) => elabExpr e
   | `(expr| $x) => do
