@@ -44,12 +44,12 @@ instance : ToString Value where
   toString := Value.toString
 
 def Value.ofAST : Syntax.AST → Value
-  | .nil => .lit .nil
-  | .t   => .lit .t
-  | .num n => .lit $ .num (.ofNat n)
-  | .char c => .lit $ .char c
-  | .str s => .lit $ .str s
-  | .sym s => .sym s
+  | .nil      => .lit .nil
+  | .t        => .lit .t
+  | .num n    => .lit $ .num n
+  | .char c   => .lit $ .char c
+  | .str s    => .lit $ .str s
+  | .sym s    => .sym s
   | .cons x y => .cons (Value.ofAST x) (Value.ofAST y)
 
 instance : Coe Syntax.AST Value := ⟨Value.ofAST⟩
@@ -97,9 +97,13 @@ end
 
 instance : BEq Value := ⟨Value.beq⟩
 
-def Value.num : Value → Except String F
-  | .lit (.num x) => pure x
-  | v => throw s!"expected number, got\n  {v}"
+def Value.num : Value → Except String Num
+  | .lit $ .num x => pure x
+  | v => throw s!"expected field Num, got\n  {v}"
+
+def Value.F : Value → Except String F
+  | .lit $ .num $ .num x => pure x
+  | v => throw s!"expected field Num, got\n  {v}"
 
 instance : Coe Bool Value where coe
   | true  => .lit .t
@@ -112,7 +116,7 @@ instance : Coe String Value where
   coe c := .lit (.str c)
 
 instance : OfNat Value n where
-  ofNat := .lit $ .num (.ofNat n)
+  ofNat := .lit $ .num (.nat n)
 
 def Expr.evalOp₁ : Op₁ → Value → Result
   | .atom, .cons .. => return .lit .nil
@@ -127,33 +131,39 @@ def Expr.evalOp₁ : Op₁ → Value → Result
   | .cdr, v => throw s!"expected cons value, got\n  {v}"
   | .emit, v => dbg_trace v; return v
   | .commit, _ => throw "TODO commit"
-  | .comm, v => return .comm (← v.num)
+  | .comm, v => return .comm (← v.F)
   | .open, _ => throw "TODO open"
-  | .num, .lit (.num n) => return .lit (.num n)
-  | .num, .lit (.char c) => return .lit $ .num (.ofNat c.toNat)
-  | .num, .comm c => return .lit (.num c)
+  | .num, .lit (.num n) => return .lit $ .num $ .num n.toF
+  | .num, .lit (.char c) => return .lit $ .num $ .num $ .ofNat c.toNat
+  | .num, .comm c => return .lit $ .num $ .num c
   | .num, v => throw s!"expected char, num, or comm value, got\n  {v}"
   | .char, .lit (.char c) => return .lit (.char c)
-  | .char, .lit (.num ⟨n, _⟩) =>
-    if h : isValidChar n.toUInt32 then
-      return .lit (.char ⟨n.toUInt32, h⟩)
+  | .char, .lit (.num n) =>
+    let n := n.toNat
+    if h : n.isValidChar then
+      return .lit (.char $ .ofNatAux n h)
     else
-      throw s!"{n.toUInt32} is not a valid char value"
+      throw s!"{n} is not a valid char value"
   | .char, v => throw s!"expected char or num value, got\n  {v}"
+  | .u64, .lit (.num n) => return .lit $ .num $ .u64 n.toU64
+  | .u64, .lit (.char c) => return .lit $ .num $ .u64 $ .ofNat c.toNat
+  | .u64, v => throw s!"expected num value, got\n  {v}"
+  | .functionp, .fun .. => return true
+  | .functionp, _ => return false
 
 def Expr.evalOp₂ : Op₂ → Value → Value → Result
   | .cons, v₁, v₂ => return .cons v₁ v₂
   | .strcons, .lit (.char c), .lit (.str s) => return .lit (.str ⟨c :: s.data⟩)
   | .strcons, v₁, v₂ => throw s!"expected char and string value, got {v₁} and {v₂}"
-  | .add, v₁, v₂ => return .lit $ .num ((← v₁.num) + (← v₂.num))
-  | .sub, v₁, v₂ => return .lit $ .num ((← v₁.num) - (← v₂.num))
-  | .mul, v₁, v₂ => return .lit $ .num ((← v₁.num) * (← v₂.num))
-  | .div, v₁, v₂ => return .lit $ .num ((← v₁.num) / (← v₂.num))
+  | .add, v₁, v₂ => return .lit $ .num $ ← Num.add (← v₁.num) (← v₂.num)
+  | .sub, v₁, v₂ => return .lit $ .num $ ← Num.sub (← v₁.num) (← v₂.num)
+  | .mul, v₁, v₂ => return .lit $ .num $ ← Num.mul (← v₁.num) (← v₂.num)
+  | .div, v₁, v₂ => return .lit $ .num $ ← Num.div (← v₁.num) (← v₂.num)
   | .numEq, v₁, v₂ => return (← v₁.num) == (← v₂.num)
-  | .lt, v₁, v₂ => return decide $ (← v₁.num) < (← v₂.num)
-  | .gt, v₁, v₂ => return decide $ (← v₁.num) > (← v₂.num)
-  | .le, v₁, v₂ => return decide $ (← v₁.num) <= (← v₂.num)
-  | .ge, v₁, v₂ => return decide $ (← v₁.num) >= (← v₂.num)
+  | .lt, v₁, v₂ => do Num.lt (← v₁.num) (← v₂.num)
+  | .gt, v₁, v₂ => do Num.gt (← v₁.num) (← v₂.num)
+  | .le, v₁, v₂ => do Num.le (← v₁.num) (← v₂.num)
+  | .ge, v₁, v₂ => do Num.ge (← v₁.num) (← v₂.num)
   | .eq, v₁, v₂ => return v₁.beq v₂
   | .hide, _, _ => throw "TODO hide"
 

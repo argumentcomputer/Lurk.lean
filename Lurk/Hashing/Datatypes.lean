@@ -1,4 +1,4 @@
-import Lurk.Field
+import Lurk.Num
 import Std.Data.RBMap
 
 namespace Lurk
@@ -8,16 +8,16 @@ inductive Tag
   deriving Ord, BEq, Inhabited, Hashable
 
 def Tag.toString : Tag → String
-  | nil   => "nil"
-  | cons  => "cons"
-  | sym   => "sym"
+  | .nil   => "nil"
+  | .cons  => "cons"
+  | .sym   => "sym"
   | .fun  => "fun"
-  | num   => "num"
-  | thunk => "thunk"
-  | str   => "str"
-  | char  => "char"
-  | comm  => "comm"
-  | u64   => "u64"
+  | .num   => "num"
+  | .thunk => "thunk"
+  | .str   => "str"
+  | .char  => "char"
+  | .comm  => "comm"
+  | .u64   => "u64"
 
 instance : ToString Tag := ⟨Tag.toString⟩
 

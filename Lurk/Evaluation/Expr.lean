@@ -1,4 +1,4 @@
-import Lurk.Field
+import Lurk.Num
 import Lurk.Syntax.AST
 
 open Std
@@ -10,7 +10,7 @@ inductive Lit
   -- `t` and `nil`
   | t | nil
   -- Numerical values
-  | num  : F → Lit
+  | num  : Num → Lit
   -- Strings
   | str  : String → Lit
   -- Characters
@@ -29,7 +29,7 @@ def toString : Lit → String
 def pprint : Lit → Format
   | .nil        => "NIL"
   | .t          => "T"
-  | .num n      => n.asHex
+  | .num n      => format n
   | .str s      => s!"\"{s}\""
   | .char c     => s!"#\\{c}"
 
@@ -48,20 +48,22 @@ end Lit
 inductive Op₁
   | atom | car | cdr | emit
   | commit | comm | «open»
-  | num | char
+  | num | char | u64 | functionp
   deriving Repr, BEq
 
 open Std Format in
 def Op₁.toFormat : Op₁ → Format
-| .atom   => "ATOM"
-| .car    => "CAR"
-| .cdr    => "CDR"
-| .emit   => "EMIT"
-| .commit => "COMMIT"
-| .comm   => "COMM"
-| .open   => "OPEN"
-| .num    => "NUM"
-| .char   => "CHAR"
+| .atom      => "ATOM"
+| .car       => "CAR"
+| .cdr       => "CDR"
+| .emit      => "EMIT"
+| .commit    => "COMMIT"
+| .comm      => "COMM"
+| .open      => "OPEN"
+| .num       => "NUM"
+| .char      => "CHAR"
+| .u64       => "U64"
+| .functionp => "functionp"
 
 instance : Std.ToFormat Op₁ := ⟨Op₁.toFormat⟩
 

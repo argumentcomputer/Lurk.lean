@@ -195,7 +195,7 @@ def mkMutualBlock
   | _ => do
     let names := binders.map Prod.fst
     let mutualName := names.foldl merge init
-    let projs := names.enum.map fun (i, n) => (n, ~[.sym mutualName, .num i])
+    let projs := names.enum.map fun (i, n) => (n, ~[.sym mutualName, .num $ .nat i])
     let map := projs.foldl (init := default) fun acc (n, e) => acc.insert n e
     let key := AST.sym key
     let ifThens ← binders.enum.mapM

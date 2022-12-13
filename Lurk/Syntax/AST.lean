@@ -1,10 +1,11 @@
 import YatimaStdLib.RBMap
+import Lurk.Num
 
 namespace Lurk.Syntax
 
 /-- Reserved symbols are expected to be in uppercase -/
 inductive AST
-  | num : Nat → AST
+  | num : Num → AST
   | char : Char → AST
   | str : String → AST
   | sym : String → AST
@@ -34,6 +35,7 @@ def reservedSyms : Std.RBSet String compare := .ofList [
   "LETREC",
   "QUOTE",
   "ATOM",
+  "FUNCTIONP",
   "CAR",
   "CDR",
   "EMIT",
@@ -42,6 +44,7 @@ def reservedSyms : Std.RBSet String compare := .ofList [
   "OPEN",
   "NUM",
   "CHAR",
+  "U64",
   "CONS",
   "STRCONS",
   "+" ,
@@ -100,7 +103,28 @@ class ToAST (α : Type _) where
 export ToAST (toAST)
 
 instance : ToAST Nat where
-  toAST := .num
+  toAST := .num ∘ .nat
+
+instance : ToAST F where
+  toAST := .num ∘ .num
+
+instance : ToAST UInt8 where
+  toAST := .num ∘ .u8
+
+instance : ToAST UInt16 where
+  toAST := .num ∘ .u16
+
+instance : ToAST UInt32 where
+  toAST := .num ∘ .u32
+
+instance : ToAST UInt64 where
+  toAST := .num ∘ .u64
+
+instance : ToAST USize where
+  toAST := .num ∘ .usize
+
+instance : ToAST Num where toAST
+  | .nat x | .num x | .u8 x | .u16 x | .u32 x | .u64 x | .usize x => toAST x
 
 instance : ToAST Char where
   toAST := .char

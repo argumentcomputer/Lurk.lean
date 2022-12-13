@@ -6,16 +6,18 @@ namespace Lurk.Syntax.AST
 open Evaluation (Expr)
 
 def mkOp₁ (op₁ : String) : Expr → Expr := match op₁ with
-  | "ATOM"   => .op₁ .atom
-  | "CAR"    => .op₁ .car
-  | "CDR"    => .op₁ .cdr
-  | "EMIT"   => .op₁ .emit
-  | "COMMIT" => .op₁ .commit
-  | "COMM"   => .op₁ .comm
-  | "OPEN"   => .op₁ .open
-  | "NUM"    => .op₁ .num
-  | "CHAR"   => .op₁ .char
-  | x => fun y => .app (.sym x) y
+  | "ATOM"      => .op₁ .atom
+  | "CAR"       => .op₁ .car
+  | "CDR"       => .op₁ .cdr
+  | "EMIT"      => .op₁ .emit
+  | "COMMIT"    => .op₁ .commit
+  | "COMM"      => .op₁ .comm
+  | "OPEN"      => .op₁ .open
+  | "NUM"       => .op₁ .num
+  | "CHAR"      => .op₁ .char
+  | "U64"       => .op₁ .u64
+  | "FUNCTIONP" => .op₁ .functionp
+  | x           => fun y => .app (.sym x) y
 
 def mkOp₂ (op₂ : String) : Expr → Expr → Expr := match op₂ with
   | "CONS"    => .op₂ .cons
@@ -37,7 +39,7 @@ partial def toExpr : AST → Except String Expr
   -- trivial cases
   | .nil     => return .lit .nil
   | .t       => return .lit .t
-  | .num  n  => return .lit $ .num (.ofNat n)
+  | .num  n  => return .lit $ .num n
   | .char c  => return .lit $ .char c
   | .str  s  => return .lit $ .str s
   | ~[.sym "CURRENT-ENV"] => return .env

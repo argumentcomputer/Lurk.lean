@@ -8,10 +8,11 @@ open Megaparsec Char Parsec Common Lurk.Syntax AST
 
 abbrev P := Parsec Char String Unit
 
+/-- TODO FIXME: support for all `Lurk.Num` types. -/
 def numP : P AST := do
   let x ← some' (satisfy Char.isDigit)
   let str := String.mk x
-  return .num $ String.toNat! str
+  return .num $ .nat $ String.toNat! str
 
 -- def charP : P AST := attempt do
 --   discard $ single '\''

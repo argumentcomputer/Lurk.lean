@@ -23,7 +23,7 @@ partial def decodeAST (ptr : ScalarPtr) : DecodeM AST := do
     else withVisiting ptr do
       let ast ← match ptr with
         | ⟨.nil,  _⟩ => return .nil
-        | ⟨.num,  x⟩ => return .num x
+        | ⟨.num,  x⟩ => return .num x   
         | ⟨.char, x⟩ => return .char (Char.ofNat x)
         | ⟨.str, F.zero⟩ => return .str default
         | ptr => match (← read).store.exprs.find? ptr with
