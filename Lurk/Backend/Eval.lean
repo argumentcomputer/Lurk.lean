@@ -119,10 +119,6 @@ end
 
 instance : BEq Value := ⟨Value.beq⟩
 
--- def Value.num : Value → Except String F
---   | .atom (.num x) => pure x
---   | v => throw s!"expected number, got\n  {v}"
-
 instance : Coe Bool Value where coe
   | true  => .atom .t
   | false => .atom .nil
@@ -135,6 +131,69 @@ instance : Coe String Value where
 
 instance : OfNat Value n where
   ofNat := .atom $ .num (.ofNat n)
+
+def numAdd : Value → Value → Result
+  | .atom $ .num x, .atom $ .num y => return .atom $ .num (x + y)
+  | .atom $ .u64 x, .atom $ .u64 y => return .atom $ .u64 (x + y)
+  | .atom $ .num x, .atom $ .u64 y => return .atom $ .num (x + (.ofNat y.toNat))
+  | .atom $ .u64 x, .atom $ .num y => return .atom $ .num ((.ofNat x.toNat) + y)
+  | v₁, v₂ => throw s!"expected numeric values, got\n  {v₁} and {v₂}"
+
+def numSub : Value → Value → Result
+  | .atom $ .num x, .atom $ .num y => return .atom $ .num (x - y)
+  | .atom $ .u64 x, .atom $ .u64 y => return .atom $ .u64 (x - y)
+  | .atom $ .num x, .atom $ .u64 y => return .atom $ .num (x - (.ofNat y.toNat))
+  | .atom $ .u64 x, .atom $ .num y => return .atom $ .num ((.ofNat x.toNat) - y)
+  | v₁, v₂ => throw s!"expected numeric values, got\n  {v₁} and {v₂}"
+
+def numMul : Value → Value → Result
+  | .atom $ .num x, .atom $ .num y => return .atom $ .num (x * y)
+  | .atom $ .u64 x, .atom $ .u64 y => return .atom $ .u64 (x * y)
+  | .atom $ .num x, .atom $ .u64 y => return .atom $ .num (x * (.ofNat y.toNat))
+  | .atom $ .u64 x, .atom $ .num y => return .atom $ .num ((.ofNat x.toNat) * y)
+  | v₁, v₂ => throw s!"expected numeric values, got\n  {v₁} and {v₂}"
+
+def numDiv : Value → Value → Result
+  | .atom $ .num x, .atom $ .num y => return .atom $ .num (x / y)
+  | .atom $ .u64 x, .atom $ .u64 y => return .atom $ .u64 (x / y)
+  | .atom $ .num x, .atom $ .u64 y => return .atom $ .num (x / (.ofNat y.toNat))
+  | .atom $ .u64 x, .atom $ .num y => return .atom $ .num ((.ofNat x.toNat) / y)
+  | v₁, v₂ => throw s!"expected numeric values, got\n  {v₁} and {v₂}"
+
+def numEq : Value → Value → Result
+  | .atom $ .num x, .atom $ .num y => return decide (x == y)
+  | .atom $ .u64 x, .atom $ .u64 y => return decide (x == y)
+  | .atom $ .num x, .atom $ .u64 y => return decide (x == (.ofNat y.toNat))
+  | .atom $ .u64 x, .atom $ .num y => return decide ((.ofNat x.toNat) == y)
+  | v₁, v₂ => throw s!"expected numeric values, got\n  {v₁} and {v₂}"
+
+def numLt : Value → Value → Result
+  | .atom $ .num x, .atom $ .num y => return decide (x < y)
+  | .atom $ .u64 x, .atom $ .u64 y => return decide (x < y)
+  | .atom $ .num x, .atom $ .u64 y => return decide (x < (.ofNat y.toNat))
+  | .atom $ .u64 x, .atom $ .num y => return decide ((.ofNat x.toNat) < y)
+  | v₁, v₂ => throw s!"expected numeric values, got\n  {v₁} and {v₂}"
+
+def numGt : Value → Value → Result
+  | .atom $ .num x, .atom $ .num y => return decide (x > y)
+  | .atom $ .u64 x, .atom $ .u64 y => return decide (x > y)
+  | .atom $ .num x, .atom $ .u64 y => return decide (x > (.ofNat y.toNat))
+  | .atom $ .u64 x, .atom $ .num y => return decide ((.ofNat x.toNat) > y)
+  | v₁, v₂ => throw s!"expected numeric values, got\n  {v₁} and {v₂}"
+
+def numLe : Value → Value → Result
+  | .atom $ .num x, .atom $ .num y => return decide (x <= y)
+  | .atom $ .u64 x, .atom $ .u64 y => return decide (x <= y)
+  | .atom $ .num x, .atom $ .u64 y => return decide (x <= (.ofNat y.toNat))
+  | .atom $ .u64 x, .atom $ .num y => return decide ((.ofNat x.toNat) <= y)
+  | v₁, v₂ => throw s!"expected numeric values, got\n  {v₁} and {v₂}"
+
+def numGe : Value → Value → Result
+  | .atom $ .num x, .atom $ .num y => return decide (x >= y)
+  | .atom $ .u64 x, .atom $ .u64 y => return decide (x >= y)
+  | .atom $ .num x, .atom $ .u64 y => return decide (x >= (.ofNat y.toNat))
+  | .atom $ .u64 x, .atom $ .num y => return decide ((.ofNat x.toNat) >= y)
+  | v₁, v₂ => throw s!"expected numeric values, got\n  {v₁} and {v₂}"
 
 def Expr.evalOp₁ : Op₁ → Value → Result
   | .atom, .cons .. => return .atom .nil
@@ -171,18 +230,18 @@ def Expr.evalOp₂ : Op₂ → Value → Value → Result
   | .cons, v₁, v₂ => return .cons v₁ v₂
   | .strcons, .atom (.char c), .atom (.str s) => return .atom (.str ⟨c :: s.data⟩)
   | .strcons, v₁, v₂ => throw s!"expected char and string value, got {v₁} and {v₂}"
-  | .add, v₁, v₂ => return .atom $ .num ((← v₁.num) + (← v₂.num))
-  | .sub, v₁, v₂ => return .atom $ .num ((← v₁.num) - (← v₂.num))
-  | .mul, v₁, v₂ => return .atom $ .num ((← v₁.num) * (← v₂.num))
-  | .div, v₁, v₂ => return .atom $ .num ((← v₁.num) / (← v₂.num))
-  | .numEq, v₁, v₂ => return (← v₁.num) == (← v₂.num)
-  | .lt, v₁, v₂ => return decide $ (← v₁.num) < (← v₂.num)
-  | .gt, v₁, v₂ => return decide $ (← v₁.num) > (← v₂.num)
-  | .le, v₁, v₂ => return decide $ (← v₁.num) <= (← v₂.num)
-  | .ge, v₁, v₂ => return decide $ (← v₁.num) >= (← v₂.num)
+  | .add, v₁, v₂ => numAdd v₁ v₂
+  | .sub, v₁, v₂ => numSub v₁ v₂
+  | .mul, v₁, v₂ => numMul v₁ v₂
+  | .div, v₁, v₂ => numDiv v₁ v₂
+  | .numEq, v₁, v₂ => numEq v₁ v₂
+  | .lt, v₁, v₂ => numLt v₁ v₂
+  | .gt, v₁, v₂ => numGt v₁ v₂
+  | .le, v₁, v₂ => numLe v₁ v₂
+  | .ge, v₁, v₂ => numGe v₁ v₂
   | .eq, v₁, v₂ => return v₁.beq v₂
   | .hide, _, _ => throw "TODO hide"
-#exit
+
 partial def Expr.asValue : Expr → Value
   | .atom a => .atom a
   | .sym s => .sym s

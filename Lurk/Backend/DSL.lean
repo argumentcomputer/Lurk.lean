@@ -4,6 +4,7 @@ import Lurk.Backend.Expr
 namespace Lurk.Backend.DSL
 open Lean Elab Meta Term
 
+/- `atom` clashes with something in core -/
 declare_syntax_cat    atom_
 scoped syntax "t"   : atom_
 scoped syntax "nil" : atom_
@@ -41,6 +42,8 @@ scoped syntax "open"   : op₁
 scoped syntax "OPEN"   : op₁
 scoped syntax "num"    : op₁
 scoped syntax "NUM"    : op₁
+scoped syntax "u64"    : op₁
+scoped syntax "U64"    : op₁
 scoped syntax "char"   : op₁
 scoped syntax "CHAR"   : op₁
 
@@ -53,6 +56,7 @@ def elabOp₁ : TSyntax `op₁ → TermElabM Lean.Expr
   | `(op₁| COMM)   | `(op₁| comm)   => return mkConst ``Op₁.comm
   | `(op₁| OPEN)   | `(op₁| open)   => return mkConst ``Op₁.open
   | `(op₁| NUM)    | `(op₁| num)    => return mkConst ``Op₁.num
+  | `(op₁| U64)    | `(op₁| u64)    => return mkConst ``Op₁.num
   | `(op₁| CHAR)   | `(op₁| char)   => return mkConst ``Op₁.char
   | _ => throwUnsupportedSyntax
 
