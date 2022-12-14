@@ -1,9 +1,9 @@
 import Lurk.Frontend.AST
-import Lurk.Hashing.Datatypes
+import Lurk.Scalar.Datatypes
 import YatimaStdLib.Fin
 import Poseidon.ForLurk
 
-namespace Lurk.Hashing
+namespace Lurk.Scalar
 
 open Frontend (AST)
 
@@ -70,11 +70,11 @@ def hideAST (secret : F) (x : AST) : EncodeM F := do
   let ptr ← encodeAST x
   addCommitment (hashPtrPair ⟨.comm, secret⟩ ptr ) ptr
 
-end Lurk.Hashing
+end Lurk.Scalar
 
 namespace Lurk.Frontend.AST
 
-open Lurk.Hashing
+open Lurk.Scalar
 
 def encode (x : AST) : ScalarPtr × ScalarStore :=
   match StateT.run (encodeAST x) default with

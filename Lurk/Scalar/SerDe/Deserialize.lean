@@ -1,8 +1,6 @@
-import Lurk.Hashing.Datatypes
+import Lurk.Scalar.Datatypes
 
-namespace Lurk.SerDe
-
-open Lurk.Hashing
+namespace Lurk.Scalar.SerDe
 
 structure DeserializeContext where
   bytes : ByteArray
@@ -81,4 +79,4 @@ def deserialize (bytes : ByteArray) :
     Except String ((List ScalarPtr) × ScalarStore) :=
   (StateT.run (ReaderT.run deserializeM ⟨bytes, bytes.size, by eq_refl⟩) 0).1
 
-end Lurk.SerDe
+end Lurk.Scalar.SerDe

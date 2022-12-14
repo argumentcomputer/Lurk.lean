@@ -1,7 +1,7 @@
 import LSpec
 import Lurk.Frontend.DSL
-import Lurk.Hashing.Encoding
-import Lurk.Hashing.Decoding
+import Lurk.Scalar.Hashing.Encoding
+import Lurk.Scalar.Hashing.Decoding
 
 open Lurk
 
@@ -43,6 +43,6 @@ def main := do
     fun tSeq (x : Lurk.Frontend.AST) =>
       let (ptr, store) := x.encode
       withExceptOk s!"Decoding {x} succeeds"
-          (Lurk.Hashing.decode ptr store) fun x' =>
+          (Lurk.Scalar.decode ptr store) fun x' =>
         tSeq ++ test
           s!"Expected {x} equals {x'}" (x == x')
