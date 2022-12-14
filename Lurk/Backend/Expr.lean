@@ -9,9 +9,10 @@ inductive Atom
   -- `t` and `nil`
   | t | nil
   -- Numerical values
-  | num  : F → Atom
+  | num : F → Atom
+  | u64 : UInt64 → Atom
   -- Strings
-  | str  : String → Atom
+  | str : String → Atom
   -- Characters
   | char : Char → Atom
   deriving Repr, BEq
@@ -19,18 +20,20 @@ inductive Atom
 namespace Atom
 
 def toString : Atom → String
-  | .nil        => "NIL"
-  | .t          => "T"
-  | .num n      => ToString.toString n
-  | .str s      => s!"\"{s}\""
-  | .char c     => s!"#\\{c}"
+  | .nil    => "NIL"
+  | .t      => "T"
+  | .num  n => ToString.toString n
+  | .u64  n => s!"{n}u64"
+  | .str  s => s!"\"{s}\""
+  | .char c => s!"#\\{c}"
 
 def pprint : Atom → Format
-  | .nil        => "NIL"
-  | .t          => "T"
-  | .num n      => n.asHex
-  | .str s      => s!"\"{s}\""
-  | .char c     => s!"#\\{c}"
+  | .nil    => "NIL"
+  | .t      => "T"
+  | .num  n => n.asHex
+  | .u64  n => s!"{n}u64"
+  | .str  s => s!"\"{s}\""
+  | .char c => s!"#\\{c}"
 
 instance : ToFormat Atom where
   format := pprint
@@ -40,7 +43,7 @@ end Atom
 inductive Op₁
   | atom | car | cdr | emit
   | commit | comm | «open»
-  | num | char
+  | num | u64 | char
   deriving Repr, BEq
 
 open Std Format in
@@ -53,6 +56,7 @@ def Op₁.toFormat : Op₁ → Format
 | .comm   => "COMM"
 | .open   => "OPEN"
 | .num    => "NUM"
+| .u64    => "U64"
 | .char   => "CHAR"
 
 def Op₁.toString := ToString.toString ∘ Op₁.toFormat

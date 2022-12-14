@@ -20,6 +20,8 @@ end
 
 namespace Value
 
+/- The following metaprogramming layer is merely for testing -/
+
 declare_syntax_cat                      value
 scoped syntax ident                   : value
 scoped syntax char                    : value
@@ -49,7 +51,7 @@ partial def elabValue : Lean.TSyntax `value → TermElabM Lean.Expr
 scoped elab "⦃" v:value "⦄" : term =>
   elabValue v
 
-def consWith (vs : Array Value) (v : Value := .atom .nil) : Value :=
+@[inline] def consWith (vs : Array Value) (v : Value := .atom .nil) : Value :=
   vs.foldr .cons v
 
 partial def telescopeCons (acc : Array Value := #[]) : Value → Array Value × Value
@@ -93,16 +95,16 @@ end Env
 
 mutual
 
-partial def Env.eqAux : List (String × Result) → List (String × Result) → Bool
-  | [], [] => true
-  | (s₁, v₁)::xs, (s₂, v₂)::ys => match (v₁, v₂) with
-    | (Except.ok v₁, Except.ok v₂) => v₁.beq v₂ && s₁ == s₂ && Env.eqAux xs ys
-    | (Except.error e₁, Except.error e₂) => e₁ == e₂ && s₁ == s₂ && Env.eqAux xs ys
-    | _ => false
-  | _, _ => false
-
 partial def Env.eq (e₁ e₂ : Env) : Bool :=
-  Env.eqAux (e₁.toArray.data.map fun (s, v) => (s, v.get))
+  let rec aux : List (String × Result) → List (String × Result) → Bool
+    | [], [] => true
+    | (s₁, v₁)::xs, (s₂, v₂)::ys => match (v₁, v₂) with
+      | (Except.ok    v₁, Except.ok    v₂) => v₁.beq v₂ && s₁ == s₂ && aux xs ys
+      | (Except.error e₁, Except.error e₂) => e₁ == e₂  && s₁ == s₂ && aux xs ys
+      | _ => false
+    | _, _ => false
+  aux
+    (e₁.toArray.data.map fun (s, v) => (s, v.get))
     (e₂.toArray.data.map fun (s, v) => (s, v.get))
 
 partial def Value.beq : Value → Value → Bool
@@ -117,9 +119,9 @@ end
 
 instance : BEq Value := ⟨Value.beq⟩
 
-def Value.num : Value → Except String F
-  | .atom (.num x) => pure x
-  | v => throw s!"expected number, got\n  {v}"
+-- def Value.num : Value → Except String F
+--   | .atom (.num x) => pure x
+--   | v => throw s!"expected number, got\n  {v}"
 
 instance : Coe Bool Value where coe
   | true  => .atom .t
@@ -147,16 +149,22 @@ def Expr.evalOp₁ : Op₁ → Value → Result
   | .cdr, v => throw s!"expected cons value, got\n  {v}"
   | .emit, v => dbg_trace v; return v
   | .commit, _ => throw "TODO commit"
-  | .comm, v => return .comm (← v.num)
+  | .comm, (.atom (.num n)) => return .comm n
+  | .comm, v => throw s!"expected a num, got\n  {v}"
   | .open, _ => throw "TODO open"
-  | .num, .atom (.num n) => return .atom (.num n)
+  | .num, x@(.atom (.num _)) => return x
+  | .num, .atom (.u64 n) => return .atom (.num (.ofNat n.toNat))
   | .num, .atom (.char c) => return .atom $ .num (.ofNat c.toNat)
   | .num, .comm c => return .atom (.num c)
-  | .num, v => throw s!"expected char, num, or comm value, got\n  {v}"
+  | .num, v => throw s!"expected char, num, u64, or comm value, got\n  {v}"
+  | .u64, x@(.atom (.u64 _)) => return x
+  | .u64, .atom (.num n) => return .atom (.u64 (.ofNat n.val))
+  | .u64, v => throw s!"expected num or u64, got\n  {v}"
   | .char, .atom (.char c) => return .atom (.char c)
   | .char, .atom (.num ⟨n, _⟩) =>
-    if h : isValidChar n.toUInt32 then return .atom (.char ⟨n.toUInt32, h⟩)
-    else throw s!"{n.toUInt32} is not a valid char value"
+    let charVal := n.toUInt32
+    if h : isValidChar charVal then return .atom (.char ⟨charVal, h⟩)
+    else throw s!"{charVal} is not a valid char value"
   | .char, v => throw s!"expected char or num value, got\n  {v}"
 
 def Expr.evalOp₂ : Op₂ → Value → Value → Result
@@ -174,7 +182,7 @@ def Expr.evalOp₂ : Op₂ → Value → Value → Result
   | .ge, v₁, v₂ => return decide $ (← v₁.num) >= (← v₂.num)
   | .eq, v₁, v₂ => return v₁.beq v₂
   | .hide, _, _ => throw "TODO hide"
-
+#exit
 partial def Expr.asValue : Expr → Value
   | .atom a => .atom a
   | .sym s => .sym s
