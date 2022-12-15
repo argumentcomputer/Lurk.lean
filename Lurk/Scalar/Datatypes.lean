@@ -76,7 +76,7 @@ def ContTag.toUSize : ContTag → USize
   | terminal => Nat.toUSize 14
   | emit => Nat.toUSize 15
 
-namespace Hashing
+namespace Scalar
 
 structure ScalarPtr where
   tag : Tag
@@ -142,5 +142,4 @@ def ofList (exprs : List $ ScalarPtr × Option ScalarExpr) : ScalarStore :=
 
 end ScalarStore
 
-end Hashing
-end Lurk
+end Lurk.Scalar

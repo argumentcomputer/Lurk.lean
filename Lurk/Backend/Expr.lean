@@ -1,54 +1,49 @@
 import Lurk.Field
-import Lurk.Syntax.AST
 
 open Std
 
-namespace Lurk.Evaluation
+namespace Lurk.Backend
 
 /-- Basic Lurk primitives -/
-inductive Lit
+inductive Atom
   -- `t` and `nil`
   | t | nil
   -- Numerical values
-  | num  : F → Lit
+  | num : F → Atom
+  | u64 : UInt64 → Atom
   -- Strings
-  | str  : String → Lit
+  | str : String → Atom
   -- Characters
-  | char : Char → Lit
+  | char : Char → Atom
   deriving Repr, BEq
 
-namespace Lit
+namespace Atom
 
-def toString : Lit → String
-  | .nil        => "NIL"
-  | .t          => "T"
-  | .num n      => ToString.toString n
-  | .str s      => s!"\"{s}\""
-  | .char c     => s!"#\\{c}"
+def toString : Atom → String
+  | .nil    => "NIL"
+  | .t      => "T"
+  | .num  n => ToString.toString n
+  | .u64  n => s!"{n}u64"
+  | .str  s => s!"\"{s}\""
+  | .char c => s!"#\\{c}"
 
-def pprint : Lit → Format
-  | .nil        => "NIL"
-  | .t          => "T"
-  | .num n      => n.asHex
-  | .str s      => s!"\"{s}\""
-  | .char c     => s!"#\\{c}"
+def pprint : Atom → Format
+  | .nil    => "NIL"
+  | .t      => "T"
+  | .num  n => n.asHex
+  | .u64  n => s!"{n}u64"
+  | .str  s => s!"\"{s}\""
+  | .char c => s!"#\\{c}"
 
-instance : ToFormat Lit where
+instance : ToFormat Atom where
   format := pprint
 
-def toAST : Lit → Syntax.AST
-  | .nil    => .nil
-  | .t      => .t
-  | .num n  => .num n
-  | .str s  => .str s
-  | .char c => .char c
-
-end Lit
+end Atom
 
 inductive Op₁
   | atom | car | cdr | emit
   | commit | comm | «open»
-  | num | char
+  | num | u64 | char
   deriving Repr, BEq
 
 open Std Format in
@@ -61,7 +56,10 @@ def Op₁.toFormat : Op₁ → Format
 | .comm   => "COMM"
 | .open   => "OPEN"
 | .num    => "NUM"
+| .u64    => "U64"
 | .char   => "CHAR"
+
+def Op₁.toString := ToString.toString ∘ Op₁.toFormat
 
 instance : Std.ToFormat Op₁ := ⟨Op₁.toFormat⟩
 
@@ -87,10 +85,12 @@ def Op₂.toFormat : Op₂ → Format
   | .eq      => "EQ"
   | .hide    => "HIDE"
 
+def Op₂.toString := ToString.toString ∘ Op₂.toFormat
+
 instance : Std.ToFormat Op₂ := ⟨Op₂.toFormat⟩
 
 inductive Expr
-  | lit : Lit → Expr
+  | atom : Atom → Expr
   | sym : String → Expr
   | env : Expr
   | op₁ : Op₁ → Expr → Expr
@@ -102,10 +102,26 @@ inductive Expr
   | lambda : String → Expr → Expr
   | «let»  : String → Expr → Expr → Expr
   | letrec : String → Expr → Expr → Expr
-  | quote : Syntax.AST → Expr
+  | quote : Expr → Expr
   deriving Repr, Inhabited, BEq
 
 namespace Expr
+
+class ToExpr (α : Type _) where
+  toExpr : α → Expr
+
+export ToExpr (toExpr)
+
+instance : ToExpr Nat where
+  toExpr := .atom ∘ .num ∘ .ofNat
+
+instance : ToExpr Char where
+  toExpr := .atom ∘ .char
+
+instance : ToExpr String where
+  toExpr := .atom ∘ .str
+
+instance : ToExpr Expr := ⟨id⟩
 
 /-- Telescopes `(lambda (x₁ x₂ ⋯) body)` into `(#[x₁, x₂, ⋯], body)` -/
 def telescopeLam (acc : Array String := #[]) : Expr → (Array String) × Expr
@@ -127,11 +143,15 @@ def telescopeApp (acc : List Expr) : Expr → List Expr
   | .app f a => f.telescopeApp (a :: acc)
   | x => x :: acc
 
-open Std Format Syntax.AST in
+def telescopeBegin : Expr → Array Expr
+  | .begin e₁ e₂ => e₁.telescopeBegin ++ e₂.telescopeBegin
+  | x => #[x]
+
+open Std Format in
 partial def toFormat (esc := false) (e : Expr) : Format :=
-  let _ : ToFormat Expr := ⟨toFormat⟩
+  have : ToFormat Expr := ⟨toFormat⟩
   match e with
-  | .lit l => format l
+  | .atom l => format l
   | .sym s => formatSym s
   | .env => .text "CURRENT-ENV"
   | .op₁ op e =>
@@ -160,7 +180,7 @@ partial def toFormat (esc := false) (e : Expr) : Format :=
     paren <| "LETREC " ++ nest 7 (paren <| joinSep bs line) ++ indentD (b.toFormat esc)
   | .quote datum => paren <| "QUOTE" ++ line ++ format datum
 where
-  formatSym s := if esc && !reservedSyms.contains s then s!"|{s}|" else s
+  formatSym s := if esc then s!"|{s}|" else s
 
 def toString (esc := false) : Expr → String :=
   ToString.toString ∘ toFormat esc
@@ -168,5 +188,4 @@ def toString (esc := false) : Expr → String :=
 instance : Std.ToFormat Expr := ⟨toFormat⟩
 instance : ToString Expr := ⟨toString⟩
 
-end Expr
-end Lurk.Evaluation
+end Lurk.Backend.Expr

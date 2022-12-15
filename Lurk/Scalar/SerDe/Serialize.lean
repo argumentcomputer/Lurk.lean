@@ -1,8 +1,6 @@
-import Lurk.Hashing.Datatypes
+import Lurk.Scalar.Datatypes
 
-namespace Lurk.SerDe
-
-open Lurk.Hashing
+namespace Lurk.Scalar.SerDe
 
 structure SerializeState where
   bytes : ByteArray
@@ -61,4 +59,4 @@ def serializeM (roots : List ScalarPtr) : SerializeM Unit := do
 def serialize (roots : List ScalarPtr) (store : ScalarStore) : ByteArray :=
   (StateT.run (ReaderT.run (serializeM roots) store) default).2.bytes
 
-end Lurk.SerDe
+end Lurk.Scalar.SerDe

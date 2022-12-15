@@ -1,11 +1,11 @@
 import LSpec
-import Lurk.Syntax.DSL
-import Lurk.Hashing.StoreDSL
-import Lurk.Hashing.Encoding
+import Lurk.Frontend.DSL
+import Lurk.Scalar.Hashing.StoreDSL
+import Lurk.Scalar.Hashing.Encoding
 
 open Lurk
 
-open Syntax.DSL in def ast := ⟦
+open Frontend.DSL in def ast := ⟦
   (begin
     nil
     t
@@ -31,7 +31,7 @@ open Syntax.DSL in def ast := ⟦
     ((+ 1 2) (F X) . (cons 4 2)))
 ⟧
 
-open Hashing.DSL in def expectedStore := [store| {
+open Scalar.DSL in def expectedStore := [store| {
   (nil, 0x02e1314a79caf97ee88842647fe82bb88f5f795845cd3ed258ff172dae38cdb2): Sym((str, 0x02e1314a79caf97ee88842647fe82bb88f5f795845cd3ed258ff172dae38cdb2)),
   (cons, 0x26dd6e4d2ad00cd255895fc06e113d0c3743ae5cbcea04dc3098ad671ef0f209): Cons((cons, 0x18fabc72e3896162b1d0197ba526555a2a5a614f9a8b2f3fc2752c1d9e6cd81f), (cons, 0x4990ef32efbd0be6e4f71bdd14862dddfc241f23ebe7c080001f0634d200962c)),
   (cons, 0x428c75e9b1613a9a4054c52b18e0fbd5b95d04101b34a0728806aa4ac8014110): Cons((sym, 0x6ec5d213885296267978e92a3da46608e05b99d10f279dd91ff72c44a1901600), (nil, 0x02e1314a79caf97ee88842647fe82bb88f5f795845cd3ed258ff172dae38cdb2)),

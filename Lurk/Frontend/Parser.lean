@@ -1,10 +1,10 @@
 import Megaparsec.Char
 import Megaparsec.Common
-import Lurk.Syntax.AST
+import Lurk.Frontend.AST
 
-namespace Lurk.Syntax
+namespace Lurk.Frontend.Parser
 
-open Megaparsec Char Parsec Common Lurk.Syntax AST
+open Megaparsec Char Parsec Common
 
 abbrev P := Parsec Char String Unit
 
@@ -63,18 +63,18 @@ mutual
 partial def quoteP : P AST := do
   discard $ single '\''
   let x ← astP
-  return mkQuote x
+  return .mkQuote x
 
 partial def listP : P AST := between '(' ')' $ do
   blanksP
   let x ← many' astP
-  return consWith x nil
+  return .consWith x .nil
 
 partial def dottedListP : P AST := between '(' ')' $ do
   let xs ← some' astP
   discard $ single '.'
   let x ← astP
-  return consWith xs x
+  return .consWith xs x
 
 partial def astP : P AST := do
   blanksP
@@ -87,4 +87,4 @@ end
 protected def parse (code : String) : Except String AST :=
   Except.mapError toString $ parse astP code
 
-end Lurk.Syntax
+end Lurk.Frontend.Parser

@@ -1,13 +1,13 @@
 import Lean
-import Lurk.Hashing.Datatypes
+import Lurk.Scalar.Datatypes
 
 /-!
 # Helper DSL for generating test stores
 -/
 
-namespace Lurk.Hashing.DSL
+namespace Lurk.Scalar.DSL
 
-open Lean Elab Meta Term Lurk Hashing
+open Lean Elab Meta Term
 
 declare_syntax_cat                 scalar_ptr
 scoped syntax "(nil, " num ")"   : scalar_ptr
@@ -109,4 +109,4 @@ def elabLurkStore : Syntax → TermElabM Lean.Expr
 elab "[store| " e:lurk_store "]" : term =>
   elabLurkStore e
 
-end Lurk.Hashing.DSL
+end Lurk.Scalar.DSL

@@ -1,11 +1,11 @@
 import LSpec
-import Lurk.Syntax.DSL
-import Lurk.Evaluation.FromAST
-import Lurk.Evaluation.Eval
+import Lurk.Backend.DSL
+import Lurk.Backend.Eval
+import Lurk.Backend.ExprUtils
 
-open Lurk Syntax Evaluation DSL
+open Lurk Backend DSL
 
-abbrev Test := Option Value × AST
+abbrev Test := Option Value × Expr
 
 def outer_evaluate : Test := (some 99, ⟦((lambda (x) x) 99)⟧)
 
@@ -347,8 +347,10 @@ def tail_call2 : Test :=
                    (g (lambda (x) (f x))))
                   (g 0))⟧)
 
+open Value
+
 def outer_evaluate_make_tree : Test :=
-(some ⟦(((h . g) . (f . e)) . ((d . c) . (b . a)))⟧,
+(some ⦃(((h . g) . (f . e)) . ((d . c) . (b . a)))⦄,
              ⟦(letrec ((mapcar (lambda (f list)
                                  (if (eq list nil)
                                      nil
@@ -356,9 +358,9 @@ def outer_evaluate_make_tree : Test :=
                        (make_row (lambda (list)
                                    (if (eq list nil)
                                        nil
-                                       (let ((cdr (cdr list)))
-                                         (cons (cons (car list) (car cdr))
-                                               (make_row (cdr cdr)))))))
+                                       (let ((cdr' (cdr list)))
+                                         (cons (cons (car list) (car cdr'))
+                                               (make_row (cdr cdr')))))))
                        (make_tree_aux (lambda (list)
                                         (let ((row (make_row list)))
                                           (if (eq (cdr row) nil)
@@ -440,19 +442,19 @@ def binop_restore_saved_env : Test :=
                   (+ (outer 1) x))⟧)
 
 def env_let : Test :=
-(some ⟦((a . 1))⟧, ⟦(let ((a 1)) (current-env))⟧)
+(some ⦃((a . 1))⦄, ⟦(let ((a 1)) (current-env))⟧)
 
 def env_let_nested : Test :=
-(some ⟦((a . 1) (b . 2))⟧, ⟦(let ((a 1)) (let ((b 2)) (current-env)))⟧)
+(some ⦃((a . 1) (b . 2))⦄, ⟦(let ((a 1)) (let ((b 2)) (current-env)))⟧)
 
 def env_letrec : Test :=
-(some ⟦((a . 1))⟧, ⟦(letrec ((a 1)) (current-env))⟧)
+(some ⦃((a . 1))⦄, ⟦(letrec ((a 1)) (current-env))⟧)
 
 def env_letrec_nested : Test :=
-(some ⟦((a . 1) (b . 2))⟧, ⟦(letrec ((a 1)) (letrec ((b 2)) (current-env)))⟧)
+(some ⦃((a . 1) (b . 2))⦄, ⟦(letrec ((a 1)) (letrec ((b 2)) (current-env)))⟧)
 
 def env_let_letrec_let : Test :=
-(some ⟦((a . 1) (b . 2) (c . 3) (d . 4) (e . 5))⟧,
+(some ⦃((a . 1) (b . 2) (c . 3) (d . 4) (e . 5))⦄,
   ⟦(let ((a 1) (b 2)) (letrec ((c 3) (d 4)) (let ((e 5)) (current-env))))⟧)
 
 def begin_emit : Test :=
@@ -462,7 +464,7 @@ def begin_is_nil : Test :=
 (some false, ⟦(begin)⟧)
 
 def env_let_begin_emit : Test :=
-(some ⟦((a . 1))⟧, ⟦(let ((a 1))
+(some ⦃((a . 1))⦄, ⟦(let ((a 1))
                     (begin (let ((b 2)) (emit b)) (current-env)))⟧)
 
 def multiple_apps : Test :=
@@ -505,12 +507,12 @@ def strcons_char_empty : Test :=
 -- Construct a pair from a character and another string.
 -- should be `'(#\d . "og")`
 def cons_char_str : Test :=
-(some ⟦('d' . "og")⟧, ⟦(cons 'd' "og")⟧)
+(some ⦃('d' . "og")⦄, ⟦(cons 'd' "og")⟧)
 
 -- Including the empty string.
 -- should be `'('z' . "")`
 def cons_char_empty : Test :=
-(some ⟦('z' . "")⟧, ⟦(cons 'z' "")⟧)
+(some ⦃('z' . "")⦄, ⟦(cons 'z' "")⟧)
 
 -- The empty string is the string terminator ("")
 def cdr_str_is_empty : Test :=
@@ -526,11 +528,11 @@ def car_empty : Test :=
 
 -- CONSing two strings yields a pair, not a string.
 def cons_str_str : Test :=
-(some ⟦("a" . "b")⟧, ⟦(cons "a" "b")⟧)
+(some ⦃("a" . "b")⦄, ⟦(cons "a" "b")⟧)
 
 -- CONSing two characters yields a pair, not a string.
 def cons_char_char : Test :=
-(some ⟦('a' . 'b')⟧, ⟦(cons 'a' 'b')⟧)
+(some ⦃('a' . 'b')⦄, ⟦(cons 'a' 'b')⟧)
 
 -- STRCONSing two strings is an error.
 def strcons_str_str : Test :=
@@ -541,8 +543,8 @@ def strcons_char_char : Test :=
 (none, ⟦(strcons 'a' 'b')⟧)
 
 -- STRCONSing anything but a character and a string is an error.
-def strcons_not_char_str : Test :=
-(none, ⟦(strcons 1 ,"foo")⟧)
+-- def strcons_not_char_str : Test :=
+-- (none, ⟦(strcons 1 ,"foo")⟧)
 
 -- A char is any 32_bit unicode character, but we currently only have reader
 -- support for whatever can be entered directly.
@@ -651,10 +653,7 @@ def pairs : List Test := [
   cons_char_char,
   strcons_str_str,
   strcons_char_char,
-  strcons_not_char_str,
   car_unicode_char,
-  -- mutrec1,
-  -- mutrec2,
   closure,
   any_non_nil_is_true
 ]
@@ -662,11 +661,8 @@ def pairs : List Test := [
 open LSpec in
 def main := lspecIO $
   pairs.foldl (init := .done) fun tSeq pair =>
-    let (expect, ast) := (pair : Test)
-    tSeq ++ withExceptOk s!"{ast} anonymizes" ast.anon fun ast =>
-      withExceptOk s!"{ast} converts to expression" ast.toExpr fun e =>
-        match expect with
-        | some expect => withExceptOk s!"{e} evaluation succeeds" e.eval
-          fun res => test s!"{e} evaluates to {expect}" (res == expect)
-        | none => withExceptError s!"{e} fails on evaluation" e.eval
-          fun _ => .done
+    let (expect, e) := (pair : Test)
+    tSeq ++ match expect with
+      | none => withExceptError s!"{e} fails on evaluation" e.eval fun _ => .done
+      | some expect => withExceptOk s!"{e.anon} evaluation succeeds" e.anon.eval
+        fun res => test s!"{e} evaluates to {expect}" (res == expect)

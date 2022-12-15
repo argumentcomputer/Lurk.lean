@@ -1,8 +1,11 @@
 import YatimaStdLib.RBMap
 
-namespace Lurk.Syntax
+namespace Lurk.Frontend
 
-/-- Reserved symbols are expected to be in uppercase -/
+/--
+Reserved symbols are expected to be in uppercase. Planned to be dropped in favor
+of LDON.
+-/
 inductive AST
   | num : Nat → AST
   | char : Char → AST
@@ -83,6 +86,8 @@ def toString (esc : Bool) : AST → String :=
 instance : Std.ToFormat AST := ⟨toFormat false⟩
 instance : ToString AST := ⟨toString false⟩
 
+namespace Macro
+
 scoped syntax "~[" withoutPosition(term,*) "]"  : term
 
 macro_rules
@@ -90,6 +95,9 @@ macro_rules
     let ret ← xs.getElems.foldrM (fun x xs => `(AST.cons $x $xs)) (← `(AST.nil))
     return ret
 
+end Macro
+
+open Macro in
 /-- This helper is needed for the DSL and for the parser -/
 def mkQuote (x : AST) : AST :=
   ~[sym "QUOTE", x]
@@ -108,10 +116,6 @@ instance : ToAST Char where
 instance : ToAST String where
   toAST := .str
 
-/-- This instance is dangerously lossy -/
-instance (priority := low) : ToAST Lean.Name where
-  toAST n := .sym $ n.toString
-
 instance [ToAST α] : ToAST (List α) where
   toAST es := AST.consWith (es.map toAST) .nil
 
@@ -120,4 +124,4 @@ instance [ToAST α] : ToAST (Array α) where
 
 instance : ToAST AST := ⟨id⟩
 
-end Lurk.Syntax.AST
+end Lurk.Frontend.AST

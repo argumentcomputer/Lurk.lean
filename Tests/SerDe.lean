@@ -1,12 +1,12 @@
 import LSpec
-import Lurk.Syntax.DSL
-import Lurk.Hashing.Encoding
-import Lurk.SerDe.Serialize
-import Lurk.SerDe.Deserialize
+import Lurk.Frontend.DSL
+import Lurk.Scalar.Hashing.Encoding
+import Lurk.Scalar.SerDe.Serialize
+import Lurk.Scalar.SerDe.Deserialize
 
 open Lurk
 
-open Syntax.DSL in def ast := ⟦
+open Frontend.DSL in def ast := ⟦
   (begin
     nil
     t
@@ -32,7 +32,7 @@ open Syntax.DSL in def ast := ⟦
     ((+ 1 2) (f x) . (cons 4 2)))
 ⟧
 
-open LSpec SerDe in
+open LSpec Scalar.SerDe in
 def main := do
   let (root, store) := ast.encode
   let roots := [root]

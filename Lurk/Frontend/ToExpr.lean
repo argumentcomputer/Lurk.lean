@@ -1,9 +1,9 @@
-import Lurk.Syntax.ExprUtils
-import Lurk.Evaluation.Expr
+import Lurk.Frontend.AST
+import Lurk.Backend.Expr
 
-namespace Lurk.Syntax.AST
+namespace Lurk.Frontend.AST
 
-open Evaluation (Expr)
+open Backend (Expr)
 
 def mkOp₁ (op₁ : String) : Expr → Expr := match op₁ with
   | "ATOM"   => .op₁ .atom
@@ -33,13 +33,25 @@ def mkOp₂ (op₂ : String) : Expr → Expr → Expr := match op₂ with
   | "HIDE"    => .op₂ .hide
   | x => fun y z => .app (.app (.sym x) y) z
 
+open Macro
+
+def asArgs : AST → Except String (List String)
+  | .nil => return []
+  | .cons (.sym x) xs => return x :: (← xs.asArgs)
+  | x => throw s!"expected list of symbols but got {x}"
+
+def asBindings : AST → Except String (List (String × AST))
+  | .nil => return []
+  | .cons ~[.sym x, y] xs => return (x, y) :: (← xs.asBindings)
+  | x => throw s!"expected list of (symbol, body) pairs but got {x}"
+
 partial def toExpr : AST → Except String Expr
   -- trivial cases
-  | .nil     => return .lit .nil
-  | .t       => return .lit .t
-  | .num  n  => return .lit $ .num (.ofNat n)
-  | .char c  => return .lit $ .char c
-  | .str  s  => return .lit $ .str s
+  | .nil     => return .atom .nil
+  | .t       => return .atom .t
+  | .num  n  => return .atom $ .num (.ofNat n)
+  | .char c  => return .atom $ .char c
+  | .str  s  => return .atom $ .str s
   | ~[.sym "CURRENT-ENV"] => return .env
   | .sym s  => return .sym s
   -- `begin` is a sequence of expressions
@@ -48,9 +60,9 @@ partial def toExpr : AST → Except String Expr
     (← tail.mapM toExpr).foldrM (init := ← ini.toExpr)
       fun e acc => pure $ .begin e acc
   -- `if` is a sequence of (up to) three expressions
-  | ~[.sym "IF"] => return .if (.lit .nil) (.lit .nil) (.lit .nil)
-  | ~[.sym "IF", x] => return .if (← x.toExpr) (.lit .nil) (.lit .nil)
-  | ~[.sym "IF", x, y] => return .if (← x.toExpr) (← y.toExpr) (.lit .nil)
+  | ~[.sym "IF"] => return .if (.atom .nil) (.atom .nil) (.atom .nil)
+  | ~[.sym "IF", x] => return .if (← x.toExpr) (.atom .nil) (.atom .nil)
+  | ~[.sym "IF", x, y] => return .if (← x.toExpr) (← y.toExpr) (.atom .nil)
   | ~[.sym "IF", x, y, z] => return .if (← x.toExpr) (← y.toExpr) (← z.toExpr)
   -- `lambda` requires a gradual consumption of a symbol
   | ~[.sym "LAMBDA", args, body] => do
@@ -70,8 +82,8 @@ partial def toExpr : AST → Except String Expr
     let bindings ← bindings.mapM fun (x, y) => return (x, ← y.toExpr)
     return bindings.foldr (init := ← body.toExpr)
       fun (n, e) acc => .letrec n e acc
-  -- `quote` keeps the AST in memory
-  | ~[.sym "QUOTE", datum] => return .quote datum
+  -- quoting consumes the expression as-is
+  | ~[.sym "QUOTE", x] => return .quote (← x.toExpr)
   -- binary operators
   | ~[.sym op₂, x, y] => return mkOp₂ op₂ (← x.toExpr) (← y.toExpr)
   -- unary operators
@@ -85,4 +97,4 @@ partial def toExpr : AST → Except String Expr
         (← args.mapM toExpr).foldl (fun acc arg => .app acc arg) (← fn.toExpr)
     | x => throw s!"expected a list terminating with `nil` but got {x}"
 
-end Lurk.Syntax.AST
+end Lurk.Frontend.AST

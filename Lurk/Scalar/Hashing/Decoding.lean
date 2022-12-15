@@ -1,9 +1,9 @@
-import Lurk.Syntax.AST
-import Lurk.Hashing.Datatypes
+import Lurk.Frontend.AST
+import Lurk.Scalar.Datatypes
 
-namespace Lurk.Hashing
+namespace Lurk.Scalar
 
-open Syntax
+open Frontend (AST)
 
 structure DecodeContext where
   store : ScalarStore
@@ -43,4 +43,4 @@ partial def decodeAST (ptr : ScalarPtr) : DecodeM AST := do
 def decode (ptr : ScalarPtr) (store : ScalarStore) : Except String AST :=
   (StateT.run (ReaderT.run (decodeAST ptr) ⟨store, default⟩) default).1
 
-end Lurk.Hashing
+end Lurk.Scalar

@@ -1,7 +1,8 @@
 import Lean
-import Lurk.Syntax.AST
+import Lurk.Frontend.AST
 
-namespace Lurk.Syntax
+namespace Lurk.Frontend
+
 open Lean Elab Meta Term
 
 namespace DSL
@@ -90,20 +91,11 @@ partial def elabAST : TSyntax `ast → TermElabM Expr
   | `(ast| ($x . $y)) => do mkAppM ``AST.cons #[← elabAST x, ← elabAST y]
   | `(ast| ($xs* . $x)) => do elabASTCons xs (← elabAST x)
   | `(ast| ,$x:ast) => do mkAppM ``AST.mkQuote #[← elabAST x]
-  | `(ast| $x) => do
-    if x.raw.isAntiquot then
-      let stx := x.raw.getAntiquotTerm
-      let e ← elabTerm stx none
-      let e ← whnf e
-      trace[debug] e
-      mkAppM ``AST.toAST #[e]
-    else throwUnsupportedSyntax
+  | _ => throwUnsupportedSyntax
 
 end
 
 elab "⟦" x:ast "⟧" : term =>
   elabAST x
 
-end DSL
-
-end Lurk.Syntax
+end Lurk.Frontend.DSL

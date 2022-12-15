@@ -1,4 +1,4 @@
-import Lurk.Hashing.Datatypes
+import Lurk.Scalar.Datatypes
 
 namespace Lurk.Evaluation
 
@@ -118,9 +118,9 @@ structure Store where
   letrecStore : HashSet LetTypeData
   emitStore : HashSet EmitData
 
-  opaques : HashMap Ptr Hashing.ScalarPtr
-  scalars : HashMap Hashing.ScalarPtr Ptr
-  -- conts : HashMap Hashing.ScalarContPtr Ptr
+  opaques : HashMap Ptr Scalar.ScalarPtr
+  scalars : HashMap Scalar.ScalarPtr Ptr
+  -- conts : HashMap Scalar.ScalarContPtr Ptr
 
   poseidonCache : PoseidonCache
 

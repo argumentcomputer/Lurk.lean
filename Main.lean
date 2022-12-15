@@ -1,10 +1,9 @@
-import Lurk.Syntax.Parser
-import Lurk.Syntax.DSL
-import Lurk.Evaluation.FromAST
-import Lurk.Evaluation.Eval
+import Lurk.Frontend.Parser
+import Lurk.Frontend.ToExpr
+import Lurk.Backend.Eval
 
 def eval (code : String) : String :=
-  match Lurk.Syntax.parse code with
+  match Lurk.Frontend.Parser.parse code with
   | .error err => s!"Parsing error:\n{err}"
   | .ok x => match x.toExpr with
     | .error err => s!"Formatting error:\n{err}"
