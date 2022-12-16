@@ -49,7 +49,6 @@ def toDatum : AST → Backend.Datum
   | .num x => .num (.ofNat x)
   | .char x => .char x
   | .str x => .str x
-  | .sym "NIL" => .nil
   | .sym x => .sym x
   | .cons x y => .cons x.toDatum y.toDatum
 

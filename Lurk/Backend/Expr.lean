@@ -96,6 +96,9 @@ inductive Datum
   | cons : Datum  → Datum → Datum
   deriving Inhabited, BEq
 
+@[match_pattern] def Datum.nil := Datum.sym "NIL"
+@[match_pattern] def Datum.t   := Datum.sym "T"
+
 class ToDatum (α : Type _) where
   toDatum : α → Datum
 
