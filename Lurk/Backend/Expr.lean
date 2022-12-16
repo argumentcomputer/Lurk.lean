@@ -96,6 +96,17 @@ inductive Datum
   | cons : Datum  → Datum → Datum
   deriving Inhabited, BEq
 
+class ToDatum (α : Type _) where
+  toDatum : α → Datum
+
+export ToDatum (toDatum)
+
+instance : ToDatum Nat where
+  toDatum := .num ∘ .ofNat
+
+instance : ToDatum String where
+  toDatum := .str
+
 inductive Expr
   | atom : Atom → Expr
   | sym : String → Expr
