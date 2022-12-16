@@ -56,7 +56,7 @@ def elabOp₁ : TSyntax `op₁ → TermElabM Lean.Expr
   | `(op₁| COMM)   | `(op₁| comm)   => return mkConst ``Op₁.comm
   | `(op₁| OPEN)   | `(op₁| open)   => return mkConst ``Op₁.open
   | `(op₁| NUM)    | `(op₁| num)    => return mkConst ``Op₁.num
-  | `(op₁| U64)    | `(op₁| u64)    => return mkConst ``Op₁.num
+  | `(op₁| U64)    | `(op₁| u64)    => return mkConst ``Op₁.u64
   | `(op₁| CHAR)   | `(op₁| char)   => return mkConst ``Op₁.char
   | _ => throwUnsupportedSyntax
 
@@ -100,7 +100,7 @@ scoped syntax ident       : sym
 scoped syntax "|" sym "|" : sym
 
 def elabSymStr : TSyntax `sym → TermElabM Lean.Expr
-  | `(sym| $i:ident) => return mkStrLit i.getId.toString.toUpper
+  | `(sym| $i:ident) => return mkStrLit i.getId.toString
   | `(sym| |$i:ident|) => return mkStrLit i.getId.toString
   | _ => throwUnsupportedSyntax
 
