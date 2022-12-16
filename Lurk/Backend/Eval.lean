@@ -188,31 +188,31 @@ def numEq : Value → Value → Result
   | v₁, v₂ => throw s!"expected numeric values, got\n  {v₁} and {v₂}"
 
 def numLt : Value → Value → Result
-  | .num x, .num y => return decide (x < y)
+  | .num x, .num y => return F.lt x y
   | .u64 x, .u64 y => return decide (x < y)
-  | .num x, .u64 y => return decide (x < (.ofNat y.toNat))
-  | .u64 x, .num y => return decide ((.ofNat x.toNat) < y)
+  | .num x, .u64 y => return F.lt x (.ofNat y.toNat)
+  | .u64 x, .num y => return F.lt (.ofNat x.toNat) y
   | v₁, v₂ => throw s!"expected numeric values, got\n  {v₁} and {v₂}"
 
 def numGt : Value → Value → Result
-  | .num x, .num y => return decide (x > y)
+  | .num x, .num y => return F.gt x y
   | .u64 x, .u64 y => return decide (x > y)
-  | .num x, .u64 y => return decide (x > (.ofNat y.toNat))
-  | .u64 x, .num y => return decide ((.ofNat x.toNat) > y)
+  | .num x, .u64 y => return F.gt x (.ofNat y.toNat)
+  | .u64 x, .num y => return F.gt (.ofNat x.toNat) y
   | v₁, v₂ => throw s!"expected numeric values, got\n  {v₁} and {v₂}"
 
 def numLe : Value → Value → Result
-  | .num x, .num y => return decide (x <= y)
-  | .u64 x, .u64 y => return decide (x <= y)
-  | .num x, .u64 y => return decide (x <= (.ofNat y.toNat))
-  | .u64 x, .num y => return decide ((.ofNat x.toNat) <= y)
+  | .num x, .num y => return F.le x y
+  | .u64 x, .u64 y => return decide (x < y)
+  | .num x, .u64 y => return F.le x (.ofNat y.toNat)
+  | .u64 x, .num y => return F.le (.ofNat x.toNat) y
   | v₁, v₂ => throw s!"expected numeric values, got\n  {v₁} and {v₂}"
 
 def numGe : Value → Value → Result
-  | .num x, .num y => return decide (x >= y)
-  | .u64 x, .u64 y => return decide (x >= y)
-  | .num x, .u64 y => return decide (x >= (.ofNat y.toNat))
-  | .u64 x, .num y => return decide ((.ofNat x.toNat) >= y)
+  | .num x, .num y => return F.ge x y
+  | .u64 x, .u64 y => return decide (x < y)
+  | .num x, .u64 y => return F.ge x (.ofNat y.toNat)
+  | .u64 x, .num y => return F.ge (.ofNat x.toNat) y
   | v₁, v₂ => throw s!"expected numeric values, got\n  {v₁} and {v₂}"
 
 def Expr.evalOp₁ : Op₁ → Value → Result

@@ -575,6 +575,9 @@ def closure : Test :=
 def any_non_nil_is_true : Test :=
   (some 1, ⟦(IF (cons 3 4) 1 0)⟧)
 
+def overflow : Test :=
+  (some .nil, ⟦(< 1 (- 0 1))⟧)
+
 def pairs : List Test := [
   outer_evaluate,
   outer_evaluate2,
@@ -655,7 +658,8 @@ def pairs : List Test := [
   strcons_char_char,
   car_unicode_char,
   closure,
-  any_non_nil_is_true
+  any_non_nil_is_true,
+  overflow
 ]
 
 open LSpec in
