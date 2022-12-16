@@ -203,14 +203,14 @@ def numGt : Value → Value → Result
 
 def numLe : Value → Value → Result
   | .num x, .num y => return F.le x y
-  | .u64 x, .u64 y => return decide (x < y)
+  | .u64 x, .u64 y => return decide (x <= y)
   | .num x, .u64 y => return F.le x (.ofNat y.toNat)
   | .u64 x, .num y => return F.le (.ofNat x.toNat) y
   | v₁, v₂ => throw s!"expected numeric values, got\n  {v₁} and {v₂}"
 
 def numGe : Value → Value → Result
   | .num x, .num y => return F.ge x y
-  | .u64 x, .u64 y => return decide (x < y)
+  | .u64 x, .u64 y => return decide (x >= y)
   | .num x, .u64 y => return F.ge x (.ofNat y.toNat)
   | .u64 x, .num y => return F.ge (.ofNat x.toNat) y
   | v₁, v₂ => throw s!"expected numeric values, got\n  {v₁} and {v₂}"
