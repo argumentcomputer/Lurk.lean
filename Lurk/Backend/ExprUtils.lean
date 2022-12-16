@@ -51,7 +51,7 @@ def containsCurrentEnv : Expr → Bool
   | _ => false
 
 /-- Eagerly remove unecessary binders from `let` and `letrec` blocks. -/
-partial def pruneBlocks (letAtoms : Std.RBMap String Expr compare) : Expr → Expr
+partial def pruneBlocks (letAtoms : Std.RBMap String Expr compare := default) : Expr → Expr
   | x@(.letrec s v b)
   | x@(.let s v b) =>
     let letrec := x matches .letrec _ _ _
