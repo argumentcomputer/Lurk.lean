@@ -46,7 +46,6 @@ inductive Op₁
   | num | u64 | char
   deriving Repr, BEq
 
-open Std Format in
 def Op₁.toFormat : Op₁ → Format
 | .atom   => "ATOM"
 | .car    => "CAR"
@@ -69,7 +68,6 @@ inductive Op₂
   | hide
   deriving Repr, BEq
 
-open Std Format in
 def Op₂.toFormat : Op₂ → Format
   | .cons    => "CONS"
   | .strcons => "STRCONS"
@@ -89,6 +87,15 @@ def Op₂.toString := ToString.toString ∘ Op₂.toFormat
 
 instance : Std.ToFormat Op₂ := ⟨Op₂.toFormat⟩
 
+inductive Datum
+  | num  : Fin N  → Datum
+  | u64  : UInt64 → Datum
+  | char : Char   → Datum
+  | str  : String → Datum
+  | sym  : String → Datum
+  | cons : Datum  → Datum → Datum
+  deriving Inhabited, BEq
+
 inductive Expr
   | atom : Atom → Expr
   | sym : String → Expr
@@ -102,8 +109,8 @@ inductive Expr
   | lambda : String → Expr → Expr
   | «let»  : String → Expr → Expr → Expr
   | letrec : String → Expr → Expr → Expr
-  | quote : Expr → Expr
-  deriving Repr, Inhabited, BEq
+  | quote : Datum → Expr
+  deriving Inhabited, BEq
 
 namespace Expr
 
@@ -147,7 +154,32 @@ def telescopeBegin : Expr → Array Expr
   | .begin e₁ e₂ => e₁.telescopeBegin ++ e₂.telescopeBegin
   | x => #[x]
 
-open Std Format in
+def telescopeDatumCons (acc : Array Datum := #[]) : Datum → Array Datum × Datum
+  | .cons x y => telescopeDatumCons (acc.push x) y
+  | x => (acc, x)
+
+open Format
+
+partial def datumFormat : Datum → Format
+  | .num x | .sym x => format x
+  | .u64 x => s!"{x}u64"
+  | .char c => s!"#\\{c}"
+  | .str s => s!"\"{s}\""
+  | x@(.cons ..) =>
+    match telescopeDatumCons #[] x with
+    | (xs, .sym "NIL") => paren $ fmtList xs.data
+    | (xs, y) => paren $ fmtList xs.data ++ line ++ "." ++ line ++ (datumFormat y)
+where
+  fmtList : List Datum → Format
+    | [] => .nil
+    | x::xs => xs.foldl (fun acc x => acc ++ line ++ (datumFormat x)) (datumFormat x)
+
+def datumString : Datum → String :=
+  toString ∘ datumFormat
+
+instance : ToFormat Datum := ⟨datumFormat⟩
+instance : ToString Datum := ⟨datumString⟩
+
 partial def toFormat (esc := false) (e : Expr) : Format :=
   have : ToFormat Expr := ⟨toFormat⟩
   match e with
@@ -185,7 +217,7 @@ where
 def toString (esc := false) : Expr → String :=
   ToString.toString ∘ toFormat esc
 
-instance : Std.ToFormat Expr := ⟨toFormat⟩
+instance : ToFormat Expr := ⟨toFormat⟩
 instance : ToString Expr := ⟨toString⟩
 
 end Lurk.Backend.Expr

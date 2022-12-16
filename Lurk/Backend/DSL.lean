@@ -95,36 +95,27 @@ def elabOp₂ : TSyntax `op₂ → TermElabM Lean.Expr
   | `(op₂| >=) => return mkConst ``Op₂.ge
   | _ => throwUnsupportedSyntax
 
-declare_syntax_cat          sym
-scoped syntax ident       : sym
-scoped syntax "|" sym "|" : sym
-
-def elabSymStr : TSyntax `sym → TermElabM Lean.Expr
-  | `(sym| $i:ident) => return mkStrLit i.getId.toString
-  | `(sym| |$i:ident|) => return mkStrLit i.getId.toString
-  | _ => throwUnsupportedSyntax
-
-declare_syntax_cat                         expr
-scoped syntax atom_                      : expr
-scoped syntax sym                        : expr
-scoped syntax "(" "current-env" ")"      : expr
-scoped syntax "(" "CURRENT-ENV" ")"      : expr
-scoped syntax op₁ expr                   : expr
-scoped syntax op₂ expr expr              : expr
-scoped syntax "begin" expr*              : expr
-scoped syntax "BEGIN" expr*              : expr
-scoped syntax "if" expr expr expr        : expr
-scoped syntax "IF" expr expr expr        : expr
-scoped syntax "(" expr+ ")"              : expr
-scoped syntax "lambda" "(" sym* ")" expr : expr
-scoped syntax "LAMBDA" "(" sym* ")" expr : expr
-scoped syntax "quote" expr               : expr
-scoped syntax "QUOTE" expr               : expr
-scoped syntax "," expr                   : expr
-scoped syntax "(" expr ")"               : expr
+declare_syntax_cat                           expr
+scoped syntax atom_                        : expr
+scoped syntax ident                        : expr
+scoped syntax "(" "current-env" ")"        : expr
+scoped syntax "(" "CURRENT-ENV" ")"        : expr
+scoped syntax op₁ expr                     : expr
+scoped syntax op₂ expr expr                : expr
+scoped syntax "begin" expr*                : expr
+scoped syntax "BEGIN" expr*                : expr
+scoped syntax "if" expr expr expr          : expr
+scoped syntax "IF" expr expr expr          : expr
+scoped syntax "(" expr+ ")"                : expr
+scoped syntax "lambda" "(" ident* ")" expr : expr
+scoped syntax "LAMBDA" "(" ident* ")" expr : expr
+scoped syntax "quote" expr                 : expr
+scoped syntax "QUOTE" expr                 : expr
+scoped syntax "," expr                     : expr
+scoped syntax "(" expr ")"                 : expr
 
 declare_syntax_cat binder
-scoped syntax "(" sym expr ")" : binder
+scoped syntax "(" ident expr ")" : binder
 
 scoped syntax "let"    "(" binder* ")" expr : expr
 scoped syntax "LET"    "(" binder* ")" expr : expr
@@ -136,8 +127,8 @@ mutual
 partial def elabExpr : TSyntax `expr → TermElabM Lean.Expr
   | `(expr| $a:atom_) => do mkAppM ``Expr.atom #[← elabAtom a]
   | `(expr| ($a:atom_)) => do mkAppM ``Expr.app₀ #[← mkAppM ``Expr.atom #[← elabAtom a]]
-  | `(expr| $s:sym) => do mkAppM ``Expr.sym #[← elabSymStr s]
-  | `(expr| ($s:sym)) => do mkAppM ``Expr.app₀ #[← mkAppM ``Expr.sym #[← elabSymStr s]]
+  | `(expr| $s:ident) => do mkAppM ``Expr.sym #[mkStrLit s.getId.toString]
+  | `(expr| ($s:ident)) => do mkAppM ``Expr.app₀ #[← mkAppM ``Expr.sym #[mkStrLit s.getId.toString]]
   | `(expr| (current-env)) | `(expr| (CURRENT-ENV)) => return mkConst ``Expr.env
   | `(expr| $o:op₁ $e:expr) => do mkAppM ``Expr.op₁ #[← elabOp₁ o, ← elabExpr e]
   | `(expr| $o:op₂ $e₁:expr $e₂:expr) => do
@@ -158,11 +149,11 @@ partial def elabExpr : TSyntax `expr → TermElabM Lean.Expr
   | `(expr| ((LAMBDA () $b:expr)))
   | `(expr| ((lambda () $b:expr))) => do
     mkAppM ``Expr.app₀ #[← mkAppM ``Expr.lambda #[mkStrLit "_", ← elabExpr b]]
-  | `(expr| LAMBDA ($ss:sym* $s:sym) $b:expr)
-  | `(expr| lambda ($ss:sym* $s:sym) $b:expr) => do
-    let init ← mkAppM ``Expr.lambda #[← elabSymStr s, ← elabExpr b]
+  | `(expr| LAMBDA ($ss:ident* $s:ident) $b:expr)
+  | `(expr| lambda ($ss:ident* $s:ident) $b:expr) => do
+    let init ← mkAppM ``Expr.lambda #[mkStrLit s.getId.toString, ← elabExpr b]
     ss.foldrM (init := init) fun s acc => do
-      mkAppM ``Expr.lambda #[← elabSymStr s, acc]
+      mkAppM ``Expr.lambda #[mkStrLit s.getId.toString, acc]
   | `(expr| LET () $bd:expr)
   | `(expr| let () $bd:expr) => elabExpr bd
   | `(expr| LET ($bs:binder* $b:binder) $bd:expr)
@@ -191,7 +182,7 @@ partial def elabExpr : TSyntax `expr → TermElabM Lean.Expr
     else throwUnsupportedSyntax
 
 partial def elabBinder : TSyntax `binder → TermElabM (Lean.Expr × Lean.Expr)
-  | `(binder| ($s:sym $v:expr)) => return (← elabSymStr s, ← elabExpr v)
+  | `(binder| ($s:ident $v:expr)) => return (mkStrLit s.getId.toString, ← elabExpr v)
   | _ => throwUnsupportedSyntax
 
 end
