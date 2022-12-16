@@ -127,13 +127,13 @@ partial def Env.eq (e₁ e₂ : Env) : Bool :=
     (e₂.toArray.data.map fun (s, v) => (s, v.get))
 
 partial def Value.beq : Value → Value → Bool
-  | .num   x, .num y => x == y
-  | .u64   x, .u64   y => x == y
-  | .char  x, .char  y => x == y
-  | .str   x, .str   y => x == y
-  | .sym   x, .sym   y => x == y
-  | .cons x y, .cons x' y' => x.beq x' && y.beq y'
-  | .comm c₁, .comm c₂ => c₁ == c₂
+  | .num    x, .num    y => x == y
+  | .u64    x, .u64    y => x == y
+  | .char   x, .char   y => x == y
+  | .str    x, .str    y => x == y
+  | .sym    x, .sym    y => x == y
+  | .cons x y, .cons w z => x.beq w && y.beq z
+  | .comm c₁,  .comm c₂  => c₁ == c₂
   | .fun ns₁ env₁ e₁, .fun ns₂ env₂ e₂ => ns₁ == ns₂ && env₁.eq env₂ && e₁ == e₂
   | _, _ => false
 

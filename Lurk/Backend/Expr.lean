@@ -110,6 +110,8 @@ instance : ToDatum String where
 instance [ToDatum α] : ToDatum (List α) where
   toDatum as := as.foldl (fun acc a => .cons acc (toDatum a)) (.sym "NIL")
 
+instance [ToDatum α] : ToDatum (Array α) := ⟨toDatum ∘ Array.toList⟩
+
 inductive Expr
   | atom : Atom → Expr
   | sym : String → Expr
