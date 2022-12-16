@@ -107,6 +107,9 @@ instance : ToDatum Nat where
 instance : ToDatum String where
   toDatum := .str
 
+instance [ToDatum α] : ToDatum (List α) where
+  toDatum as := as.foldl (fun acc a => .cons acc (toDatum a)) (.sym "NIL")
+
 inductive Expr
   | atom : Atom → Expr
   | sym : String → Expr
