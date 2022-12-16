@@ -45,6 +45,14 @@ def asBindings : AST → Except String (List (String × AST))
   | .cons ~[.sym x, y] xs => return (x, y) :: (← xs.asBindings)
   | x => throw s!"expected list of (symbol, body) pairs but got {x}"
 
+def toDatum : AST → Backend.Datum
+  | .num x => .num (.ofNat x)
+  | .char x => .char x
+  | .str x => .str x
+  | .sym "NIL" => .nil
+  | .sym x => .sym x
+  | .cons x y => .cons x.toDatum y.toDatum
+
 partial def toExpr : AST → Except String Expr
   -- trivial cases
   | .nil     => return .atom .nil
@@ -83,7 +91,7 @@ partial def toExpr : AST → Except String Expr
     return bindings.foldr (init := ← body.toExpr)
       fun (n, e) acc => .letrec n e acc
   -- quoting consumes the expression as-is
-  | ~[.sym "QUOTE", x] => return .quote (← x.toExpr)
+  | ~[.sym "QUOTE", x] => return .quote x.toDatum
   -- binary operators
   | ~[.sym op₂, x, y] => return mkOp₂ op₂ (← x.toExpr) (← y.toExpr)
   -- unary operators

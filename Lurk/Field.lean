@@ -25,4 +25,22 @@ instance : Inhabited F := ⟨.ofNat 0⟩
 @[inline] def F.ofBytes (bytes : ByteArray) : F :=
   .ofNat bytes.asLEtoNat
 
+def F.lt (x y : F) : Bool :=
+  match (decide $ x.val < N / 2, decide $ y.val < N / 2) with
+    | (true, false) => false
+    | (false, true) => true
+    | _ => x < y
+
+def F.le (x y : F) : Bool :=
+  match (decide $ x.val < N / 2, decide $ y.val < N / 2) with
+    | (true, false) => false
+    | (false, true) => true
+    | _ => x <= y
+
+@[inline] def F.gt (x y : F) : Bool :=
+  F.lt y x
+
+@[inline] def F.ge (x y : F) : Bool :=
+  F.le y x
+
 end Lurk
