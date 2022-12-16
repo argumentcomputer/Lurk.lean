@@ -51,33 +51,38 @@ def containsCurrentEnv : Expr → Bool
   | _ => false
 
 /-- Eagerly remove unecessary binders from `let` and `letrec` blocks. -/
-partial def pruneBlocks : Expr → Expr
+partial def pruneBlocks (letAtoms : Std.RBMap String Expr compare) : Expr → Expr
+  | x@(.letrec s v b)
   | x@(.let s v b) =>
+    let letrec := x matches .letrec _ _ _
     let (bs, b) := b.telescopeLet #[(s, v)]
     if b.containsCurrentEnv then x else
-    let bs := bs.foldr (init := (default, b.getFreeVars))
+    -- remove unused binders
+    let (bs, _) := bs.foldr (init := (default, b.getFreeVars))
       fun (s, v) (accBinders, accFVars) =>
         if accFVars.contains s then
-          ((s, v.pruneBlocks) :: accBinders, accFVars.union v.getFreeVars)
+          ((s, v) :: accBinders, accFVars.union $ v.getFreeVars (if letrec then .single s else default)) -- if letrec, s is not free in v
         else (accBinders, accFVars) -- drop binder
-    mkLet bs.1 b.pruneBlocks
-  | x@(.letrec s v b) =>
-    let (bs, b) := b.telescopeLet #[(s, v)]
-    if b.containsCurrentEnv then x else
-    let bs := bs.foldr (init := (default, b.getFreeVars))
-      fun (s, v) (accBinders, accFVars) =>
-        if accFVars.contains s then
-          ((s, v.pruneBlocks) :: accBinders,
-            accFVars.union $ v.getFreeVars (.single s)) -- s is not free in v)
-        else (accBinders, accFVars) -- drop binder
-    mkLetrec bs.1 b.pruneBlocks
-  | .op₁    o e => .op₁ o e.pruneBlocks
-  | .app₀     e => .app₀ e.pruneBlocks
-  | .lambda s e => .lambda s e.pruneBlocks
-  | .op₂    o e₁ e₂ => .op₂ o e₁.pruneBlocks e₂.pruneBlocks
-  | .begin    e₁ e₂ => .begin e₁.pruneBlocks e₂.pruneBlocks
-  | .app      e₁ e₂ => .app e₁.pruneBlocks e₂.pruneBlocks
-  | .if       e₁ e₂ e₃ => .if e₁.pruneBlocks e₂.pruneBlocks e₃.pruneBlocks
+    -- remove atom binders
+    let (bs, letAtoms) := bs.foldl (init := (default, letAtoms))
+      fun (accBinders, letAtoms) (s, v) =>
+        if v matches (.atom _) then
+          (accBinders, letAtoms.insert s v) -- drop binder
+        else ((accBinders ++ [(s, v.pruneBlocks letAtoms)]), letAtoms)
+    if letrec then
+      mkLet bs (b.pruneBlocks letAtoms)
+    else
+      mkLetrec bs (b.pruneBlocks letAtoms)
+  | .op₁    o e => .op₁ o (e.pruneBlocks letAtoms)
+  | .app₀     e => .app₀ (e.pruneBlocks letAtoms)
+  | .lambda s e => .lambda s (e.pruneBlocks letAtoms)
+  | .sym    n   => match letAtoms.find? n with -- replace atom binders
+                   | .some expr => expr
+                   | .none => .sym n
+  | .op₂    o e₁ e₂ => .op₂ o (e₁.pruneBlocks letAtoms) (e₂.pruneBlocks letAtoms)
+  | .begin    e₁ e₂ => .begin (e₁.pruneBlocks letAtoms) (e₂.pruneBlocks letAtoms)
+  | .app      e₁ e₂ => .app (e₁.pruneBlocks letAtoms) (e₂.pruneBlocks letAtoms)
+  | .if       e₁ e₂ e₃ => .if (e₁.pruneBlocks letAtoms) (e₂.pruneBlocks letAtoms) (e₃.pruneBlocks letAtoms)
   | x => x
 
 def replaceFreeVars (map : Std.RBMap String Expr compare) : Expr → Expr
