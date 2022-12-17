@@ -67,7 +67,10 @@ partial def pruneBlocks (letAtoms : Std.RBMap String Expr compare := default) : 
     -- remove atom binders
     let (bs, letAtoms) := bs.foldl (init := (default, letAtoms))
       fun (accBinders, letAtoms) (s, v) =>
-        if v matches (.atom _) then
+        let isSym := match v with
+        | .sym s' => not letrec || s' != s -- handle the annoying (and perhaps unnecessary) `letrec r r` edge case
+        | _ => false
+        if v matches (.atom _) || isSym then
           (accBinders, letAtoms.insert s v) -- drop binder
         else ((accBinders ++ [(s, v.pruneBlocks letAtoms)]), letAtoms.erase s)
     if letrec then

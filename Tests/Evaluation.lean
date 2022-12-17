@@ -667,10 +667,16 @@ def prunes_unused_letrec : PruneTest :=
 (⟦5⟧, ⟦(letrec ((unused (lambda (x) 5))) 5)⟧)
 
 def prunes_atom_let : PruneTest :=
-(⟦5⟧, ⟦(let ((atm 10)) 5)⟧)
+(⟦10⟧, ⟦(let ((atm 10)) atm)⟧)
 
 def prunes_atom_letrec : PruneTest :=
-(⟦5⟧, ⟦(letrec ((atm 10)) 5)⟧)
+(⟦10⟧, ⟦(letrec ((atm 10)) atm)⟧)
+
+def prunes_sym_let : PruneTest :=
+(⟦y⟧, ⟦(let ((sym y)) sym)⟧)
+
+def prunes_sym_letrec : PruneTest :=
+(⟦y⟧, ⟦(letrec ((sym y)) sym)⟧)
 
 def prunes_tricky_letrec : PruneTest :=
 (⟦(letrec ((r r)) r)⟧, ⟦(letrec ((r 5) (r r)) r)⟧)
@@ -686,6 +692,8 @@ def prunePairs : List PruneTest := [
   prunes_unused_letrec,
   prunes_atom_let,
   prunes_atom_letrec,
+  prunes_sym_let,
+  prunes_sym_letrec,
   prunes_tricky_letrec,
   prunes_multiple_atoms,
   prunes_overriden_atom
