@@ -675,12 +675,20 @@ def prunes_atom_letrec : PruneTest :=
 def prunes_tricky_letrec : PruneTest :=
 (⟦(letrec ((r r)) r)⟧, ⟦(letrec ((r 5) (r r)) r)⟧)
 
+def prunes_multiple_atoms : PruneTest :=
+(⟦1⟧, ⟦(let ((r 5) (r 1)) r)⟧)
+
+def prunes_overriden_atom : PruneTest :=
+(⟦(let ((r (lambda (x) 5))) r)⟧, ⟦(let ((r 5) (r (lambda (x) r))) r)⟧)
+
 def prunePairs : List PruneTest := [
   prunes_unused_let,
   prunes_unused_letrec,
   prunes_atom_let,
   prunes_atom_letrec,
-  prunes_tricky_letrec
+  prunes_tricky_letrec,
+  prunes_multiple_atoms,
+  prunes_overriden_atom
 ]
 
 open LSpec in

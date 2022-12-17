@@ -69,7 +69,7 @@ partial def pruneBlocks (letAtoms : Std.RBMap String Expr compare := default) : 
       fun (accBinders, letAtoms) (s, v) =>
         if v matches (.atom _) then
           (accBinders, letAtoms.insert s v) -- drop binder
-        else ((accBinders ++ [(s, v.pruneBlocks letAtoms)]), letAtoms)
+        else ((accBinders ++ [(s, v.pruneBlocks letAtoms)]), letAtoms.erase s)
     if letrec then
       mkLetrec bs (b.pruneBlocks letAtoms)
     else
