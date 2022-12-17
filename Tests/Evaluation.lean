@@ -687,6 +687,9 @@ def prunes_multiple_atoms : PruneTest :=
 def prunes_overriden_atom : PruneTest :=
 (⟦(let ((r (lambda (x) 5))) r)⟧, ⟦(let ((r 5) (r (lambda (x) r))) r)⟧)
 
+def prunes_transitive_symbols : PruneTest :=
+(⟦1⟧, ⟦(let ((a 1) (b a)) b)⟧)
+
 def prunePairs : List PruneTest := [
   prunes_unused_let,
   prunes_unused_letrec,
@@ -696,7 +699,8 @@ def prunePairs : List PruneTest := [
   prunes_sym_letrec,
   prunes_tricky_letrec,
   prunes_multiple_atoms,
-  prunes_overriden_atom
+  prunes_overriden_atom,
+  prunes_transitive_symbols
 ]
 
 open LSpec in
