@@ -658,11 +658,39 @@ def pairs : List Test := [
   any_non_nil_is_true
 ]
 
+abbrev PruneTest := Expr × Expr
+
+def prunes_unused_let : PruneTest :=
+(⟦5⟧, ⟦(let ((unused (lambda (x) 5))) 5)⟧)
+
+def prunes_unused_letrec : PruneTest :=
+(⟦5⟧, ⟦(letrec ((unused (lambda (x) 5))) 5)⟧)
+
+def prunes_atom_let : PruneTest :=
+(⟦5⟧, ⟦(let ((atm 10)) 5)⟧)
+
+def prunes_atom_letrec : PruneTest :=
+(⟦5⟧, ⟦(letrec ((atm 10)) 5)⟧)
+
+def prunes_tricky_letrec : PruneTest :=
+(⟦(letrec ((r r)) r)⟧, ⟦(letrec ((r 5) (r r)) r)⟧)
+
+def prunePairs : List PruneTest := [
+  prunes_unused_let,
+  prunes_unused_letrec,
+  prunes_atom_let,
+  prunes_atom_letrec,
+  prunes_tricky_letrec
+]
+
 open LSpec in
 def main := lspecIO $
-  pairs.foldl (init := .done) fun tSeq pair =>
+  let tests := pairs.foldl (init := .done) fun tSeq pair =>
     let (expect, e) := (pair : Test)
     tSeq ++ match expect with
       | none => withExceptError s!"{e} fails on evaluation" e.eval fun _ => .done
       | some expect => withExceptOk s!"{e.anon} evaluation succeeds" e.anon.eval
         fun res => test s!"{e} evaluates to {expect}" (res == expect)
+  prunePairs.foldl (init := tests) fun tSeq pair =>
+    let (expect, e) := (pair : PruneTest)
+    tSeq ++ test s!"{e} prunes to {expect}" (e.pruneBlocks == expect)
