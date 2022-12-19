@@ -28,13 +28,13 @@ namespace Value
 
 /- The following metaprogramming layer is merely for testing -/
 
-declare_syntax_cat                      value
-scoped syntax ident                   : value
-scoped syntax char                    : value
-scoped syntax num                     : value
-scoped syntax str                     : value
-scoped syntax "(" value "." value ")" : value
-scoped syntax "(" value+ ")"          : value
+declare_syntax_cat                        value
+scoped syntax ident                     : value
+scoped syntax char                      : value
+scoped syntax num                       : value
+scoped syntax str                       : value
+scoped syntax "(" value " . " value ")" : value
+scoped syntax "(" value+ ")"            : value
 
 open Lean Meta Elab Term in
 partial def elabValue : Lean.TSyntax `value → TermElabM Lean.Expr
@@ -227,7 +227,7 @@ def Expr.evalOp₁ : Op₁ → Value → Result
   | .cdr, (.str ⟨_::t⟩) => return (.str ⟨t⟩)
   | .cdr, v => throw s!"expected cons value, got\n  {v}"
   | .emit, v => dbg_trace v; return v
-  | .commit, _ => throw "TODO commit"
+  | .commit, v => return .u64 v.toString.hash
   | .comm, ((.num n)) => return .comm n
   | .comm, v => throw s!"expected a num, got\n  {v}"
   | .open, _ => throw "TODO open"
