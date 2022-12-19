@@ -8,7 +8,7 @@ declare_syntax_cat                      datum
 scoped syntax num                     : datum
 scoped syntax str                     : datum
 scoped syntax ident                   : datum
-scoped syntax "(" datum "." datum ")" : datum
+scoped syntax "(" datum " . " datum ")" : datum
 scoped syntax "(" datum* ")"          : datum
 
 partial def elabDatum : TSyntax `datum → TermElabM Lean.Expr
