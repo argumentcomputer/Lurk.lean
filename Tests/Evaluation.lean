@@ -711,8 +711,6 @@ def prunePairs : List PruneTest := [
   does_not_inline_bound_values
 ]
 
-instance : ToString (String × Frames) := ⟨Prod.fst⟩
-
 open LSpec in
 def main := lspecIO $
   let tests := pairs.foldl (init := .done) fun tSeq pair =>

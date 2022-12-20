@@ -1,4 +1,5 @@
 import Lurk.Backend.Expr
+import Lurk.Backend.ExprUtils
 import Std.Data.RBMap
 
 namespace Lurk.Backend
@@ -120,12 +121,22 @@ def toRBMap : Env → Std.RBMap String (Thunk Result) compare
 
 end Env
 
-def Frames.toString : Frames → String
-  | .mk frames => sorry
+instance : ToString (String × Frames) := ⟨Prod.fst⟩
 
-instance : ToString Frames := ⟨Frames.toString⟩
-
-#exit
+def Frames.pprint (n : Nat) : Frames → String
+  | .mk frames =>
+    let rec aux (acc : String) : List (Expr × Env) → String
+      | [] => acc
+      | f :: fs => aux (frameToString f) fs
+    aux default (frames.take n)
+where
+  frameToString : Expr × Env → String
+    | (e, env) =>
+      let fVars := e.getFreeVars
+      -- considering relevant variables, only
+      let env := env.toRBMap |>.filter fun s _ => fVars.contains s
+      env.foldl (init := "#####################################") fun acc s v =>
+        match v.get with | .ok x | .error x => s!"{acc}\n{s} → {x}"
 
 mutual
 
