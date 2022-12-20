@@ -152,115 +152,118 @@ instance : Coe String Value := ⟨.str⟩
 instance : OfNat Value n where
   ofNat := .num (.ofNat n)
 
-def numAdd : Value → Value → Result
+def error (e : Expr) (msg : String) : Result :=
+  throw s!"Error when evaluating {e}:\n{msg}"
+
+def numAdd (e : Expr) : Value → Value → Result
   | .num x, .num y => return .num (x + y)
   | .u64 x, .u64 y => return .u64 (x + y)
   | .num x, .u64 y => return .num (x + (.ofNat y.toNat))
   | .u64 x, .num y => return .num ((.ofNat x.toNat) + y)
-  | v₁, v₂ => throw s!"expected numeric values, got\n  {v₁} and {v₂}"
+  | v₁, v₂ => error e s!"expected numeric values, got\n  {v₁} and {v₂}"
 
-def numSub : Value → Value → Result
+def numSub (e : Expr) : Value → Value → Result
   | .num x, .num y => return .num (x - y)
   | .u64 x, .u64 y => return .u64 (x - y)
   | .num x, .u64 y => return .num (x - (.ofNat y.toNat))
   | .u64 x, .num y => return .num ((.ofNat x.toNat) - y)
-  | v₁, v₂ => throw s!"expected numeric values, got\n  {v₁} and {v₂}"
+  | v₁, v₂ => error e s!"expected numeric values, got\n  {v₁} and {v₂}"
 
-def numMul : Value → Value → Result
+def numMul (e : Expr) : Value → Value → Result
   | .num x, .num y => return .num (x * y)
   | .u64 x, .u64 y => return .u64 (x * y)
   | .num x, .u64 y => return .num (x * (.ofNat y.toNat))
   | .u64 x, .num y => return .num ((.ofNat x.toNat) * y)
-  | v₁, v₂ => throw s!"expected numeric values, got\n  {v₁} and {v₂}"
+  | v₁, v₂ => error e s!"expected numeric values, got\n  {v₁} and {v₂}"
 
-def numDiv : Value → Value → Result
+def numDiv (e : Expr) : Value → Value → Result
   | .num x, .num y => return .num (x / y)
   | .u64 x, .u64 y => return .u64 (x / y)
   | .num x, .u64 y => return .num (x / (.ofNat y.toNat))
   | .u64 x, .num y => return .num ((.ofNat x.toNat) / y)
-  | v₁, v₂ => throw s!"expected numeric values, got\n  {v₁} and {v₂}"
+  | v₁, v₂ => error e s!"expected numeric values, got\n  {v₁} and {v₂}"
 
-def numEq : Value → Value → Result
+def numEq (e : Expr) : Value → Value → Result
   | .num x, .num y => return decide (x == y)
   | .u64 x, .u64 y => return decide (x == y)
   | .num x, .u64 y => return decide (x == (.ofNat y.toNat))
   | .u64 x, .num y => return decide ((.ofNat x.toNat) == y)
-  | v₁, v₂ => throw s!"expected numeric values, got\n  {v₁} and {v₂}"
+  | v₁, v₂ => error e s!"expected numeric values, got\n  {v₁} and {v₂}"
 
-def numLt : Value → Value → Result
+def numLt (e : Expr) : Value → Value → Result
   | .num x, .num y => return F.lt x y
   | .u64 x, .u64 y => return decide (x < y)
   | .num x, .u64 y => return F.lt x (.ofNat y.toNat)
   | .u64 x, .num y => return F.lt (.ofNat x.toNat) y
-  | v₁, v₂ => throw s!"expected numeric values, got\n  {v₁} and {v₂}"
+  | v₁, v₂ => error e s!"expected numeric values, got\n  {v₁} and {v₂}"
 
-def numGt : Value → Value → Result
+def numGt (e : Expr) : Value → Value → Result
   | .num x, .num y => return F.gt x y
   | .u64 x, .u64 y => return decide (x > y)
   | .num x, .u64 y => return F.gt x (.ofNat y.toNat)
   | .u64 x, .num y => return F.gt (.ofNat x.toNat) y
-  | v₁, v₂ => throw s!"expected numeric values, got\n  {v₁} and {v₂}"
+  | v₁, v₂ => error e s!"expected numeric values, got\n  {v₁} and {v₂}"
 
-def numLe : Value → Value → Result
+def numLe (e : Expr) : Value → Value → Result
   | .num x, .num y => return F.le x y
   | .u64 x, .u64 y => return decide (x <= y)
   | .num x, .u64 y => return F.le x (.ofNat y.toNat)
   | .u64 x, .num y => return F.le (.ofNat x.toNat) y
-  | v₁, v₂ => throw s!"expected numeric values, got\n  {v₁} and {v₂}"
+  | v₁, v₂ => error e s!"expected numeric values, got\n  {v₁} and {v₂}"
 
-def numGe : Value → Value → Result
+def numGe (e : Expr) : Value → Value → Result
   | .num x, .num y => return F.ge x y
   | .u64 x, .u64 y => return decide (x >= y)
   | .num x, .u64 y => return F.ge x (.ofNat y.toNat)
   | .u64 x, .num y => return F.ge (.ofNat x.toNat) y
-  | v₁, v₂ => throw s!"expected numeric values, got\n  {v₁} and {v₂}"
+  | v₁, v₂ => error e s!"expected numeric values, got\n  {v₁} and {v₂}"
 
-def Expr.evalOp₁ : Op₁ → Value → Result
+def Expr.evalOp₁ (e : Expr) : Op₁ → Value → Result
   | .atom, .cons .. => return .nil
   | .atom, _ => return .t
   | .car, .cons car _ => return car
-  | .car, (.str ⟨[]⟩) => return .nil
-  | .car, (.str ⟨h::_⟩) => return (.char h)
-  | .car, v => throw s!"expected cons value, got\n  {v}"
+  | .car, .str ⟨[]⟩ => return .nil
+  | .car, .str ⟨h::_⟩ => return .char h
+  | .car, v => error e s!"expected cons value, got\n  {v}"
   | .cdr, .cons _ cdr => return cdr
-  | .cdr, (.str ⟨[]⟩) => return (.str "")
-  | .cdr, (.str ⟨_::t⟩) => return (.str ⟨t⟩)
-  | .cdr, v => throw s!"expected cons value, got\n  {v}"
+  | .cdr, .str ⟨[]⟩ => return .str ""
+  | .cdr, .str ⟨_::t⟩ => return .str ⟨t⟩
+  | .cdr, v => error e s!"expected cons value, got\n  {v}"
   | .emit, v => dbg_trace v; return v
   | .commit, v => return .u64 v.toString.hash
-  | .comm, ((.num n)) => return .comm n
-  | .comm, v => throw s!"expected a num, got\n  {v}"
-  | .open, _ => throw "TODO open"
-  | .num, x@((.num _)) => return x
-  | .num, (.u64 n) => return (.num (.ofNat n.toNat))
-  | .num, (.char c) => return .num (.ofNat c.toNat)
-  | .num, .comm c => return (.num c)
-  | .num, v => throw s!"expected char, num, u64, or comm value, got\n  {v}"
-  | .u64, x@((.u64 _)) => return x
-  | .u64, (.num n) => return (.u64 (.ofNat n.val))
-  | .u64, v => throw s!"expected num or u64, got\n  {v}"
-  | .char, (.char c) => return (.char c)
-  | .char, (.num ⟨n, _⟩) =>
+  | .comm, .num n => return .comm n
+  | .comm, v => error e s!"expected a num, got\n  {v}"
+  | .open, _ => error e "TODO open"
+  | .num, x@(.num _) => return x
+  | .num, .u64 n => return .num (.ofNat n.toNat)
+  | .num, .char c => return .num (.ofNat c.toNat)
+  | .num, .comm c => return .num c
+  | .num, v => error e s!"expected char, num, u64, or comm value, got\n  {v}"
+  | .u64, x@(.u64 _) => return x
+  | .u64, .num n => return .u64 (.ofNat n.val)
+  | .u64, v => error e s!"expected num or u64, got\n  {v}"
+  | .char, .char c => return .char c
+  | .char, .num ⟨n, _⟩ =>
     let charVal := n.toUInt32
-    if h : isValidChar charVal then return (.char ⟨charVal, h⟩)
-    else throw s!"{charVal} is not a valid char value"
-  | .char, v => throw s!"expected char or num value, got\n  {v}"
+    if h : isValidChar charVal then return .char ⟨charVal, h⟩
+    else error e s!"{charVal} is not a valid char value"
+  | .char, v => error e s!"expected char or num value, got\n  {v}"
 
-def Expr.evalOp₂ : Op₂ → Value → Value → Result
+def Expr.evalOp₂ (e : Expr) : Op₂ → Value → Value → Result
   | .cons, v₁, v₂ => return .cons v₁ v₂
-  | .strcons, (.char c), (.str s) => return (.str ⟨c :: s.data⟩)
-  | .strcons, v₁, v₂ => throw s!"expected char and string value, got {v₁} and {v₂}"
-  | .add, v₁, v₂ => numAdd v₁ v₂
-  | .sub, v₁, v₂ => numSub v₁ v₂
-  | .mul, v₁, v₂ => numMul v₁ v₂
-  | .div, v₁, v₂ => numDiv v₁ v₂
-  | .numEq, v₁, v₂ => numEq v₁ v₂
-  | .lt, v₁, v₂ => numLt v₁ v₂
-  | .gt, v₁, v₂ => numGt v₁ v₂
-  | .le, v₁, v₂ => numLe v₁ v₂
-  | .ge, v₁, v₂ => numGe v₁ v₂
+  | .strcons, .char c, .str s => return .str ⟨c :: s.data⟩
+  | .strcons, v₁, v₂ => error e s!"expected char and string value, got {v₁} and {v₂}"
+  | .add, v₁, v₂ => numAdd e v₁ v₂
+  | .sub, v₁, v₂ => numSub e v₁ v₂
+  | .mul, v₁, v₂ => numMul e v₁ v₂
+  | .div, v₁, v₂ => numDiv e v₁ v₂
+  | .numEq, v₁, v₂ => numEq e v₁ v₂
+  | .lt, v₁, v₂ => numLt e v₁ v₂
+  | .gt, v₁, v₂ => numGt e v₁ v₂
+  | .le, v₁, v₂ => numLe e v₁ v₂
+  | .ge, v₁, v₂ => numGe e v₁ v₂
   | .eq, v₁, v₂ => return v₁.beq v₂
-  | .hide, _, _ => throw "TODO hide"
+  | .hide, _, _ => error e "TODO hide"
 
 partial def Expr.eval (env : Env := default) : Expr → Result
   | .atom a => return .ofAtom a
@@ -282,8 +285,8 @@ partial def Expr.eval (env : Env := default) : Expr → Result
     | .fun "_" .. => throw s!"error evaluating\n{fn}\ncannot apply argument to 0-arg lambda"
     | .fun n env' body => body.eval (env'.insert n (arg.eval env))
     | x => throw s!"error evaluating\n{fn}\nlambda was expected, got\n  {x}"
-  | .op₁ op e => do evalOp₁ op (← e.eval env)
-  | .op₂ op e₁ e₂ => do evalOp₂ op (← e₁.eval env) (← e₂.eval env)
+  | x@(.op₁ op e) => do evalOp₁ x op (← e.eval env)
+  | x@(.op₂ op e₁ e₂) => do evalOp₂ x op (← e₁.eval env) (← e₂.eval env)
   | .lambda s e => return .fun s env e
   | .let s v b => b.eval (env.insert s (v.eval env))
   | .letrec s v b => do
