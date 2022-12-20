@@ -135,7 +135,10 @@ where
       let fVars := e.getFreeVars
       -- considering relevant variables, only
       let env := env.toRBMap |>.filter fun s _ => fVars.contains s
-      env.foldl (init := "#####################################") fun acc s v =>
+      let init := "############################################################"
+        ++ e.toString
+        ++ "------------------------------------------------------------"
+      env.foldl (init := init) fun acc s v =>
         match v.get with | .ok x | .error x => s!"{acc}\n{s} → {x}"
 
 mutual
