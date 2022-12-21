@@ -322,10 +322,12 @@ partial def Expr.eval
   | x@(.op₂ op e₁ e₂) => do evalOp₂ x frames op (← e₁.eval env frames) (← e₂.eval env frames)
   | .lambda s e => return .fun s env e
   | .let s v b => b.eval (env.insert s (v.eval env frames)) frames
-  | .letrec s v b => do
-    let v' : Expr := .letrec s v v
-    let env' := env.insert s $ .mk fun _ => v'.eval env frames
-    b.eval (env.insert s (v.eval env' frames)) frames
+  | .letrec s v b =>
+    if (v.getFreeVars).contains s then
+      let v' : Expr := .letrec s v v
+      let env' := env.insert s $ .mk fun _ => v'.eval env frames
+      b.eval (env.insert s (v.eval env' frames)) frames
+    else b.eval (env.insert s (v.eval env frames)) frames
   | .quote d => return .ofDatum d
 
 end Lurk.Backend
