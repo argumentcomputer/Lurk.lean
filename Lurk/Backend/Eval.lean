@@ -127,7 +127,7 @@ def Frames.pprint (n : Nat) : Frames → String
   | .mk frames =>
     let rec aux (acc : String) : List (Expr × Env) → String
       | [] => acc
-      | f :: fs => aux (frameToString f) fs
+      | f :: fs => aux s!"{acc}\n{frameToString f}" fs
     aux default (frames.take n)
 where
   frameToString : Expr × Env → String
