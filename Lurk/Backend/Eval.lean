@@ -128,18 +128,18 @@ def Frames.pprint (n : Nat) : Frames → String
     let rec aux (acc : String) : List (Expr × Env) → String
       | [] => acc
       | f :: fs => aux s!"{acc}\n{frameToString f}" fs
-    aux default (frames.take n)
+    aux default (frames.take n) |>.trimLeft
 where
   frameToString : Expr × Env → String
     | (e, env) =>
       let fVars := e.getFreeVars
       -- considering relevant variables, only
       let env := env.toRBMap |>.filter fun s _ => fVars.contains s
-      let init := "##########################################################\n"
+      let init := "\n########################################################\n"
         ++ e.toString ++ "\n"
-        ++ "----------------------------------------------------------\n"
+        ++ "--------------------------------------------------------"
       env.foldl (init := init) fun acc s v =>
-        match v.get with | .ok x | .error x => s!"{acc}\n{s} → {x}"
+        match v.get with | .ok x | .error x => s!"{acc}\n{s} ⇒ {x}"
 
 mutual
 
