@@ -4,6 +4,9 @@ import Std.Data.RBMap
 
 namespace Lurk.Backend.Expr
 
+def mkApp (f : Expr) (args : List Expr) : Expr :=
+  args.foldl (init := f) fun acc e => .app acc e
+
 def mkLambda (args : List String) (body : Expr) : Expr :=
   args.foldr (init := body) fun s acc => .lambda s acc
 
