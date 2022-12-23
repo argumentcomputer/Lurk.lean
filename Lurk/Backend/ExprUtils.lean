@@ -58,7 +58,7 @@ partial def pruneBlocks (letAtoms : Std.RBMap String Expr compare := default) : 
   | x@(.letrec s v b)
   | x@(.let s v b) =>
     let letrec := x matches .letrec _ _ _
-    let (bs, b) := b.telescopeLet #[(s, v)]
+    let (bs, b) := if letrec then b.telescopeLetrec #[(s, v)] else b.telescopeLet #[(s, v)]
     if b.containsCurrentEnv then x else
     -- remove unused binders
     let (bs, _) := bs.foldr (init := (default, b.getFreeVars))
@@ -202,7 +202,7 @@ partial def anon (x : Expr) : Expr :=
             (bs.push (curr, v), ctx)
         (mkLet bs.data (aux ctx b).1, ctx)
     | x@(.letrec ..) =>
-      let (bs, b) := x.telescopeLet
+      let (bs, b) := x.telescopeLetrec
       if b.containsCurrentEnv then (x, ctx) else
         let (bs, ctx) := bs.foldl (init := (#[], ctx))
           fun (bs, ctx) (s, v) =>

@@ -155,12 +155,20 @@ def telescopeLam (acc : Array String := #[]) : Expr → (Array String) × Expr
   | x => (acc, x)
 
 /--
-Telescopes `(let/letrec ((n₁ e₁) (n₂ e₂) ⋯) body)` into
+Telescopes `(let ((n₁ e₁) (n₂ e₂) ⋯) body)` into
 `(#[(n₁, e₁), (n₂, e₂), ⋯], body)`
 -/
 def telescopeLet (acc : Array $ String × Expr := #[]) :
     Expr → (Array $ String × Expr) × Expr
-  | .let s v b
+  | .let s v b => b.telescopeLet (acc.push (s, v))
+  | x => (acc, x)
+
+/--
+Telescopes `(letrec ((n₁ e₁) (n₂ e₂) ⋯) body)` into
+`(#[(n₁, e₁), (n₂, e₂), ⋯], body)`
+-/
+def telescopeLetrec (acc : Array $ String × Expr := #[]) :
+    Expr → (Array $ String × Expr) × Expr
   | .letrec s v b => b.telescopeLet (acc.push (s, v))
   | x => (acc, x)
 
@@ -226,7 +234,7 @@ partial def toFormat (esc := false) (e : Expr) : Format :=
     let bs := bs.data.map fun (n, e) => paren <| formatSym n ++ indentD (e.toFormat esc)
     paren <| "LET " ++ nest 4 (paren <| joinSep bs line) ++ indentD (b.toFormat esc)
   | .letrec s v b =>
-    let (bs, b) := b.telescopeLet #[(s, v)]
+    let (bs, b) := b.telescopeLetrec #[(s, v)]
     let bs := bs.data.map fun (n, e) => paren <| formatSym n ++ indentD (e.toFormat esc)
     paren <| "LETREC " ++ nest 7 (paren <| joinSep bs line) ++ indentD (b.toFormat esc)
   | .quote datum => paren <| "QUOTE" ++ line ++ format datum
