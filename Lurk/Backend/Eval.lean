@@ -10,9 +10,12 @@ mutual
 inductive Frames
   | mk : List (Expr × Env) → Frames
 
+inductive EnvImg
+  | value : Value → EnvImg
+  | thunk : Thunk (Except (String × Frames) Value) → EnvImg
+
 inductive Env
-  | mk : Lean.RBNode String
-    (fun _ => Thunk (Except (String × Frames) Value)) → Env
+  | mk : Lean.RBNode String (fun _ => EnvImg) → Env
 
 inductive Value where
   | num  : Fin N  → Value
@@ -105,18 +108,22 @@ instance : Inhabited Env := ⟨.mk .leaf⟩
 
 abbrev Result := Except (String × Frames) Value
 
+@[inline] def EnvImg.toResult : EnvImg → Result
+  | .thunk v => v.get
+  | .value v => pure v
+
 namespace Env
 
-def find? (s : String) : Env → Option (Thunk Result)
+def find? (s : String) : Env → Option EnvImg
   | mk e => e.find compare s
 
-def insert (s : String) (v : Thunk Result) : Env → Env
+def insert (s : String) (v : EnvImg) : Env → Env
   | mk e => mk $ e.insert compare s v
 
-def toArray : Env → Array (String × (Thunk Result))
+def toArray : Env → Array (String × EnvImg)
   | mk e => e.fold (init := #[]) fun acc k v => acc.push (k, v)
 
-def toRBMap : Env → Std.RBMap String (Thunk Result) compare
+def toRBMap : Env → Std.RBMap String EnvImg compare
   | mk e => e.fold (init := default) fun acc k v => acc.insert k v
 
 end Env
@@ -139,7 +146,10 @@ where
         ++ e.toString ++ "\n"
         ++ "--------------------------------------------------------"
       env.foldl (init := init) fun acc s v =>
-        match v.get with | .ok x | .error x => s!"{acc}\n{s} ⇒ {x}"
+        match v with
+        | .thunk v => match v.get with
+          | .ok x | .error x => s!"{acc}\n{s} ⇒ {x}"
+        | .value x => s!"{acc}\n{s} ⇒ {x}"
 
 mutual
 
@@ -153,8 +163,8 @@ partial def Env.eq (e₁ e₂ : Env) : Bool :=
       | _ => false
     | _, _ => false
   aux
-    (e₁.toArray.data.map fun (s, v) => (s, v.get))
-    (e₂.toArray.data.map fun (s, v) => (s, v.get))
+    (e₁.toArray.data.map fun (s, v) => (s, v.toResult))
+    (e₂.toArray.data.map fun (s, v) => (s, v.toResult))
 
 partial def Value.beq : Value → Value → Bool
   | .num    x, .num    y => x == y
@@ -301,11 +311,13 @@ partial def Expr.eval
   match e with
   | .atom a => return .ofAtom a
   | .sym n => match env.find? n with
-    | some v => v.get
+    | some v => v.toResult
     | none => error e frames s!"{n} not found"
   | .env =>
     env.toArray.foldrM (init := .nil)
-      fun (k, v) acc => return .cons (.cons (.sym k) (← v.get)) acc
+      fun (k, v) acc => do
+        let v ← match v with | .thunk v => v.get | .value v => pure v
+        return .cons (.cons (.sym k) v) acc
   | .begin x (atom .nil) => x.eval env frames
   | .begin x y => do discard $ x.eval env frames; y.eval env frames
   | .if x y z => do match ← x.eval env frames with
@@ -316,18 +328,18 @@ partial def Expr.eval
     | _ => error e frames s!"error evaluating\n{fn}\ninvalid 0-arity app"
   | .app fn arg => do match ← fn.eval env frames with
     | .fun "_" .. => error e frames s!"error evaluating\n{fn}\ncannot apply argument to 0-arg lambda"
-    | .fun n env' body => body.eval (env'.insert n (arg.eval env frames)) frames
+    | .fun n env' body => body.eval (env'.insert n (.value $ ← arg.eval env frames)) frames
     | x => error e frames s!"error evaluating\n{fn}\nlambda was expected, got\n  {x}"
   | x@(.op₁ op e) => do evalOp₁ x frames op (← e.eval env frames)
   | x@(.op₂ op e₁ e₂) => do evalOp₂ x frames op (← e₁.eval env frames) (← e₂.eval env frames)
   | .lambda s e => return .fun s env e
-  | .let s v b => b.eval (env.insert s (v.eval env frames)) frames
+  | .let s v b => do b.eval (env.insert s (.value $ ← v.eval env frames)) frames
   | .letrec s v b =>
     if (v.getFreeVars).contains s then
       let v' : Expr := .letrec s v v
-      let env' := env.insert s $ .mk fun _ => v'.eval env frames
-      b.eval (env.insert s (v.eval env' frames)) frames
-    else b.eval (env.insert s (v.eval env frames)) frames
+      let env' := env.insert s $ .thunk $ .mk fun _ => v'.eval env frames
+      do b.eval (env.insert s (.value $ ← v.eval env' frames)) frames
+    else do b.eval (env.insert s (.value $ ← v.eval env frames)) frames
   | .quote d => return .ofDatum d
 
 end Lurk.Backend
