@@ -223,6 +223,10 @@ def numDiv (e : Expr) (frames : Frames) : Value → Value → Result
   | .u64 x, .num y => return .num ((.ofNat x.toNat) / y)
   | v₁, v₂ => error e frames s!"expected numeric values, got\n  {v₁} and {v₂}"
 
+def numMod (e : Expr) (frames : Frames) : Value → Value → Result
+  | .u64 x, .u64 y => return .u64 (x % y)
+  | v₁, v₂ => error e frames s!"expected numeric values, got\n  {v₁} and {v₂}"
+
 def numEq (e : Expr) (frames : Frames) : Value → Value → Result
   | .num x, .num y => return decide (x == y)
   | .u64 x, .u64 y => return decide (x == y)
@@ -297,6 +301,7 @@ def Expr.evalOp₂ (e : Expr) (frames : Frames) : Op₂ → Value → Value → 
   | .sub, v₁, v₂ => numSub e frames v₁ v₂
   | .mul, v₁, v₂ => numMul e frames v₁ v₂
   | .div, v₁, v₂ => numDiv e frames v₁ v₂
+  | .mod, v₁, v₂ => numMod e frames v₁ v₂
   | .numEq, v₁, v₂ => numEq e frames v₁ v₂
   | .lt, v₁, v₂ => numLt e frames v₁ v₂
   | .gt, v₁, v₂ => numGt e frames v₁ v₂

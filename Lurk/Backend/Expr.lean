@@ -64,7 +64,7 @@ instance : Std.ToFormat Op₁ := ⟨Op₁.toFormat⟩
 
 inductive Op₂
   | cons | strcons
-  | add | sub | mul | div | numEq | lt | gt | le | ge | eq
+  | add | sub | mul | div | mod | numEq | lt | gt | le | ge | eq
   | hide
   deriving Repr, BEq
 
@@ -75,6 +75,7 @@ def Op₂.toFormat : Op₂ → Format
   | .sub     => "-"
   | .mul     => "*"
   | .div     => "/"
+  | .mod     => "%"
   | .numEq   => "="
   | .lt      => "<"
   | .gt      => ">"

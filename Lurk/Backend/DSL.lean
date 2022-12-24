@@ -95,6 +95,7 @@ scoped syntax "+"       : op₂
 scoped syntax "-"       : op₂
 scoped syntax "*"       : op₂
 scoped syntax "/"       : op₂
+scoped syntax "%"       : op₂
 scoped syntax "="       : op₂
 scoped syntax "<"       : op₂
 scoped syntax ">"       : op₂
@@ -114,6 +115,7 @@ def elabOp₂ : TSyntax `op₂ → TermElabM Lean.Expr
   | `(op₂| -)  => return mkConst ``Op₂.sub
   | `(op₂| *)  => return mkConst ``Op₂.mul
   | `(op₂| /)  => return mkConst ``Op₂.div
+  | `(op₂| %)  => return mkConst ``Op₂.mod
   | `(op₂| =)  => return mkConst ``Op₂.numEq
   | `(op₂| <)  => return mkConst ``Op₂.lt
   | `(op₂| >)  => return mkConst ``Op₂.gt
