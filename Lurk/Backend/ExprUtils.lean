@@ -110,20 +110,6 @@ def replaceFreeVars (map : Std.RBMap String Expr compare) : Expr → Expr
     .if (e₁.replaceFreeVars map) (e₂.replaceFreeVars map) (e₃.replaceFreeVars map)
   | x => x
 
-def getReferences : Expr → Std.RBSet String compare
-  | .sym s => .single s
-  | .lambda _ b => getReferences b
-  | .let _ v b | .letrec _ v b =>
-    (getReferences v).union (getReferences b)
-  | .op₁    _ e => getReferences e
-  | .app₀     e => getReferences e
-  | .op₂    _ e₁ e₂
-  | .begin    e₁ e₂
-  | .app      e₁ e₂ => (getReferences e₁).union (getReferences e₂)
-  | .if       e₁ e₂ e₃ =>
-    (getReferences e₁).union $ (getReferences e₂).union (getReferences e₃)
-  | .atom _ | .env | .quote _ => .empty
-
 def mkIfElses (ifThens : List (Expr × Expr)) (finalElse : Expr := .atom .nil) : Expr :=
   match ifThens with
   | [] => .atom .nil
@@ -171,7 +157,7 @@ def mkMutualBlock
     (mutualName, .lambda key mutualBlock) :: projs
 
 /--
-Given a list of binders which are natively mutually recursive, 
+Given a list of binders which are naively mutually recursive, 
 collect all the strongly connected components and then make them into mutual blocks.
 -/
 def mutualize (binders : List $ String × Expr) : List $ String × Expr :=
