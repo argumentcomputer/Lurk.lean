@@ -178,9 +178,9 @@ def mutualize (binders : List $ String × Expr) : List $ String × Expr :=
   let names := binders.map Prod.fst
   let binders := Std.RBMap.ofList binders compare
   let blocks := Lean.SCC.scc names fun name =>
-    binders.find? name |>.get! |>.getReferences.toList
+    binders.find! name |>.getFreeVars default default |>.toList
   List.join <| blocks.map fun block =>
-    let block := block.map fun name => (name, binders.find? name |>.get!)
+    let block := block.map fun name => (name, binders.find! name)
     mkMutualBlock block
 
 namespace Anon
