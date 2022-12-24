@@ -1,6 +1,7 @@
 import Lurk.Backend.Expr
 import Lurk.Backend.StringSucc
 import Std.Data.RBMap
+import Lean.Util.SCC
 
 namespace Lurk.Backend.Expr
 
@@ -154,6 +155,19 @@ def mkMutualBlock
       fun (i, (_, e)) => (.op₂ .numEq keySym (toExpr i), e.replaceFreeVars map)
     let mutualBlock := mkIfElses ifThens
     (mutualName, .lambda key mutualBlock) :: projs
+
+/--
+Given a list of binders which are naively mutually recursive, 
+collect all the strongly connected components and then make them into mutual blocks.
+-/
+def mutualize (binders : List $ String × Expr) : List $ String × Expr :=
+  let names := binders.map Prod.fst
+  let binders := Std.RBMap.ofList binders compare
+  let blocks := Lean.SCC.scc names fun name =>
+    binders.find! name |>.getFreeVars default default |>.toList
+  List.join <| blocks.map fun block =>
+    let block := block.map fun name => (name, binders.find! name)
+    mkMutualBlock block
 
 namespace Anon
 
