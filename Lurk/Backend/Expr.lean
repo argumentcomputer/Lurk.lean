@@ -169,7 +169,7 @@ Telescopes `(letrec ((n₁ e₁) (n₂ e₂) ⋯) body)` into
 -/
 def telescopeLetrec (acc : Array $ String × Expr := #[]) :
     Expr → (Array $ String × Expr) × Expr
-  | .letrec s v b => b.telescopeLet (acc.push (s, v))
+  | .letrec s v b => b.telescopeLetrec (acc.push (s, v))
   | x => (acc, x)
 
 /-- Telescopes `(f a₁ a₂ ⋯)` into `[f, a₁, a₂, ⋯]` -/
