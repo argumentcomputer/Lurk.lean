@@ -1,31 +1,29 @@
 import Lake
 open Lake DSL
 
-package Lurk {
+package Lurk where
   precompileModules := true
-}
 
 lean_lib Lurk
 
 @[default_target]
-lean_exe lurk {
+lean_exe lurk where
   root := `Main
-}
 
 require Poseidon from git
-  "https://github.com/yatima-inc/Poseidon.lean" @ "750e7538e2d8da4d3f78bf90e268b84c06f3d361"
+  "https://github.com/yatima-inc/Poseidon.lean" @ "995807a3ee648851ab7e43e5e35de37fb11856ba"
 
 require YatimaStdLib from git
-  "https://github.com/yatima-inc/YatimaStdLib.lean" @ "f905b68f529de2af44cf6ea63489b7e3cd090050"
+  "https://github.com/yatima-inc/YatimaStdLib.lean" @ "818538aced05fe563ef95bb3dcdf5ed755896139"
 
 require LSpec from git
-  "https://github.com/yatima-inc/LSpec.git" @ "89798a6cb76b2b29469ff752af2fd8543b3a5515"
+  "https://github.com/yatima-inc/LSpec.git" @ "129fd4ba76d5cb9abf271dc29208a28f45fd981e"
 
 require Megaparsec from git
-  "https://github.com/yatima-inc/Megaparsec.lean" @ "50f9beb2af165f5736155d30cdda2774784b677b"
+  "https://github.com/yatima-inc/Megaparsec.lean" @ "4b02c12e70a88b2ecf735899f85fe18d296fac90"
 
 require std from git
-  "https://github.com/leanprover/std4/" @ "d83e97c7843deb1cf4a6b2a2c72aaf2ece0b4ce8"
+  "https://github.com/leanprover/std4/" @ "2919713bde15d55e3ea3625a03546531283bcb54"
 
 lean_exe Tests.Decoding
 lean_exe Tests.Encoding
