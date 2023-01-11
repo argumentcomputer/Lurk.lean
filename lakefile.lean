@@ -1,8 +1,7 @@
 import Lake
 open Lake DSL
 
-package Lurk where
-  precompileModules := true
+package Lurk
 
 lean_lib Lurk
 
