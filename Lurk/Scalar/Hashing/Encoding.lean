@@ -21,7 +21,7 @@ def EncodeState.store (stt : EncodeState) : ScalarStore :=
 abbrev EncodeM := StateM EncodeState
 
 def hashPtrPair (x y : ScalarPtr) : F :=
-  .ofInt $ Poseidon.Lurk.hash x.tag.toF x.val y.tag.toF y.val
+  .ofInt $ (Poseidon.Lurk.hash x.tag.toF x.val y.tag.toF y.val).rep
 
 def addExprHash (ptr : ScalarPtr) (expr : ScalarExpr) : EncodeM ScalarPtr :=
   modifyGet fun stt => (ptr, { stt with exprs := stt.exprs.insert ptr (some expr) })
