@@ -80,16 +80,23 @@ def encode (x : AST) : ScalarPtr × ScalarStore :=
   match StateT.run (encodeAST x) default with
   | (ptr, stt) => (ptr, stt.store)
 
-def encode' (x : AST) (stt : EncodeState := default) :
-    ScalarPtr × EncodeState :=
+def encode' (x : AST) (stt : EncodeState) : ScalarPtr × EncodeState :=
   StateT.run (encodeAST x) stt
 
 def hide (secret : F) (x : AST) : F × ScalarStore :=
   match StateT.run (hideAST secret x) default with
   | (hash, stt) => (hash, stt.store)
 
+def hide' (secret : F) (x : AST) (stt : EncodeState) : F × EncodeState :=
+  match StateT.run (hideAST secret x) stt with
+  | (hash, stt) => (hash, stt)
+
 def commit (x : AST) : F × ScalarStore :=
   match StateT.run (hideAST (.ofNat 0) x) default with
   | (hash, stt) => (hash, stt.store)
+
+def commit' (x : AST) (stt : EncodeState) : F × EncodeState :=
+  match StateT.run (hideAST (.ofNat 0) x) stt with
+  | (hash, stt) => (hash, stt)
 
 end Lurk.Frontend.AST
