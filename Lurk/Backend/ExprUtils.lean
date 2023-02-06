@@ -1,5 +1,6 @@
 import Lurk.Backend.Expr
 import Lurk.Backend.StringSucc
+import Lurk.Frontend.AST
 import Std.Data.RBMap
 import Lean.Util.SCC
 
@@ -78,10 +79,8 @@ partial def pruneBlocks (letAtoms : Std.RBMap String Expr compare := default) : 
         if v matches (.atom _) || isSym then
           (accBinders, letAtoms.insert s v) -- drop binder
         else ((accBinders ++ [(s, v)]), letAtoms.erase s)
-    if letrec then
-      mkLetrec bs (b.pruneBlocks letAtoms)
-    else
-      mkLet bs (b.pruneBlocks letAtoms)
+    if letrec then mkLetrec bs (b.pruneBlocks letAtoms)
+    else mkLet bs (b.pruneBlocks letAtoms)
   | .op₁    o e => .op₁ o (e.pruneBlocks letAtoms)
   | .app₀     e => .app₀ (e.pruneBlocks letAtoms)
   | .lambda s e => .lambda s (e.pruneBlocks letAtoms)
@@ -176,8 +175,10 @@ structure AnonCtx where
   map : Std.RBMap String String compare
   deriving Inhabited
 
+open Frontend.AST (reservedSyms) in
 def AnonCtx.next (ctx : AnonCtx) (k : String) : String × AnonCtx :=
   let v := ctx.highest.succ
+  let v := if reservedSyms.contains v then v.succ else v
   (v, ⟨v, ctx.map.insert k v⟩)
 
 def AnonCtx.update (ctx : AnonCtx) (k v : String) : AnonCtx :=
@@ -224,12 +225,12 @@ partial def anon (x : Expr) : Expr :=
             let (v, _) := aux ctx v
             (bs.push (curr, v), ctx)
         (mkLetrec bs.data (aux ctx b).1, ctx)
-    | .op₁    o e => (.op₁ o (aux ctx e).1, ctx)
-    | .app₀     e => (.app₀  (aux ctx e).1, ctx)
-    | .op₂    o e₁ e₂ => (.op₂ o (aux ctx e₁).1 (aux ctx e₂).1, ctx)
-    | .begin    e₁ e₂ => (.begin (aux ctx e₁).1 (aux ctx e₂).1, ctx)
-    | .app      e₁ e₂ => (.app   (aux ctx e₁).1 (aux ctx e₂).1, ctx)
-    | .if       e₁ e₂ e₃ => (.if (aux ctx e₁).1 (aux ctx e₂).1 (aux ctx e₃).1, ctx)
+    | .op₁ o e => (.op₁ o (aux ctx e).1, ctx)
+    | .app₀  e => (.app₀  (aux ctx e).1, ctx)
+    | .op₂ o e₁ e₂ => (.op₂ o (aux ctx e₁).1 (aux ctx e₂).1, ctx)
+    | .begin e₁ e₂ => (.begin (aux ctx e₁).1 (aux ctx e₂).1, ctx)
+    | .app   e₁ e₂ => (.app   (aux ctx e₁).1 (aux ctx e₂).1, ctx)
+    | .if    e₁ e₂ e₃ => (.if (aux ctx e₁).1 (aux ctx e₂).1 (aux ctx e₃).1, ctx)
     | x => (x, ctx)
   (aux default x).1
 
