@@ -41,6 +41,30 @@ def getFreeVars (bVars acc : Std.RBSet String compare := default) :
   | .letrec s v b =>
     let bVars := bVars.insert s; b.getFreeVars bVars (v.getFreeVars bVars acc)
 
+def countFreeVarOccs
+  (bVars : Std.RBSet String compare := default)
+  (acc : Std.RBMap String Nat compare := default) :
+  Expr → Std.RBMap String Nat compare
+  | .atom _ | .env | .quote _ => acc
+  | .sym s => 
+    if bVars.contains s then acc
+    else 
+    let k :=
+      match acc.find? s with
+        | none => 1
+        | some n => n + 1
+    acc.insert s k
+  | .op₁ _ e => e.countFreeVarOccs bVars acc
+  | .op₂ _ e₁ e₂ => e₂.countFreeVarOccs bVars (e₁.countFreeVarOccs bVars acc)
+  | .begin e₁ e₂ => e₂.countFreeVarOccs bVars (e₁.countFreeVarOccs bVars acc)
+  | .if a b c =>
+    c.countFreeVarOccs bVars (b.countFreeVarOccs bVars (a.countFreeVarOccs bVars acc))
+  | .app₀ e => e.countFreeVarOccs bVars acc
+  | .app e₁ e₂ => e₂.countFreeVarOccs bVars (e₁.countFreeVarOccs bVars acc)
+  | .lambda s b => b.countFreeVarOccs (bVars.insert s) acc
+  | .let s v b => b.countFreeVarOccs (bVars.insert s) (v.countFreeVarOccs bVars acc)
+  | .letrec s v b => b.countFreeVarOccs (bVars.insert s) (v.countFreeVarOccs bVars acc)
+
 def containsCurrentEnv : Expr → Bool
   | .env => true
   | .op₁ _    e
