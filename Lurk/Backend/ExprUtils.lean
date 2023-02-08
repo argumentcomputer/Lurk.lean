@@ -39,31 +39,7 @@ def getFreeVars (bVars acc : Std.RBSet String compare := default) :
   | .lambda s b => b.getFreeVars (bVars.insert s) acc
   | .let s v b => b.getFreeVars (bVars.insert s) (v.getFreeVars bVars acc)
   | .letrec s v b =>
-    let bVars := bVars.insert s; b.getFreeVars (bVars.insert s) (v.getFreeVars bVars acc)
-
-def countFreeVarOccs
-  (bVars : Std.RBSet String compare := default)
-  (acc : Std.RBMap String Nat compare := default) :
-  Expr → Std.RBMap String Nat compare
-  | .atom _ | .env | .quote _ => acc
-  | .sym s => 
-    if bVars.contains s then acc
-    else 
-    let k :=
-      match acc.find? s with
-        | none => 1
-        | some n => n + 1
-    acc.insert s k
-  | .op₁ _ e => e.countFreeVarOccs bVars acc
-  | .op₂ _ e₁ e₂ => e₂.countFreeVarOccs bVars (e₁.countFreeVarOccs bVars acc)
-  | .begin e₁ e₂ => e₂.countFreeVarOccs bVars (e₁.countFreeVarOccs bVars acc)
-  | .if a b c =>
-    c.countFreeVarOccs bVars (b.countFreeVarOccs bVars (a.countFreeVarOccs bVars acc))
-  | .app₀ e => e.countFreeVarOccs bVars acc
-  | .app e₁ e₂ => e₂.countFreeVarOccs bVars (e₁.countFreeVarOccs bVars acc)
-  | .lambda s b => b.countFreeVarOccs (bVars.insert s) acc
-  | .let s v b => b.countFreeVarOccs (bVars.insert s) (v.countFreeVarOccs bVars acc)
-  | .letrec s v b => b.countFreeVarOccs (bVars.insert s) (v.countFreeVarOccs bVars acc)
+    let bVars := bVars.insert s; b.getFreeVars bVars (v.getFreeVars bVars acc)
 
 def containsCurrentEnv : Expr → Bool
   | .env => true
@@ -132,22 +108,6 @@ def replaceFreeVars (map : Std.RBMap String Expr compare) : Expr → Expr
   | .if       e₁ e₂ e₃ =>
     .if (e₁.replaceFreeVars map) (e₂.replaceFreeVars map) (e₃.replaceFreeVars map)
   | x => x
-
-/--
-def inlineBinder (expr : Expr) : Expr :=
-  match expr with
-    | x@(.letrec s v b)
-    | x@(.let s v b) =>
-        let letrec := x matches .letrec _ _ _
-        let (bs, b) := if letrec then b.telescopeLetrec #[(s, v)] else b.telescopeLet #[(s, v)]
-        let numVars := countFreeVarOccs default default b
-        let (bs, b) := bs.foldr (init := (default, b.getFreeVars))
-          fun (s, v) (accBinders, accFVars) =>
-          let numVars := countFreeVarOccs default default v
-          sorry
-        sorry
-    | a => sorry
--/
 
 def mkIfElses (ifThens : List (Expr × Expr)) (finalElse : Expr := .atom .nil) : Expr :=
   match ifThens with
