@@ -137,25 +137,35 @@ def inlineBinder (expr : Expr) : Expr :=
   match expr with
     | x@(.letrec s v b)
     | x@(.let s v b) =>
-        let letrec := x matches .letrec _ _ _
+        let letrec := x matches .letrec _ _ _  
         let (bs, b) := if letrec then b.telescopeLetrec #[(s, v)] else b.telescopeLet #[(s, v)]
-        let numVarsBinder := Std.RBMap.filter (countFreeVarOccs default default v) fun _ x => x == 1
-        let numVarsBody := Std.RBMap.filter (countFreeVarOccs default default b) fun _ x => x == 1
-        let (bs, _) :=
-          bs.foldr
-            (fun (n, e) (accBinders, accFVars) =>
-              if numVarsBinder.find? n != some 1 && numVarsBody.find? n != some 1
-              then ((n, e) :: accBinders, (accFVars.erase fun s' => compare s' s).union -- `s` is no longer a free variable TODO double-check ordering of arguments to "compare"
-                     $ v.getFreeVars (if letrec then .single n else default))
-              else (accBinders, accFVars)
-            )
-            (init := (default, b.getFreeVars))
-        if letrec then mkLetrec bs (b.pruneBlocks default)
-        else mkLet bs (b.pruneBlocks default)
+        let (counts, bindings) : Std.RBMap String Nat compare × Std.RBMap String Expr compare := 
+          bs.foldl
+          (fun (counts, bindings) (name, val) =>
+            let counts := countFreeVarOccs default counts val
+            let bindings := bindings.insert name val
+            (counts, bindings))
+          (.empty, .empty)
+        let counts := countFreeVarOccs default counts b
+        let (bs, bindings) :=
+          bs.foldl
+          (fun (namedValues, bindings) (name, val) =>
+            match counts.find? name with
+              | some 1 =>
+                (namedValues, bindings.insert name val)
+              | _ => (namedValues, bindings)
+          )
+          (default, bindings)
+        if letrec then
+          mkLetrec bs (b.pruneBlocks bindings)
+        else mkLet bs (b.pruneBlocks bindings)
     | a => a
 
 #eval pruneBlocks default (.let "a" (.atom .nil) (.sym "a"))
-#eval inlineBinder (.let "a" (.atom .nil) (.sym "a"))
+#eval inlineBinder
+  (.let "a" 
+    (.app (.lambda "x" (.sym "x")) (.atom (.str "aaaa"))) 
+    (.sym "a"))
 
 
 def mkIfElses (ifThens : List (Expr × Expr)) (finalElse : Expr := .atom .nil) : Expr :=
