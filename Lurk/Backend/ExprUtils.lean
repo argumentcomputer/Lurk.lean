@@ -152,7 +152,7 @@ def inlineBinder (expr : Expr) : Expr :=
           (fun (namedValues, bindings) (name, val) =>
             match counts.find? name with
               | some 1 =>
-                (namedValues, bindings.insert name val)
+                (namedValues, bindings.insert name (val.replaceFreeVars bindings))
               | _ => (namedValues, bindings)
           )
           (default, bindings)
