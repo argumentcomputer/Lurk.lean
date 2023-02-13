@@ -133,6 +133,10 @@ def replaceFreeVars (map : Std.RBMap String Expr compare) : Expr → Expr
     .if (e₁.replaceFreeVars map) (e₂.replaceFreeVars map) (e₃.replaceFreeVars map)
   | x => x
 
+def remove [BEq α] (a : α) : List α → List α
+  | [] => []
+  | (b :: bs) => if a == b then remove a bs else b :: remove a bs
+
 def inlineBinder (expr : Expr) : Expr :=
   match expr with
     | x@(.letrec s v b)
@@ -152,21 +156,31 @@ def inlineBinder (expr : Expr) : Expr :=
           (fun (namedValues, bindings) (name, val) =>
             match counts.find? name with
               | some 1 =>
-                (namedValues, bindings.insert name (val.replaceFreeVars bindings))
+                match namedValues.lookup name with
+                  | some val' =>
+                    (remove (name, val) namedValues, bindings.insert name (val'.replaceFreeVars bindings)) 
+                  | _ =>
+                    (namedValues, bindings.insert name (val.replaceFreeVars bindings)) 
               | _ => (namedValues, bindings)
           )
           (default, bindings)
         if letrec then
-          mkLetrec bs (b.pruneBlocks bindings)
-        else mkLet bs (b.pruneBlocks bindings)
+          mkLetrec bs (b.replaceFreeVars bindings)
+        else mkLet bs (b.replaceFreeVars bindings)
     | a => a
 
-#eval pruneBlocks default (.let "a" (.atom .nil) (.sym "a"))
+#eval inlineBinder (.let "a" (.atom .nil) (.sym "a"))
 #eval inlineBinder
   (.let "a" 
     (.app (.lambda "x" (.sym "x")) (.atom (.str "aaaa"))) 
     (.sym "a"))
 
+def testTerm : Expr :=
+  .let "x" (.sym "a") $
+    .let "a" (.op₂ .add (.atom $ .num $ .ofNat 1) (.atom $ .num $ .ofNat 1)) $
+      .let "b" (.sym "a") (.atom $ .num $ .ofNat 1)
+
+#eval inlineBinder testTerm
 
 def mkIfElses (ifThens : List (Expr × Expr)) (finalElse : Expr := .atom .nil) : Expr :=
   match ifThens with
