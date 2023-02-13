@@ -47,13 +47,7 @@ def countFreeVarOccs
   Expr → Std.RBMap String Nat compare
   | .atom _ | .env | .quote _ => acc
   | .sym s => 
-    if bVars.contains s then acc
-    else 
-    let k :=
-      match acc.find? s with
-        | none => 1
-        | some n => n + 1
-    acc.insert s k
+    if bVars.contains s then acc else acc.insert s $ acc.find? s |>.getD 0 |>.succ
   | .op₁ _ e => e.countFreeVarOccs bVars acc
   | .op₂ _ e₁ e₂ => e₂.countFreeVarOccs bVars (e₁.countFreeVarOccs bVars acc)
   | .begin e₁ e₂ => e₂.countFreeVarOccs bVars (e₁.countFreeVarOccs bVars acc)
@@ -63,7 +57,8 @@ def countFreeVarOccs
   | .app e₁ e₂ => e₂.countFreeVarOccs bVars (e₁.countFreeVarOccs bVars acc)
   | .lambda s b => b.countFreeVarOccs (bVars.insert s) acc
   | .let s v b => b.countFreeVarOccs (bVars.insert s) (v.countFreeVarOccs bVars acc)
-  | .letrec s v b => b.countFreeVarOccs (bVars.insert s) (v.countFreeVarOccs bVars acc)
+  | .letrec s v b =>
+    let bVars := bVars.insert s; b.countFreeVarOccs bVars (v.countFreeVarOccs bVars acc)
 
 def containsCurrentEnv : Expr → Bool
   | .env => true
@@ -133,54 +128,30 @@ def replaceFreeVars (map : Std.RBMap String Expr compare) : Expr → Expr
     .if (e₁.replaceFreeVars map) (e₂.replaceFreeVars map) (e₃.replaceFreeVars map)
   | x => x
 
-def remove [BEq α] (a : α) : List α → List α
-  | [] => []
-  | (b :: bs) => if a == b then remove a bs else b :: remove a bs
-
-def inlineBinder (expr : Expr) : Expr :=
-  match expr with
-    | x@(.letrec s v b)
-    | x@(.let s v b) =>
-        let letrec := x matches .letrec _ _ _  
-        let (bs, b) := if letrec then b.telescopeLetrec #[(s, v)] else b.telescopeLet #[(s, v)]
-        let (counts, bindings) : Std.RBMap String Nat compare × Std.RBMap String Expr compare := 
-          bs.foldl
-          (fun (counts, bindings) (name, val) =>
-            let counts := countFreeVarOccs default counts val
-            let bindings := bindings.insert name val
-            (counts, bindings))
-          (.empty, .empty)
-        let counts := countFreeVarOccs default counts b
-        let (bs, bindings) :=
-          bs.foldl
-          (fun (namedValues, bindings) (name, val) =>
-            match counts.find? name with
-              | some 1 =>
-                match namedValues.lookup name with
-                  | some val' =>
-                    (remove (name, val) namedValues, bindings.insert name (val'.replaceFreeVars bindings)) 
-                  | _ =>
-                    (namedValues, bindings.insert name (val.replaceFreeVars bindings)) 
-              | _ => (namedValues, bindings)
-          )
-          (default, bindings)
-        if letrec then
-          mkLetrec bs (b.replaceFreeVars bindings)
-        else mkLet bs (b.replaceFreeVars bindings)
-    | a => a
-
-#eval inlineBinder (.let "a" (.atom .nil) (.sym "a"))
-#eval inlineBinder
-  (.let "a" 
-    (.app (.lambda "x" (.sym "x")) (.atom (.str "aaaa"))) 
-    (.sym "a"))
-
-def testTerm : Expr :=
-  .let "x" (.sym "a") $
-    .let "a" (.op₂ .add (.atom $ .num $ .ofNat 1) (.atom $ .num $ .ofNat 1)) $
-      .let "b" (.sym "a") (.atom $ .num $ .ofNat 1)
-
-#eval inlineBinder testTerm
+def inlineBinder : Expr → Expr
+  | x@(.letrec s v b)
+  | x@(.let s v b) =>
+    let letrec := x matches .letrec _ _ _  
+    let (bs, b) := if letrec then b.telescopeLetrec #[(s, v)] else b.telescopeLet #[(s, v)]
+    let (counts, bindings) : Std.RBMap String Nat compare × Std.RBMap String Expr compare := 
+      bs.foldl (init := default) fun (counts, bindings) (name, val) =>
+        let counts := countFreeVarOccs default (counts.filter fun n _ => bindings.contains n) val
+        let bindings := bindings.insert name val
+        (counts, bindings)
+    let counts := countFreeVarOccs default counts b
+    let (bs, bindings, _) : (Array $ String × Expr) ×
+        Std.RBMap String Expr compare × Std.RBSet String compare :=
+      bs.foldl (init := (default, bindings, default)) fun (bs, bindings, seenSyms) (name, val) =>
+        let val := val.replaceFreeVars $ bindings.filter fun n _ =>
+          seenSyms.contains n && counts.find? n == some 1
+        if counts.find? name == some 1 then
+          (bs, bindings.insert name val, seenSyms.insert name)
+        else
+          (bs.push (name, val), bindings.insert name val, seenSyms.insert name)
+    let bindings := bindings.filter fun n _ => counts.find? n == some 1
+    if letrec then mkLetrec bs.data (b.replaceFreeVars bindings)
+    else mkLet bs.data (b.replaceFreeVars bindings)
+  | a => a
 
 def mkIfElses (ifThens : List (Expr × Expr)) (finalElse : Expr := .atom .nil) : Expr :=
   match ifThens with

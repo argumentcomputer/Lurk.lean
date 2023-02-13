@@ -28,7 +28,7 @@ def inlinesTransitivelyAfterDeclaration : Test :=
   (⟦(let ((x a) (a 1) (b a)) b)⟧, ⟦(let ((x a)) 1)⟧)
 
 def inlinesFreeVarsOnly : Test :=
-  (⟦(let ((a 1) (b (lambda (a) a))) (b a))⟧, ⟦(let ((b (lambda (a) a))) (b 1))⟧)
+  (⟦(let ((a 1) (b (lambda (a) a))) (b a))⟧, ⟦((lambda (a) a) 1)⟧)
 
 def cases := [
   inlinesOnBody,
@@ -45,4 +45,6 @@ open LSpec
 
 def main := lspecIO $
   cases.foldl (init := .done) fun tSeq (inp, out) =>
-    tSeq ++ test s!"inlines {inp} correctly" (inp.inlineBinder == out)
+    tSeq ++ test s!"inlines {inp} correctly ({inp.inlineBinder})" (inp.inlineBinder == out)
+
+#eval main
