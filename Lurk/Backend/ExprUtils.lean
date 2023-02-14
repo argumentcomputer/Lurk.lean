@@ -104,7 +104,7 @@ partial def pruneBlocks : Expr → Expr
             $ v.getFreeVars (if letrec then .single s else default)) -- if letrec, s is not free in v
         else (accBinders, accFVars) -- drop binder
     let b := b.pruneBlocks
-    -- inline binders that are called only once
+    -- inline atom binders or that are called only once
     let (counts, bindings) : Std.RBMap String Nat compare × Std.RBMap String Expr compare := 
       bs.foldl (init := default) fun (counts, bindings) (name, val) =>
         let counts := countFreeVarOccs default (counts.filter fun n _ => bindings.contains n) val
