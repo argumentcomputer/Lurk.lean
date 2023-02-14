@@ -662,11 +662,17 @@ def pairs : List Test := [
   overflow
 ]
 
+def extract5Excepts (e₁ e₂ e₃ e₄ e₅ : Except ε α) : Except ε (α × α × α × α × α) :=
+  return (← e₁, ← e₂, ← e₃, ← e₄, ← e₅)
+
 open LSpec in
 def main := lspecIO $
-  pairs.foldl (init := .done) fun tSeq pair =>
-    let (expect, e) := (pair : Test)
+  pairs.foldl (init := .done) fun tSeq (expect, e) =>
     tSeq ++ match expect with
       | none => withExceptError s!"{e} fails on evaluation" e.eval fun _ => .done
-      | some expect => withExceptOk s!"{e.anon} evaluation succeeds" e.anon.eval
-        fun res => test s!"{e} evaluates to {expect}" (res == expect)
+      | some expect =>
+        let excepts := extract5Excepts e.eval e.pruneBlocks.eval e.anon.eval
+          e.pruneBlocks.anon.eval e.anon.pruneBlocks.eval
+        withExceptOk s!"{e} evaluation succeeds" excepts fun (v₁, v₂, v₃, v₄, v₅) =>
+          test s!"{e} evaluates to correctly" $
+            expect == v₁ && v₁ == v₂ && v₂ == v₃ && v₃ == v₄ && v₄ == v₅
