@@ -662,63 +662,17 @@ def pairs : List Test := [
   overflow
 ]
 
-abbrev PruneTest := Expr × Expr
-
-def prunes_unused_let : PruneTest :=
-(⟦5⟧, ⟦(let ((unused (lambda (x) 5))) 5)⟧)
-
-def prunes_unused_letrec : PruneTest :=
-(⟦5⟧, ⟦(letrec ((unused (lambda (x) 5))) 5)⟧)
-
-def prunes_atom_let : PruneTest :=
-(⟦10⟧, ⟦(let ((atm 10)) atm)⟧)
-
-def prunes_atom_letrec : PruneTest :=
-(⟦10⟧, ⟦(letrec ((atm 10)) atm)⟧)
-
-def prunes_sym_let : PruneTest :=
-(⟦y⟧, ⟦(let ((sym y)) sym)⟧)
-
-def prunes_sym_letrec : PruneTest :=
-(⟦y⟧, ⟦(letrec ((sym y)) sym)⟧)
-
-def prunes_tricky_letrec : PruneTest :=
-(⟦(letrec ((r r)) r)⟧, ⟦(letrec ((r 5) (r r)) r)⟧)
-
-def prunes_multiple_atoms : PruneTest :=
-(⟦1⟧, ⟦(let ((r 5) (r 1)) r)⟧)
-
-def prunes_overriden_atom : PruneTest :=
-(⟦(let ((r (lambda (x) 5))) r)⟧, ⟦(let ((r 5) (r (lambda (x) r))) r)⟧)
-
-def prunes_transitive_symbols : PruneTest :=
-(⟦1⟧, ⟦(let ((a 1) (b a)) b)⟧)
-
-def does_not_inline_bound_values : PruneTest :=
-(⟦(let ((a (lambda (x) 5))) a)⟧, ⟦(let ((a (lambda (x) 5)) (b a)) b)⟧)
-
-def prunePairs : List PruneTest := [
-  prunes_unused_let,
-  prunes_unused_letrec,
-  prunes_atom_let,
-  prunes_atom_letrec,
-  prunes_sym_let,
-  prunes_sym_letrec,
-  prunes_tricky_letrec,
-  prunes_multiple_atoms,
-  prunes_overriden_atom,
-  prunes_transitive_symbols,
-  does_not_inline_bound_values
-]
+def extract5Excepts (e₁ e₂ e₃ e₄ e₅ : Except ε α) : Except ε (α × α × α × α × α) :=
+  return (← e₁, ← e₂, ← e₃, ← e₄, ← e₅)
 
 open LSpec in
 def main := lspecIO $
-  let tests := pairs.foldl (init := .done) fun tSeq pair =>
-    let (expect, e) := (pair : Test)
+  pairs.foldl (init := .done) fun tSeq (expect, e) =>
     tSeq ++ match expect with
       | none => withExceptError s!"{e} fails on evaluation" e.eval fun _ => .done
-      | some expect => withExceptOk s!"{e.anon} evaluation succeeds" e.anon.eval
-        fun res => test s!"{e} evaluates to {expect}" (res == expect)
-  prunePairs.foldl (init := tests) fun tSeq pair =>
-    let (expect, e) := (pair : PruneTest)
-    tSeq ++ test s!"{e} prunes to {expect}" (e.pruneBlocks == expect)
+      | some expect =>
+        let excepts := extract5Excepts e.eval e.pruneBlocks.eval e.anon.eval
+          e.pruneBlocks.anon.eval e.anon.pruneBlocks.eval
+        withExceptOk s!"{e} evaluation succeeds" excepts fun (v₁, v₂, v₃, v₄, v₅) =>
+          test s!"{e} evaluates to correctly" $
+            expect == v₁ && v₁ == v₂ && v₂ == v₃ && v₃ == v₄ && v₄ == v₅

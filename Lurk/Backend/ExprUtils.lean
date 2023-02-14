@@ -41,6 +41,24 @@ def getFreeVars (bVars acc : Std.RBSet String compare := default) :
   | .letrec s v b =>
     let bVars := bVars.insert s; b.getFreeVars bVars (v.getFreeVars bVars acc)
 
+def countFreeVarOccs
+  (bVars : Std.RBSet String compare := default)
+  (acc : Std.RBMap String Nat compare := default) :
+  Expr → Std.RBMap String Nat compare
+  | .atom _ | .env | .quote _ => acc
+  | .sym s => if bVars.contains s then acc else acc.insert s $ acc.findD s 0 |>.succ
+  | .op₁ _ e => e.countFreeVarOccs bVars acc
+  | .op₂ _ e₁ e₂ => e₂.countFreeVarOccs bVars (e₁.countFreeVarOccs bVars acc)
+  | .begin e₁ e₂ => e₂.countFreeVarOccs bVars (e₁.countFreeVarOccs bVars acc)
+  | .if a b c =>
+    c.countFreeVarOccs bVars (b.countFreeVarOccs bVars (a.countFreeVarOccs bVars acc))
+  | .app₀ e => e.countFreeVarOccs bVars acc
+  | .app e₁ e₂ => e₂.countFreeVarOccs bVars (e₁.countFreeVarOccs bVars acc)
+  | .lambda s b => b.countFreeVarOccs (bVars.insert s) acc
+  | .let s v b => b.countFreeVarOccs (bVars.insert s) (v.countFreeVarOccs bVars acc)
+  | .letrec s v b =>
+    let bVars := bVars.insert s; b.countFreeVarOccs bVars (v.countFreeVarOccs bVars acc)
+
 def containsCurrentEnv : Expr → Bool
   | .env => true
   | .op₁ _    e
@@ -54,44 +72,6 @@ def containsCurrentEnv : Expr → Bool
   | .if       e₁ e₂ e₃ =>
     e₁.containsCurrentEnv || e₂.containsCurrentEnv || e₃.containsCurrentEnv
   | _ => false
-
-/-- Eagerly remove unnecessary binders from `let` and `letrec` blocks. -/
-partial def pruneBlocks (letAtoms : Std.RBMap String Expr compare := default) : Expr → Expr
-  | x@(.letrec s v b)
-  | x@(.let s v b) =>
-    let letrec := x matches .letrec _ _ _
-    let (bs, b) := if letrec then b.telescopeLetrec #[(s, v)] else b.telescopeLet #[(s, v)]
-    if b.containsCurrentEnv then x else
-    -- remove unused binders
-    let (bs, _) := bs.foldr (init := (default, b.getFreeVars))
-      fun (s, v) (accBinders, accFVars) =>
-        if accFVars.contains s then
-          ((s, v) :: accBinders, (accFVars.erase fun s' => compare s' s).union -- `s` is no longer a free variable TODO double-check ordering of arguments to "compare"
-            $ v.getFreeVars (if letrec then .single s else default)) -- if letrec, s is not free in v
-        else (accBinders, accFVars) -- drop binder
-    -- remove atom binders
-    let (bs, letAtoms) := bs.foldl (init := (default, letAtoms))
-      fun (accBinders, letAtoms) (s, v) =>
-        let v := v.pruneBlocks letAtoms
-        let isSym := match v with
-        | .sym s' => not letrec || s' != s -- handle the annoying (and perhaps unnecessary) `letrec r r` edge case
-        | _ => false
-        if v matches (.atom _) || isSym then
-          (accBinders, letAtoms.insert s v) -- drop binder
-        else ((accBinders ++ [(s, v)]), letAtoms.erase s)
-    if letrec then mkLetrec bs (b.pruneBlocks letAtoms)
-    else mkLet bs (b.pruneBlocks letAtoms)
-  | .op₁    o e => .op₁ o (e.pruneBlocks letAtoms)
-  | .app₀     e => .app₀ (e.pruneBlocks letAtoms)
-  | .lambda s e => .lambda s (e.pruneBlocks letAtoms)
-  | .sym    n   => match letAtoms.find? n with -- replace atom binders
-                   | .some expr => expr
-                   | .none => .sym n
-  | .op₂    o e₁ e₂ => .op₂ o (e₁.pruneBlocks letAtoms) (e₂.pruneBlocks letAtoms)
-  | .begin    e₁ e₂ => .begin (e₁.pruneBlocks letAtoms) (e₂.pruneBlocks letAtoms)
-  | .app      e₁ e₂ => .app (e₁.pruneBlocks letAtoms) (e₂.pruneBlocks letAtoms)
-  | .if       e₁ e₂ e₃ => .if (e₁.pruneBlocks letAtoms) (e₂.pruneBlocks letAtoms) (e₃.pruneBlocks letAtoms)
-  | x => x
 
 def replaceFreeVars (map : Std.RBMap String Expr compare) : Expr → Expr
   | .sym s => match map.find? s with | some x => x | none => sym s
@@ -107,6 +87,51 @@ def replaceFreeVars (map : Std.RBMap String Expr compare) : Expr → Expr
   | .app      e₁ e₂ => .app (e₁.replaceFreeVars map) (e₂.replaceFreeVars map)
   | .if       e₁ e₂ e₃ =>
     .if (e₁.replaceFreeVars map) (e₂.replaceFreeVars map) (e₃.replaceFreeVars map)
+  | x => x
+
+/-- Eagerly remove unnecessary binders from `let` and `letrec` blocks. -/
+partial def pruneBlocks : Expr → Expr
+  | x@(.letrec s v b)
+  | x@(.let s v b) =>
+    let letrec := x matches .letrec _ _ _
+    let (bs, b) := if letrec then b.telescopeLetrec #[(s, v)] else b.telescopeLet #[(s, v)]
+    if b.containsCurrentEnv then x else
+    -- remove unused binders
+    let (bs, _) := bs.foldr (init := (default, b.getFreeVars))
+      fun (s, v) (accBinders, accFVars) =>
+        if accFVars.contains s then
+          ((s, v) :: accBinders, (accFVars.erase fun s' => compare s' s).union -- `s` is no longer a free variable TODO double-check ordering of arguments to "compare"
+            $ v.getFreeVars (if letrec then .single s else default)) -- if letrec, s is not free in v
+        else (accBinders, accFVars) -- drop binder
+    let b := b.pruneBlocks
+    -- inline atom binders or that are called only once
+    let (counts, bindings) : Std.RBMap String Nat compare × Std.RBMap String Expr compare := 
+      bs.foldl (init := default) fun (counts, bindings) (name, val) =>
+        let counts := countFreeVarOccs default (counts.filter fun n _ => bindings.contains n) val
+        let bindings := bindings.insert name val
+        (counts, bindings)
+    let toInline := countFreeVarOccs default counts b |>.filter fun name count =>
+      let val := bindings.find! name
+      let isAtom := match val with | .sym _ | .atom _ => true | _ => false
+      let isRec := letrec && (val.getFreeVars).contains name
+      (isAtom || count == 1) && !isRec
+    let (bs, bindings, _) : (Array $ String × Expr) ×
+        Std.RBMap String Expr compare × Std.RBSet String compare :=
+      bs.foldl (init := (default, bindings, default)) fun (bs, bindings, seenSyms) (name, val) =>
+        let val := val.replaceFreeVars $ bindings.filter fun n _ =>
+          seenSyms.contains n && toInline.contains n
+        (if toInline.contains name then bs else bs.push (name, val),
+          bindings.insert name val, seenSyms.insert name)
+    let bindings := bindings.filter fun n _ => toInline.contains n
+    if letrec then mkLetrec bs.data (b.replaceFreeVars bindings)
+    else mkLet bs.data (b.replaceFreeVars bindings)
+  | .op₁    o e => .op₁ o e.pruneBlocks
+  | .app₀     e => .app₀ e.pruneBlocks
+  | .lambda s e => .lambda s e.pruneBlocks
+  | .op₂    o e₁ e₂ => .op₂ o e₁.pruneBlocks e₂.pruneBlocks
+  | .begin    e₁ e₂ => .begin e₁.pruneBlocks e₂.pruneBlocks
+  | .app      e₁ e₂ => .app e₁.pruneBlocks e₂.pruneBlocks
+  | .if       e₁ e₂ e₃ => .if e₁.pruneBlocks e₂.pruneBlocks e₃.pruneBlocks
   | x => x
 
 def mkIfElses (ifThens : List (Expr × Expr)) (finalElse : Expr := .atom .nil) : Expr :=
