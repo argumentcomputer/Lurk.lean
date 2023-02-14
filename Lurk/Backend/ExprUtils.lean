@@ -74,6 +74,22 @@ def containsCurrentEnv : Expr → Bool
     e₁.containsCurrentEnv || e₂.containsCurrentEnv || e₃.containsCurrentEnv
   | _ => false
 
+def replaceFreeVars (map : Std.RBMap String Expr compare) : Expr → Expr
+  | .sym s => match map.find? s with | some x => x | none => sym s
+  | .lambda s b => .lambda s (b.replaceFreeVars (map.erase s))
+  | .let s v b => .let s (v.replaceFreeVars map) (b.replaceFreeVars (map.erase s))
+  | .letrec s v b =>
+    let map := map.erase s
+    .letrec s (v.replaceFreeVars map) (b.replaceFreeVars map)
+  | .op₁    o e => .op₁ o (e.replaceFreeVars map)
+  | .app₀     e => .app₀ (e.replaceFreeVars map)
+  | .op₂    o e₁ e₂ => .op₂ o (e₁.replaceFreeVars map) (e₂.replaceFreeVars map)
+  | .begin    e₁ e₂ => .begin (e₁.replaceFreeVars map) (e₂.replaceFreeVars map)
+  | .app      e₁ e₂ => .app (e₁.replaceFreeVars map) (e₂.replaceFreeVars map)
+  | .if       e₁ e₂ e₃ =>
+    .if (e₁.replaceFreeVars map) (e₂.replaceFreeVars map) (e₃.replaceFreeVars map)
+  | x => x
+
 /-- Eagerly remove unnecessary binders from `let` and `letrec` blocks. -/
 partial def pruneBlocks (letAtoms : Std.RBMap String Expr compare := default) : Expr → Expr
   | x@(.letrec s v b)
@@ -112,22 +128,6 @@ partial def pruneBlocks (letAtoms : Std.RBMap String Expr compare := default) : 
   | .if       e₁ e₂ e₃ => .if (e₁.pruneBlocks letAtoms) (e₂.pruneBlocks letAtoms) (e₃.pruneBlocks letAtoms)
   | x => x
 
-def replaceFreeVars (map : Std.RBMap String Expr compare) : Expr → Expr
-  | .sym s => match map.find? s with | some x => x | none => sym s
-  | .lambda s b => .lambda s (b.replaceFreeVars (map.erase s))
-  | .let s v b => .let s (v.replaceFreeVars map) (b.replaceFreeVars (map.erase s))
-  | .letrec s v b =>
-    let map := map.erase s
-    .letrec s (v.replaceFreeVars map) (b.replaceFreeVars map)
-  | .op₁    o e => .op₁ o (e.replaceFreeVars map)
-  | .app₀     e => .app₀ (e.replaceFreeVars map)
-  | .op₂    o e₁ e₂ => .op₂ o (e₁.replaceFreeVars map) (e₂.replaceFreeVars map)
-  | .begin    e₁ e₂ => .begin (e₁.replaceFreeVars map) (e₂.replaceFreeVars map)
-  | .app      e₁ e₂ => .app (e₁.replaceFreeVars map) (e₂.replaceFreeVars map)
-  | .if       e₁ e₂ e₃ =>
-    .if (e₁.replaceFreeVars map) (e₂.replaceFreeVars map) (e₃.replaceFreeVars map)
-  | x => x
-
 def inlineBinder : Expr → Expr
   | x@(.letrec s v b)
   | x@(.let s v b) =>
@@ -138,17 +138,15 @@ def inlineBinder : Expr → Expr
         let counts := countFreeVarOccs default (counts.filter fun n _ => bindings.contains n) val
         let bindings := bindings.insert name val
         (counts, bindings)
-    let counts := countFreeVarOccs default counts b
+    let singles := countFreeVarOccs default counts b |>.filter fun _ n => n == 1
     let (bs, bindings, _) : (Array $ String × Expr) ×
         Std.RBMap String Expr compare × Std.RBSet String compare :=
       bs.foldl (init := (default, bindings, default)) fun (bs, bindings, seenSyms) (name, val) =>
         let val := val.replaceFreeVars $ bindings.filter fun n _ =>
-          seenSyms.contains n && counts.find? n == some 1
-        if counts.find? name == some 1 then
-          (bs, bindings.insert name val, seenSyms.insert name)
-        else
-          (bs.push (name, val), bindings.insert name val, seenSyms.insert name)
-    let bindings := bindings.filter fun n _ => counts.find? n == some 1
+          seenSyms.contains n && singles.contains n
+        (if singles.contains name then bs else bs.push (name, val),
+          bindings.insert name val, seenSyms.insert name)
+    let bindings := bindings.filter fun n _ => singles.contains n
     if letrec then mkLetrec bs.data (b.replaceFreeVars bindings)
     else mkLet bs.data (b.replaceFreeVars bindings)
   | a => a
