@@ -90,7 +90,7 @@ def replaceFreeVars (map : Std.RBMap String Expr compare) : Expr → Expr
   | x => x
 
 /-- Eagerly remove unnecessary binders from `let` and `letrec` blocks. -/
-partial def pruneBlocks (letAtoms : Std.RBMap String Expr compare := default) : Expr → Expr
+partial def pruneBlocks : Expr → Expr
   | x@(.letrec s v b)
   | x@(.let s v b) =>
     let letrec := x matches .letrec _ _ _
@@ -103,42 +103,35 @@ partial def pruneBlocks (letAtoms : Std.RBMap String Expr compare := default) : 
           ((s, v) :: accBinders, (accFVars.erase fun s' => compare s' s).union -- `s` is no longer a free variable TODO double-check ordering of arguments to "compare"
             $ v.getFreeVars (if letrec then .single s else default)) -- if letrec, s is not free in v
         else (accBinders, accFVars) -- drop binder
-    -- remove atom binders
-    let (bs, letAtoms) := bs.foldl (init := (default, letAtoms))
-      fun (accBinders, letAtoms) (s, v) =>
-        let v := v.pruneBlocks letAtoms
-        let isSym := match v with
-        | .sym s' => not letrec || s' != s -- handle the annoying (and perhaps unnecessary) `letrec r r` edge case
-        | _ => false
-        if v matches (.atom _) || isSym then
-          (accBinders, letAtoms.insert s v) -- drop binder
-        else ((accBinders ++ [(s, v)]), letAtoms.erase s)
-    let b := b.pruneBlocks letAtoms
+    let b := b.pruneBlocks
     -- inline binders that are called only once
     let (counts, bindings) : Std.RBMap String Nat compare × Std.RBMap String Expr compare := 
       bs.foldl (init := default) fun (counts, bindings) (name, val) =>
         let counts := countFreeVarOccs default (counts.filter fun n _ => bindings.contains n) val
         let bindings := bindings.insert name val
         (counts, bindings)
-    let singles := countFreeVarOccs default counts b |>.filter fun _ n => n == 1
+    let toInline := countFreeVarOccs default counts b |>.filter fun name count =>
+      let val := bindings.find! name
+      let isAtom := match val with | .sym _ | .atom _ => true | _ => false
+      let isRec := letrec && (val.getFreeVars).contains name
+      (isAtom || count == 1) && !isRec
     let (bs, bindings, _) : (Array $ String × Expr) ×
         Std.RBMap String Expr compare × Std.RBSet String compare :=
       bs.foldl (init := (default, bindings, default)) fun (bs, bindings, seenSyms) (name, val) =>
         let val := val.replaceFreeVars $ bindings.filter fun n _ =>
-          seenSyms.contains n && singles.contains n
-        (if singles.contains name then bs else bs.push (name, val),
+          seenSyms.contains n && toInline.contains n
+        (if toInline.contains name then bs else bs.push (name, val),
           bindings.insert name val, seenSyms.insert name)
-    let bindings := bindings.filter fun n _ => singles.contains n
+    let bindings := bindings.filter fun n _ => toInline.contains n
     if letrec then mkLetrec bs.data (b.replaceFreeVars bindings)
     else mkLet bs.data (b.replaceFreeVars bindings)
-  | .sym      n => letAtoms.findD n (.sym n) -- replace atom binders
-  | .op₁    o e => .op₁ o (e.pruneBlocks letAtoms)
-  | .app₀     e => .app₀ (e.pruneBlocks letAtoms)
-  | .lambda s e => .lambda s (e.pruneBlocks letAtoms)
-  | .op₂    o e₁ e₂ => .op₂ o (e₁.pruneBlocks letAtoms) (e₂.pruneBlocks letAtoms)
-  | .begin    e₁ e₂ => .begin (e₁.pruneBlocks letAtoms) (e₂.pruneBlocks letAtoms)
-  | .app      e₁ e₂ => .app (e₁.pruneBlocks letAtoms) (e₂.pruneBlocks letAtoms)
-  | .if       e₁ e₂ e₃ => .if (e₁.pruneBlocks letAtoms) (e₂.pruneBlocks letAtoms) (e₃.pruneBlocks letAtoms)
+  | .op₁    o e => .op₁ o e.pruneBlocks
+  | .app₀     e => .app₀ e.pruneBlocks
+  | .lambda s e => .lambda s e.pruneBlocks
+  | .op₂    o e₁ e₂ => .op₂ o e₁.pruneBlocks e₂.pruneBlocks
+  | .begin    e₁ e₂ => .begin e₁.pruneBlocks e₂.pruneBlocks
+  | .app      e₁ e₂ => .app e₁.pruneBlocks e₂.pruneBlocks
+  | .if       e₁ e₂ e₃ => .if e₁.pruneBlocks e₂.pruneBlocks e₃.pruneBlocks
   | x => x
 
 def mkIfElses (ifThens : List (Expr × Expr)) (finalElse : Expr := .atom .nil) : Expr :=
