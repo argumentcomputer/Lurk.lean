@@ -29,5 +29,4 @@ lean_exe Tests.Encoding
 lean_exe Tests.Evaluation
 lean_exe Tests.Parsing
 lean_exe Tests.SerDe
-
-lean_exe Tests.Inlining
+lean_exe Tests.Pruning

@@ -46,8 +46,7 @@ def countFreeVarOccs
   (acc : Std.RBMap String Nat compare := default) :
   Expr → Std.RBMap String Nat compare
   | .atom _ | .env | .quote _ => acc
-  | .sym s => 
-    if bVars.contains s then acc else acc.insert s $ acc.find? s |>.getD 0 |>.succ
+  | .sym s => if bVars.contains s then acc else acc.insert s $ acc.findD s 0 |>.succ
   | .op₁ _ e => e.countFreeVarOccs bVars acc
   | .op₂ _ e₁ e₂ => e₂.countFreeVarOccs bVars (e₁.countFreeVarOccs bVars acc)
   | .begin e₁ e₂ => e₂.countFreeVarOccs bVars (e₁.countFreeVarOccs bVars acc)
@@ -114,25 +113,8 @@ partial def pruneBlocks (letAtoms : Std.RBMap String Expr compare := default) : 
         if v matches (.atom _) || isSym then
           (accBinders, letAtoms.insert s v) -- drop binder
         else ((accBinders ++ [(s, v)]), letAtoms.erase s)
-    if letrec then mkLetrec bs (b.pruneBlocks letAtoms)
-    else mkLet bs (b.pruneBlocks letAtoms)
-  | .op₁    o e => .op₁ o (e.pruneBlocks letAtoms)
-  | .app₀     e => .app₀ (e.pruneBlocks letAtoms)
-  | .lambda s e => .lambda s (e.pruneBlocks letAtoms)
-  | .sym    n   => match letAtoms.find? n with -- replace atom binders
-                   | .some expr => expr
-                   | .none => .sym n
-  | .op₂    o e₁ e₂ => .op₂ o (e₁.pruneBlocks letAtoms) (e₂.pruneBlocks letAtoms)
-  | .begin    e₁ e₂ => .begin (e₁.pruneBlocks letAtoms) (e₂.pruneBlocks letAtoms)
-  | .app      e₁ e₂ => .app (e₁.pruneBlocks letAtoms) (e₂.pruneBlocks letAtoms)
-  | .if       e₁ e₂ e₃ => .if (e₁.pruneBlocks letAtoms) (e₂.pruneBlocks letAtoms) (e₃.pruneBlocks letAtoms)
-  | x => x
-
-def inlineBinder : Expr → Expr
-  | x@(.letrec s v b)
-  | x@(.let s v b) =>
-    let letrec := x matches .letrec _ _ _  
-    let (bs, b) := if letrec then b.telescopeLetrec #[(s, v)] else b.telescopeLet #[(s, v)]
+    let b := b.pruneBlocks letAtoms
+    -- inline binders that are called only once
     let (counts, bindings) : Std.RBMap String Nat compare × Std.RBMap String Expr compare := 
       bs.foldl (init := default) fun (counts, bindings) (name, val) =>
         let counts := countFreeVarOccs default (counts.filter fun n _ => bindings.contains n) val
@@ -149,7 +131,15 @@ def inlineBinder : Expr → Expr
     let bindings := bindings.filter fun n _ => singles.contains n
     if letrec then mkLetrec bs.data (b.replaceFreeVars bindings)
     else mkLet bs.data (b.replaceFreeVars bindings)
-  | a => a
+  | .sym      n => letAtoms.findD n (.sym n) -- replace atom binders
+  | .op₁    o e => .op₁ o (e.pruneBlocks letAtoms)
+  | .app₀     e => .app₀ (e.pruneBlocks letAtoms)
+  | .lambda s e => .lambda s (e.pruneBlocks letAtoms)
+  | .op₂    o e₁ e₂ => .op₂ o (e₁.pruneBlocks letAtoms) (e₂.pruneBlocks letAtoms)
+  | .begin    e₁ e₂ => .begin (e₁.pruneBlocks letAtoms) (e₂.pruneBlocks letAtoms)
+  | .app      e₁ e₂ => .app (e₁.pruneBlocks letAtoms) (e₂.pruneBlocks letAtoms)
+  | .if       e₁ e₂ e₃ => .if (e₁.pruneBlocks letAtoms) (e₂.pruneBlocks letAtoms) (e₃.pruneBlocks letAtoms)
+  | x => x
 
 def mkIfElses (ifThens : List (Expr × Expr)) (finalElse : Expr := .atom .nil) : Expr :=
   match ifThens with
