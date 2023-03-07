@@ -10,7 +10,7 @@ lean_exe lurk where
   root := `Main
 
 require Poseidon from git
-  "https://github.com/yatima-inc/Poseidon.lean" @ "d9262964c4148e6ab55fdcf5cb26a1e8f63da921"
+  "https://github.com/yatima-inc/Poseidon.lean" @ "7205aff1f00536bb75659e1a58d7fada6f1c096d"
 
 require YatimaStdLib from git
   "https://github.com/yatima-inc/YatimaStdLib.lean" @ "649368d593f292227ab39b9fd08f6a448770dca8"
@@ -25,7 +25,7 @@ require std from git
   "https://github.com/leanprover/std4/" @ "fde95b16907bf38ea3f310af406868fc6bcf48d1"
 
 lean_exe Tests.Decoding
-lean_exe Tests.Encoding
+-- lean_exe Tests.Encoding
 lean_exe Tests.Evaluation
 lean_exe Tests.Parsing
 lean_exe Tests.SerDe

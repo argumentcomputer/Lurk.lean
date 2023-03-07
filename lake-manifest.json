@@ -28,9 +28,9 @@
   {"git":
    {"url": "https://github.com/yatima-inc/Poseidon.lean",
     "subDir?": null,
-    "rev": "d9262964c4148e6ab55fdcf5cb26a1e8f63da921",
+    "rev": "7205aff1f00536bb75659e1a58d7fada6f1c096d",
     "name": "Poseidon",
-    "inputRev?": "d9262964c4148e6ab55fdcf5cb26a1e8f63da921"}},
+    "inputRev?": "7205aff1f00536bb75659e1a58d7fada6f1c096d"}},
   {"git":
    {"url": "https://github.com/leanprover/std4/",
     "subDir?": null,
