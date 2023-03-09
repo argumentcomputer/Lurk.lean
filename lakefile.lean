@@ -10,16 +10,16 @@ lean_exe lurk where
   root := `Main
 
 require Poseidon from git
-  "https://github.com/yatima-inc/Poseidon.lean" @ "7205aff1f00536bb75659e1a58d7fada6f1c096d"
+  "https://github.com/yatima-inc/Poseidon.lean" @ "f4d25b445cbd1468f8e1a921182b7ccbc3004c9d"
 
 require YatimaStdLib from git
-  "https://github.com/yatima-inc/YatimaStdLib.lean" @ "649368d593f292227ab39b9fd08f6a448770dca8"
+  "https://github.com/yatima-inc/YatimaStdLib.lean" @ "92e5f1d578e307668a00036845ddebc7685134a2"
 
 require LSpec from git
   "https://github.com/yatima-inc/LSpec.git" @ "88f7d23e56a061d32c7173cea5befa4b2c248b41"
 
 require Megaparsec from git
-  "https://github.com/yatima-inc/Megaparsec.lean" @ "24cf1754477fa3fed53c418d4bf9dffe2a7d2517"
+  "https://github.com/yatima-inc/Megaparsec.lean" @ "3a0fc855661b9179362aac65cbeb08560be32f29"
 
 require std from git
   "https://github.com/leanprover/std4/" @ "fde95b16907bf38ea3f310af406868fc6bcf48d1"
