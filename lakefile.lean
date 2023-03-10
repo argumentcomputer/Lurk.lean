@@ -13,7 +13,7 @@ require Poseidon from git
   "https://github.com/yatima-inc/Poseidon.lean" @ "f4d25b445cbd1468f8e1a921182b7ccbc3004c9d"
 
 require YatimaStdLib from git
-  "https://github.com/yatima-inc/YatimaStdLib.lean" @ "92e5f1d578e307668a00036845ddebc7685134a2"
+  "https://github.com/yatima-inc/YatimaStdLib.lean" @ "10f2b444390a41ede90ca5c038c6ff972014d433"
 
 require LSpec from git
   "https://github.com/yatima-inc/LSpec.git" @ "88f7d23e56a061d32c7173cea5befa4b2c248b41"
