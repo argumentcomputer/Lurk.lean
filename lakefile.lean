@@ -10,7 +10,7 @@ lean_exe lurk where
   root := `Main
 
 require Poseidon from git
-  "https://github.com/yatima-inc/Poseidon.lean" @ "f4d25b445cbd1468f8e1a921182b7ccbc3004c9d"
+  "https://github.com/yatima-inc/Poseidon.lean" @ "4180a316a7822b924e05cda1729d8612fcc81ee7"
 
 require YatimaStdLib from git
   "https://github.com/yatima-inc/YatimaStdLib.lean" @ "10f2b444390a41ede90ca5c038c6ff972014d433"
