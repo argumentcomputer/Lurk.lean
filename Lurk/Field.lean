@@ -3,7 +3,7 @@ import YatimaStdLib.ByteArray
 
 namespace Lurk
 
-def N := 0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001
+def N := 0x40000000000000000000000000000000224698fc0994a8dd8c46eb2100000001
 
 abbrev F := Fin N
 
