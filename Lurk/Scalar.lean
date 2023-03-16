@@ -52,6 +52,7 @@ open Std (RBMap RBSet)
 
 abbrev Store := RBMap ScalarPtr (Option ScalarExpr) compare
 
+/-- Recovers expressions in case they're paired with immediate pointers -/
 def Store.get? (store : Store) : ScalarPtr → Option (Option ScalarExpr)
   | ⟨.num,  x⟩ => return some $ .num  x
   | ⟨.char, x⟩ => return some $ .char x
@@ -69,17 +70,33 @@ abbrev OpenM := ReaderT StoreCtx $ ExceptT String Id
 @[inline] def OpenM.withVisited (ptr : ScalarPtr) : OpenM α → OpenM α :=
   withReader fun ctx => { ctx with visited := ctx.visited.insert ptr }
 
-def loadLDON (ptr : ScalarPtr) : OpenM LDON := do
-  if (← read).visited.contains ptr then throw ""
-  else OpenM.withVisited ptr do
-    sorry
+partial def loadLDON (ptr : ScalarPtr) : OpenM LDON := do
+  if (← read).visited.contains ptr then throw s!"Cycle detected at {repr ptr}"
+  else match ptr with
+    | ⟨.nil, _⟩ => return .nil
+    | ⟨.str, .zero⟩ => return .str ""
+    | ⟨.sym, .zero⟩ => return .sym ""
+    | ⟨.char, f⟩ => return .char $ .ofNat f.val
+    | ⟨.num, f⟩ => return .num f
+    | ⟨.u64, f⟩ => return .u64 $ .ofNat f.val
+    | _ => OpenM.withVisited ptr do match (← read).store.find? ptr with
+      | none => throw s!"Expression for {repr ptr} not found"
+      | some none => throw "Can't open opaque data"
+      | some $ some expr => match expr with
+        | .cons x y => return .cons (← loadLDON x) (← loadLDON y)
+        | .strCons x y => match x, ← loadLDON y with
+          | ⟨.char, c⟩, .str cs => return .str ⟨.ofNat c :: cs.data⟩
+          | _, _ => throw s!"Malformed expression for a string: {repr expr}"
+        | .symCons x _ => match ← loadLDON x with
+          | .str x => return .sym x
+          | _ => throw s!"Malformed expression for a symbol: {repr expr}"
+        | _ => unreachable!
 
 def openCommM (comm : F) : OpenM LDON := do
-  match (← read).store.get? ⟨.comm, comm⟩ with
-  | none => throw ""
-  | some none => throw ""
-  | some $ some expr => match expr with
-    | _ => sorry
+  match (← read).store.find? ⟨.comm, comm⟩ with
+  | none => throw s!"Commitment for {comm.asHex} not found"
+  | some $ some (.comm _ ptr) => loadLDON ptr
+  | _ => throw "Invalid commitment expression. Malformed store"
 
 def Store.open (store : Store) (comm : F) : Except String LDON :=
   ReaderT.run (openCommM comm) ⟨store, default⟩
@@ -89,10 +106,6 @@ structure LDONHashState where
   charsCache : RBMap (List Char) ScalarPtr compare
   ldonCache  : RBMap LDON        ScalarPtr compare
   deriving Inhabited
-
-@[inline] def LDONHashState.get? (stt : LDONHashState) (ptr : ScalarPtr) :
-    Option (Option ScalarExpr) :=
-  stt.store.get? ptr
 
 def hashPtrPair (x y : ScalarPtr) : F :=
   .ofNat $ (Poseidon.Lurk.hash4 x.tag.toF x.val y.tag.toF y.val).norm
@@ -155,9 +168,6 @@ def hideLDON (secret : F) (x : LDON) : HashM F := do
   discard $ addExprHash ⟨.comm, hash⟩ (.comm (.ofNat 0) ptr) -- why `.ofNat 0`?
   return hash
 
-def LDON.commit (ldon : LDON) (stt : LDONHashState) : F × LDONHashState :=
-  StateT.run (hideLDON (.ofNat 0) ldon) stt
-
 abbrev ExtractM := ReaderT StoreCtx $ ExceptT String $ StateM Store
 
 @[inline] def ExtractM.withVisited (ptr : ScalarPtr) : ExtractM α → ExtractM α :=
@@ -187,4 +197,15 @@ def LDONHashState.extractComms (stt : LDONHashState) (comms : Array F) :
   | (.ok _, store) => return store
   | (.error e, _) => throw e
 
-end Lurk.Scalar
+end Scalar
+
+open Scalar
+
+@[inline] def LDON.hide (ldon : LDON) (secret : F) (stt : LDONHashState) :
+    F × LDONHashState :=
+  StateT.run (hideLDON secret ldon) stt
+
+@[inline] def LDON.commit (ldon : LDON) (stt : LDONHashState) : F × LDONHashState :=
+  StateT.run (hideLDON (.ofNat 0) ldon) stt
+
+end Lurk
