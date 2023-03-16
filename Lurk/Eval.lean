@@ -81,21 +81,6 @@ partial def telescopeCons (acc : Array Value := #[]) : Value → Array Value × 
   | cons x y => telescopeCons (acc.push x) y
   | x => (acc, x)
 
-partial def toString : Value → String
-  | .num x | .sym x => ToString.toString x
-  | .u64 x => s!"{x}u64"
-  | .char c => s!"#\\{c}"
-  | .str s => s!"\"{s}\""
-  | v@(.cons ..) => match v.telescopeCons with
-    | (#[], .nil) => "NIL"
-    | (vs, v) =>
-      let vs := vs.data.map toString |> " ".intercalate
-      match v with
-      | .nil => "(" ++ vs ++ ")"
-      | _ => s!"({vs} . {v.toString})"
-  | .comm c => s!"<comm {c.asHex}>"
-  | .fun n .. => s!"<fun ({n})>"
-
 def ofLDON : LDON → Value
   | .num  x => .num  x
   | .u64  x => .u64  x
@@ -113,17 +98,6 @@ def ofAtom : Atom → Value
   | .str  x => .str  x
 
 end Value
-
-instance : ToString Value where
-  toString := Value.toString
-
-instance : Inhabited Env := ⟨.mk .leaf⟩
-
-abbrev EvalM := EStateM String EvalState
-
--- @[inline] def EnvImg.toResult : EnvImg → Result
---   | .thunk v => v.get
---   | .value v => pure v
 
 namespace Env
 
@@ -143,6 +117,45 @@ def toRBMap : Env → Std.RBMap String EnvImg compare
   | mk e => e.fold (init := default) fun acc k v => acc.insert k v
 
 end Env
+
+mutual 
+
+partial def EnvImg.toString : EnvImg → String
+  | .mk r v => s!"recr! {r} @ {v.toString}"
+
+partial def Env.toString : Env → String := fun env =>
+  let env : String :=  " ".intercalate $ 
+    env.toList.map fun (n, img) => s!"({n}, {img.toString})"
+  s!"⦃ {env} ⦄"
+
+
+partial def Value.toString : Value → String
+  | .num x | .sym x => ToString.toString x
+  | .u64 x => s!"{x}u64"
+  | .char c => s!"#\\{c}"
+  | .str s => s!"\"{s}\""
+  | v@(.cons ..) => match v.telescopeCons with
+    | (#[], .nil) => "NIL"
+    | (vs, v) =>
+      let vs := vs.data.map Value.toString |> " ".intercalate
+      match v with
+      | .nil => "(" ++ vs ++ ")"
+      | _ => s!"({vs} . {v.toString})"
+  | .comm c => s!"<comm {c.asHex}>"
+  | .fun n img body => s!"<fun ({n}) {img.toString} {body}>"
+
+end
+
+instance : ToString Value where
+  toString := Value.toString
+
+instance : Inhabited Env := ⟨.mk .leaf⟩
+
+abbrev EvalM := EStateM String EvalState
+
+-- @[inline] def EnvImg.toResult : EnvImg → Result
+--   | .thunk v => v.get
+--   | .value v => pure v
 
 -- instance : ToString (String × Frames) := ⟨Prod.fst⟩
 
@@ -363,7 +376,11 @@ partial def Expr.evalM
   match e with
   | .atom a => return .ofAtom a
   | .sym n => match env.find? n with
-    | some ⟨r, v⟩ => return v
+    | some ⟨r, v⟩ => match v with
+      | .fun name env body =>
+        let env := if !r then env else env.insert n ⟨r, v⟩
+        return .fun name env body
+      | v => return v
     | none => error e s!"{n} not found"
   | .env =>
     return env.toArray.foldr (init := .nil)
