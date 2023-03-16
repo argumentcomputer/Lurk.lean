@@ -1,8 +1,8 @@
-import Lurk.Backend.Expr
-import Lurk.Backend.ExprUtils
+import Lurk.ExprUtils
+import Lurk.ExprLDON
 import Std.Data.RBMap
 
-namespace Lurk.Backend
+namespace Lurk
 
 set_option genSizeOfSpec false in
 mutual
@@ -83,13 +83,13 @@ partial def toString : Value → String
   | .comm c => s!"<comm {c.asHex}>"
   | .fun n .. => s!"<fun ({n})>"
 
-def ofDatum : Datum → Value
+def ofLDON : LDON → Value
   | .num  x => .num  x
   | .u64  x => .u64  x
   | .char x => .char x
   | .str  x => .str  x
   | .sym  x => .sym  x
-  | .cons x y => .cons (ofDatum x) (ofDatum y)
+  | .cons x y => .cons (ofLDON x) (ofLDON y)
 
 def ofAtom : Atom → Value
   | .t      => .sym "T"
@@ -263,6 +263,7 @@ def numGe (e : Expr) (frames : Frames) : Value → Value → Result
   | v₁, v₂ => error e frames s!"expected numeric values, got\n  {v₁} and {v₂}"
 
 def Expr.evalOp₁ (e : Expr) (frames : Frames) : Op₁ → Value → Result
+  | .eval, _ => unreachable!
   | .atom, .cons .. => return .nil
   | .atom, _ => return .t
   | .car, .cons car _ => return car
@@ -335,6 +336,10 @@ partial def Expr.eval
     | .fun "_" .. => error e frames s!"error evaluating\n{fn}\ncannot apply argument to 0-arg lambda"
     | .fun n env' body => body.eval (env'.insert n (.value $ ← arg.eval env frames)) frames
     | x => error e frames s!"error evaluating\n{fn}\nlambda was expected, got\n  {x}"
+  | .op₁ .eval (.quote d) => match d.toExpr with
+    | .error err => error e frames err
+    | .ok e => e.eval env frames -- should we reset the environment here?
+  | .op₁ .eval e => e.eval env frames
   | x@(.op₁ op e) => do evalOp₁ x frames op (← e.eval env frames)
   | x@(.op₂ op e₁ e₂) => do evalOp₂ x frames op (← e₁.eval env frames) (← e₂.eval env frames)
   | .lambda s e => return .fun s env e
@@ -345,6 +350,6 @@ partial def Expr.eval
       let env' := env.insert s $ .thunk $ .mk fun _ => v'.eval env frames
       do b.eval (env.insert s (.thunk $ v.eval env' frames)) frames
     else do b.eval (env.insert s (.thunk $ v.eval env frames)) frames
-  | .quote d => return .ofDatum d
+  | .quote d => return .ofLDON d
 
-end Lurk.Backend
+end Lurk

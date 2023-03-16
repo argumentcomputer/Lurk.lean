@@ -1,15 +1,57 @@
-import Lurk.Frontend.AST
-import Lurk.Backend.Expr
+import Lurk.LDON
+import Lurk.Expr
 
-namespace Lurk.Frontend.AST
+namespace Lurk
 
-open Backend (Expr)
+def Atom.toLDON : Atom → LDON
+  | .nil => .nil
+  | .t   => .t
+  | .num x => .num x
+  | .u64 x => .u64 x
+  | .str x => .str x
+  | .char x => .char x
+
+namespace Expr
+
+partial def toLDON : Expr → LDON
+  | .atom a => a.toLDON
+  | .sym s => .sym s
+  | .env => .cons (.sym "CURRENT-ENV") .nil
+  | .op₁ o e => .cons (.sym o.toString) (.cons e.toLDON .nil)
+  | .op₂ o e₁ e₂ => .cons (.sym o.toString) $ .cons e₁.toLDON $ .cons e₂.toLDON .nil
+  | e@(.begin ..) =>
+    .cons (.sym "BEGIN") $ e.telescopeBegin.foldr (.cons ·.toLDON ·) .nil
+  | .if a b c => .cons (.sym "IF") $ .cons a.toLDON $ .cons b.toLDON $ .cons c.toLDON .nil
+  | .app₀ e => .cons e.toLDON .nil
+  | .app f a => .cons f.toLDON (.cons a.toLDON .nil)
+  | .lambda s e =>
+    let (ss, b) := e.telescopeLam #[s]
+    .cons (.sym "LAMBDA") $
+      .cons (ss.foldr (fun s acc => .cons (.sym s) acc) .nil) $ .cons b.toLDON .nil
+  | .let s v b =>
+    let (bs, b) := b.telescopeLet #[(s, v)]
+    .cons (.sym "LET") $
+      .cons (bs.foldr (fun (s, v) acc =>
+          .cons (.cons (.sym s) (.cons v.toLDON .nil)) acc) .nil) $
+        .cons b.toLDON .nil
+  | .letrec s v b =>
+    let (bs, b) := b.telescopeLetrec #[(s, v)]
+    .cons (.sym "LETREC") $
+      .cons (bs.foldr (fun (s, v) acc =>
+          .cons (.cons (.sym s) (.cons v.toLDON .nil)) acc) .nil) $
+        .cons b.toLDON .nil
+  | .quote d => .cons (.sym "QUOTE") $ .cons d .nil
+
+end Expr
+
+namespace LDON
 
 def mkOp₁ (op₁ : String) : Expr → Expr := match op₁ with
   | "ATOM"   => .op₁ .atom
   | "CAR"    => .op₁ .car
   | "CDR"    => .op₁ .cdr
   | "EMIT"   => .op₁ .emit
+  | "EVAL"   => .op₁ .eval
   | "COMMIT" => .op₁ .commit
   | "COMM"   => .op₁ .comm
   | "OPEN"   => .op₁ .open
@@ -33,30 +75,24 @@ def mkOp₂ (op₂ : String) : Expr → Expr → Expr := match op₂ with
   | "HIDE"    => .op₂ .hide
   | x => fun y z => .app (.app (.sym x) y) z
 
-open Macro
-
-def asArgs : AST → Except String (List String)
+def asArgs : LDON → Except String (List String)
   | .nil => return []
   | .cons (.sym x) xs => return x :: (← xs.asArgs)
   | x => throw s!"expected list of symbols but got {x}"
 
-def asBindings : AST → Except String (List (String × AST))
+open Macro
+
+def asBindings : LDON → Except String (List (String × LDON))
   | .nil => return []
   | .cons ~[.sym x, y] xs => return (x, y) :: (← xs.asBindings)
   | x => throw s!"expected list of (symbol, body) pairs but got {x}"
 
-def toDatum : AST → Backend.Datum
-  | .num x => .num (.ofNat x)
-  | .char x => .char x
-  | .str x => .str x
-  | .sym x => .sym x
-  | .cons x y => .cons x.toDatum y.toDatum
-
-partial def toExpr : AST → Except String Expr
+partial def toExpr : LDON → Except String Expr
   -- trivial cases
   | .nil     => return .atom .nil
   | .t       => return .atom .t
   | .num  n  => return .atom $ .num (.ofNat n)
+  | .u64  n  => return .atom $ .u64 n
   | .char c  => return .atom $ .char c
   | .str  s  => return .atom $ .str s
   | ~[.sym "CURRENT-ENV"] => return .env
@@ -90,7 +126,7 @@ partial def toExpr : AST → Except String Expr
     return bindings.foldr (init := ← body.toExpr)
       fun (n, e) acc => .letrec n e acc
   -- quoting consumes the expression as-is
-  | ~[.sym "QUOTE", x] => return .quote x.toDatum
+  | ~[.sym "QUOTE", x] => return .quote x
   -- binary operators
   | ~[.sym op₂, x, y] => return mkOp₂ op₂ (← x.toExpr) (← y.toExpr)
   -- unary operators
@@ -104,4 +140,4 @@ partial def toExpr : AST → Except String Expr
         (← args.mapM toExpr).foldl (fun acc arg => .app acc arg) (← fn.toExpr)
     | x => throw s!"expected a list terminating with `nil` but got {x}"
 
-end Lurk.Frontend.AST
+end Lurk.LDON

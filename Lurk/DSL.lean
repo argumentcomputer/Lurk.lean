@@ -1,32 +1,32 @@
 import Lean
-import Lurk.Backend.Expr
+import Lurk.Expr
 
-namespace Lurk.Backend.DSL
+namespace Lurk.DSL
 open Lean Elab Meta Term
 
-declare_syntax_cat                      datum
-scoped syntax num                     : datum
-scoped syntax str                     : datum
-scoped syntax ident                   : datum
-scoped syntax "(" datum " . " datum ")" : datum
-scoped syntax "(" datum* ")"          : datum
+declare_syntax_cat                      ldon
+scoped syntax num                     : ldon
+scoped syntax str                     : ldon
+scoped syntax ident                   : ldon
+scoped syntax "(" ldon " . " ldon ")" : ldon
+scoped syntax "(" ldon* ")"           : ldon
 
-partial def elabDatum : TSyntax `datum → TermElabM Lean.Expr
-  | `(datum| $n:num) => do
-    mkAppM ``Datum.num #[← mkAppM ``F.ofNat #[mkNatLit n.getNat]]
-  | `(datum| $s:str) => mkAppM ``Datum.str #[mkStrLit s.getString]
-  | `(datum| $s:ident) => mkAppM ``Datum.sym #[mkStrLit s.getId.toString]
-  | `(datum| ($d₁:datum . $d₂:datum)) => do
-    mkAppM ``Datum.cons #[← elabDatum d₁, ← elabDatum d₂]
-  | `(datum| ($ds:datum*)) => do
-    ds.foldrM (init := ← mkAppM ``Datum.sym #[mkStrLit "NIL"]) fun v acc => do
-      mkAppM ``Datum.cons #[← elabDatum v, acc]
-  | `(datum| $x) => do
+partial def elabLDON : TSyntax `ldon → TermElabM Lean.Expr
+  | `(ldon| $n:num) => do
+    mkAppM ``LDON.num #[← mkAppM ``F.ofNat #[mkNatLit n.getNat]]
+  | `(ldon| $s:str) => mkAppM ``LDON.str #[mkStrLit s.getString]
+  | `(ldon| $s:ident) => mkAppM ``LDON.sym #[mkStrLit s.getId.toString]
+  | `(ldon| ($d₁:ldon . $d₂:ldon)) => do
+    mkAppM ``LDON.cons #[← elabLDON d₁, ← elabLDON d₂]
+  | `(ldon| ($ds:ldon*)) => do
+    ds.foldrM (init := ← mkAppM ``LDON.sym #[mkStrLit "NIL"]) fun v acc => do
+      mkAppM ``LDON.cons #[← elabLDON v, acc]
+  | `(ldon| $x) => do
     if x.raw.isAntiquot then
       let stx := x.raw.getAntiquotTerm
       let e ← elabTerm stx none
       let e ← whnf e
-      mkAppM ``ToDatum.toDatum #[e]
+      mkAppM ``LDON.ToLDON.toLDON #[e]
     else throwUnsupportedSyntax
 
 /- `atom` clashes with something in core -/
@@ -60,6 +60,8 @@ scoped syntax "cdr"    : op₁
 scoped syntax "CDR"    : op₁
 scoped syntax "emit"   : op₁
 scoped syntax "EMIT"   : op₁
+scoped syntax "eval"   : op₁
+scoped syntax "EVAL"   : op₁
 scoped syntax "commit" : op₁
 scoped syntax "COMMIT" : op₁
 scoped syntax "comm"   : op₁
@@ -78,6 +80,7 @@ def elabOp₁ : TSyntax `op₁ → TermElabM Lean.Expr
   | `(op₁| CAR)    | `(op₁| car)    => return mkConst ``Op₁.car
   | `(op₁| CDR)    | `(op₁| cdr)    => return mkConst ``Op₁.cdr
   | `(op₁| EMIT)   | `(op₁| emit)   => return mkConst ``Op₁.emit
+  | `(op₁| EVAL)   | `(op₁| eval)   => return mkConst ``Op₁.eval
   | `(op₁| COMMIT) | `(op₁| commit) => return mkConst ``Op₁.commit
   | `(op₁| COMM)   | `(op₁| comm)   => return mkConst ``Op₁.comm
   | `(op₁| OPEN)   | `(op₁| open)   => return mkConst ``Op₁.open
@@ -137,9 +140,9 @@ scoped syntax "IF" expr expr expr          : expr
 scoped syntax "(" expr+ ")"                : expr
 scoped syntax "lambda" "(" ident* ")" expr : expr
 scoped syntax "LAMBDA" "(" ident* ")" expr : expr
-scoped syntax "quote" datum                : expr
-scoped syntax "QUOTE" datum                : expr
-scoped syntax "," datum                    : expr
+scoped syntax "quote" ldon                 : expr
+scoped syntax "QUOTE" ldon                 : expr
+scoped syntax "," ldon                     : expr
 scoped syntax "(" expr ")"                 : expr
 
 declare_syntax_cat binder
@@ -198,8 +201,8 @@ partial def elabExpr : TSyntax `expr → TermElabM Lean.Expr
     let init ← mkAppM ``Expr.letrec #[initS, initV, ← elabExpr bd]
     bs.foldrM (init := init) fun b acc => do
       let (s, v) ← elabBinder b; mkAppM ``Expr.letrec #[s, v, acc]
-  | `(expr| QUOTE $d:datum) | `(expr| quote $d:datum) | `(expr| ,$d:datum) => do
-    mkAppM ``Expr.quote #[← elabDatum d]
+  | `(expr| QUOTE $d:ldon) | `(expr| quote $d:ldon) | `(expr| ,$d:ldon) => do
+    mkAppM ``Expr.quote #[← elabLDON d]
   | `(expr| ($e:expr)) => elabExpr e
   | `(expr| $x) => do
     if x.raw.isAntiquot then
@@ -218,4 +221,4 @@ end
 scoped elab "⟦" e:expr "⟧" : term =>
   elabExpr e
 
-end Lurk.Backend.DSL
+end Lurk.DSL

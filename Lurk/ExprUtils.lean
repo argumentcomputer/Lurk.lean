@@ -1,10 +1,9 @@
-import Lurk.Backend.Expr
-import Lurk.Backend.StringSucc
-import Lurk.Frontend.AST
+import Lurk.Expr
+import Lurk.StringSucc
 import Std.Data.RBMap
 import Lean.Util.SCC
 
-namespace Lurk.Backend.Expr
+namespace Lurk.Expr
 
 def mkApp (f : Expr) (args : List Expr) : Expr :=
   args.foldl (init := f) fun acc e => .app acc e
@@ -20,8 +19,10 @@ def mkLetrec (binders : List $ String × Expr) (body : Expr) : Expr :=
 
 /--
 Given a list of Exprs `xs := [x₁, x₂, ..]` and `tail`, create the explicit list
-`(cons x₁ (cons x₂ (cons .. tail)))`. Note that this is *different* from
-creating the literal list `(x₁ x₂ .. . tail)` -/
+`(cons x₁ (cons x₂ (cons .. tail)))`.
+
+Note: this is *different* from creating the literal list `(x₁ x₂ .. . tail)`.
+-/
 def mkConsListWith (xs : List Expr) (tail : Expr := .atom .nil) : Expr :=
   xs.foldr (init := tail) fun x acc => .op₂ .cons x acc
 
@@ -200,10 +201,9 @@ structure AnonCtx where
   map : Std.RBMap String String compare
   deriving Inhabited
 
-open Frontend.AST (reservedSyms) in
 def AnonCtx.next (ctx : AnonCtx) (k : String) : String × AnonCtx :=
   let v := ctx.highest.succ
-  let v := if reservedSyms.contains v then v.succ else v
+  let v := if LDON.reservedSyms.contains v then v.succ else v
   (v, ⟨v, ctx.map.insert k v⟩)
 
 def AnonCtx.update (ctx : AnonCtx) (k v : String) : AnonCtx :=
@@ -259,4 +259,4 @@ partial def anon (x : Expr) : Expr :=
     | x => (x, ctx)
   (aux default x).1
 
-end Lurk.Backend.Expr
+end Lurk.Expr
