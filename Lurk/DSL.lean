@@ -60,8 +60,6 @@ scoped syntax "cdr"    : op₁
 scoped syntax "CDR"    : op₁
 scoped syntax "emit"   : op₁
 scoped syntax "EMIT"   : op₁
-scoped syntax "eval"   : op₁
-scoped syntax "EVAL"   : op₁
 scoped syntax "commit" : op₁
 scoped syntax "COMMIT" : op₁
 scoped syntax "comm"   : op₁
@@ -80,7 +78,6 @@ def elabOp₁ : TSyntax `op₁ → TermElabM Lean.Expr
   | `(op₁| CAR)    | `(op₁| car)    => return mkConst ``Op₁.car
   | `(op₁| CDR)    | `(op₁| cdr)    => return mkConst ``Op₁.cdr
   | `(op₁| EMIT)   | `(op₁| emit)   => return mkConst ``Op₁.emit
-  | `(op₁| EVAL)   | `(op₁| eval)   => return mkConst ``Op₁.eval
   | `(op₁| COMMIT) | `(op₁| commit) => return mkConst ``Op₁.commit
   | `(op₁| COMM)   | `(op₁| comm)   => return mkConst ``Op₁.comm
   | `(op₁| OPEN)   | `(op₁| open)   => return mkConst ``Op₁.open

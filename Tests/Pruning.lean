@@ -1,8 +1,8 @@
 import LSpec
-import Lurk.Backend.DSL
-import Lurk.Backend.ExprUtils
+import Lurk.DSL
+import Lurk.ExprUtils
 
-open Lurk Backend DSL
+open Lurk DSL
 
 def cases := [
   (⟦(let ((a 1)) a)⟧, ⟦1⟧),

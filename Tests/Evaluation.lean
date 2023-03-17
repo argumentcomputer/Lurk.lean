@@ -676,5 +676,3 @@ def main := lspecIO $
         withExceptOk s!"{e} evaluation succeeds" excepts fun (v₁, v₂, v₃, v₄, v₅) =>
           test s!"{e} evaluates to correctly" $
             expect == v₁ && v₁ == v₂ && v₂ == v₃ && v₃ == v₄ && v₄ == v₅
-
-#eval main

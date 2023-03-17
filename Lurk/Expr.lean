@@ -42,7 +42,7 @@ instance : ToFormat Atom where
 end Atom
 
 inductive Op₁
-  | atom | car | cdr | emit | eval
+  | atom | car | cdr | emit
   | commit | comm | «open»
   | num | u64 | char
   deriving Repr, BEq
@@ -52,7 +52,6 @@ def Op₁.toFormat : Op₁ → Format
 | .car    => "CAR"
 | .cdr    => "CDR"
 | .emit   => "EMIT"
-| .eval   => "EVAL"
 | .commit => "COMMIT"
 | .comm   => "COMM"
 | .open   => "OPEN"
@@ -104,6 +103,8 @@ inductive Expr
   | «let»  : String → Expr → Expr → Expr
   | letrec : String → Expr → Expr → Expr
   | quote : LDON → Expr
+  | eval₁ : Expr → Expr
+  | eval₂ : Expr → Expr → Expr
   deriving Inhabited, BEq
 
 namespace Expr
@@ -165,30 +166,32 @@ partial def toFormat (esc := false) (e : Expr) : Format :=
   | .sym s => formatSym s
   | .env => .text "CURRENT-ENV"
   | .op₁ op e =>
-    paren <| format op ++ " " ++ e.toFormat esc
+    paren $ format op ++ " " ++ e.toFormat esc
   | .op₂ op e₁ e₂ =>
-    paren <| format op ++ " " ++ e₁.toFormat esc ++ line ++ e₂.toFormat esc
+    paren $ format op ++ " " ++ e₁.toFormat esc ++ line ++ e₂.toFormat esc
   | .begin e₁ e₂ =>
-    paren <| "BEGIN" ++ line ++ e₁.toFormat esc ++ line ++ e₂.toFormat esc
+    paren $ "BEGIN" ++ line ++ e₁.toFormat esc ++ line ++ e₂.toFormat esc
   | .if cond e₁ e₂ =>
-    paren <| "IF " ++ cond.toFormat esc ++ indentD (e₁.toFormat esc ++ line ++ e₂.toFormat esc)
-  | .app₀ fn => paren <| fn.toFormat esc
+    paren $ "IF " ++ cond.toFormat esc ++ indentD (e₁.toFormat esc ++ line ++ e₂.toFormat esc)
+  | .app₀ fn => paren $ fn.toFormat esc
   | .app f a =>
     let as := f.telescopeApp [a] |>.map $ toFormat esc
     paren (joinSep as " ")
   | .lambda s b =>
     let (as, b) := b.telescopeLam #[s]
     let as := as.data.map formatSym
-    paren <| "LAMBDA " ++ nest 2 (paren (joinSep as " ")) ++ indentD (b.toFormat esc)
+    paren $ "LAMBDA " ++ nest 2 (paren (joinSep as " ")) ++ indentD (b.toFormat esc)
   | .let s v b =>
     let (bs, b) := b.telescopeLet #[(s, v)]
-    let bs := bs.data.map fun (n, e) => paren <| formatSym n ++ indentD (e.toFormat esc)
-    paren <| "LET " ++ nest 4 (paren <| joinSep bs line) ++ indentD (b.toFormat esc)
+    let bs := bs.data.map fun (n, e) => paren $ formatSym n ++ indentD (e.toFormat esc)
+    paren $ "LET " ++ nest 4 (paren $ joinSep bs line) ++ indentD (b.toFormat esc)
   | .letrec s v b =>
     let (bs, b) := b.telescopeLetrec #[(s, v)]
-    let bs := bs.data.map fun (n, e) => paren <| formatSym n ++ indentD (e.toFormat esc)
-    paren <| "LETREC " ++ nest 7 (paren <| joinSep bs line) ++ indentD (b.toFormat esc)
-  | .quote ldon => paren <| "QUOTE" ++ line ++ format ldon
+    let bs := bs.data.map fun (n, e) => paren $ formatSym n ++ indentD (e.toFormat esc)
+    paren $ "LETREC " ++ nest 7 (paren $ joinSep bs line) ++ indentD (b.toFormat esc)
+  | .quote ldon => paren $ "QUOTE" ++ line ++ ldon.toFormat esc
+  | .eval₁ e => paren $ "EVAL" ++ line ++ e.toFormat esc
+  | .eval₂ e₁ e₂ => paren $ "EVAL" ++ line ++ e₁.toFormat esc ++ line ++ e₂.toFormat esc
 where
   formatSym s := if esc then s!"|{s}|" else s
 

@@ -30,33 +30,35 @@ def getFreeVars (bVars acc : Std.RBSet String compare := default) :
     Expr → Std.RBSet String compare
   | .atom _ | .env | .quote _ => acc
   | .sym s => if bVars.contains s then acc else acc.insert s
-  | .op₁ _ e => e.getFreeVars bVars acc
-  | .op₂ _ e₁ e₂ => e₂.getFreeVars bVars (e₁.getFreeVars bVars acc)
-  | .begin e₁ e₂ => e₂.getFreeVars bVars (e₁.getFreeVars bVars acc)
-  | .if a b c =>
-    c.getFreeVars bVars (b.getFreeVars bVars (a.getFreeVars bVars acc))
-  | .app₀ e => e.getFreeVars bVars acc
-  | .app e₁ e₂ => e₂.getFreeVars bVars (e₁.getFreeVars bVars acc)
-  | .lambda s b => b.getFreeVars (bVars.insert s) acc
-  | .let s v b => b.getFreeVars (bVars.insert s) (v.getFreeVars bVars acc)
+  | .op₁ _ e
+  | .app₀  e
+  | .eval₁ e => e.getFreeVars bVars acc
+  | .op₂ _ e₁ e₂
+  | .begin e₁ e₂
+  | .app   e₁ e₂
+  | .eval₂ e₁ e₂ => e₂.getFreeVars bVars (e₁.getFreeVars bVars acc)
+  | .if a b c => c.getFreeVars bVars (b.getFreeVars bVars (a.getFreeVars bVars acc))
+  | .lambda s   b => b.getFreeVars (bVars.insert s) acc
+  | .let    s v b => b.getFreeVars (bVars.insert s) (v.getFreeVars bVars acc)
   | .letrec s v b =>
     let bVars := bVars.insert s; b.getFreeVars bVars (v.getFreeVars bVars acc)
 
 def countFreeVarOccs
   (bVars : Std.RBSet String compare := default)
   (acc : Std.RBMap String Nat compare := default) :
-  Expr → Std.RBMap String Nat compare
+    Expr → Std.RBMap String Nat compare
   | .atom _ | .env | .quote _ => acc
   | .sym s => if bVars.contains s then acc else acc.insert s $ acc.findD s 0 |>.succ
-  | .op₁ _ e => e.countFreeVarOccs bVars acc
-  | .op₂ _ e₁ e₂ => e₂.countFreeVarOccs bVars (e₁.countFreeVarOccs bVars acc)
-  | .begin e₁ e₂ => e₂.countFreeVarOccs bVars (e₁.countFreeVarOccs bVars acc)
-  | .if a b c =>
-    c.countFreeVarOccs bVars (b.countFreeVarOccs bVars (a.countFreeVarOccs bVars acc))
-  | .app₀ e => e.countFreeVarOccs bVars acc
-  | .app e₁ e₂ => e₂.countFreeVarOccs bVars (e₁.countFreeVarOccs bVars acc)
-  | .lambda s b => b.countFreeVarOccs (bVars.insert s) acc
-  | .let s v b => b.countFreeVarOccs (bVars.insert s) (v.countFreeVarOccs bVars acc)
+  | .op₁ _ e
+  | .app₀  e
+  | .eval₁ e => e.countFreeVarOccs bVars acc
+  | .op₂ _ e₁ e₂
+  | .begin e₁ e₂
+  | .app   e₁ e₂
+  | .eval₂ e₁ e₂ => e₂.countFreeVarOccs bVars (e₁.countFreeVarOccs bVars acc)
+  | .if a b c => c.countFreeVarOccs bVars (b.countFreeVarOccs bVars (a.countFreeVarOccs bVars acc))
+  | .lambda s   b => b.countFreeVarOccs (bVars.insert s) acc
+  | .let    s v b => b.countFreeVarOccs (bVars.insert s) (v.countFreeVarOccs bVars acc)
   | .letrec s v b =>
     let bVars := bVars.insert s; b.countFreeVarOccs bVars (v.countFreeVarOccs bVars acc)
 
@@ -64,11 +66,13 @@ def containsCurrentEnv : Expr → Bool
   | .env => true
   | .op₁ _    e
   | .app₀     e
+  | .eval₁    e
   | .lambda _ e => e.containsCurrentEnv
   | .op₂ _    e₁ e₂
   | .begin    e₁ e₂
   | .app      e₁ e₂
   | .let _    e₁ e₂
+  | .eval₂    e₁ e₂
   | .letrec _ e₁ e₂ => e₁.containsCurrentEnv || e₂.containsCurrentEnv
   | .if       e₁ e₂ e₃ =>
     e₁.containsCurrentEnv || e₂.containsCurrentEnv || e₃.containsCurrentEnv
@@ -83,9 +87,11 @@ def replaceFreeVars (map : Std.RBMap String Expr compare) : Expr → Expr
     .letrec s (v.replaceFreeVars map) (b.replaceFreeVars map)
   | .op₁    o e => .op₁ o (e.replaceFreeVars map)
   | .app₀     e => .app₀ (e.replaceFreeVars map)
+  | .eval₁    e => .eval₁ (e.replaceFreeVars map)
   | .op₂    o e₁ e₂ => .op₂ o (e₁.replaceFreeVars map) (e₂.replaceFreeVars map)
   | .begin    e₁ e₂ => .begin (e₁.replaceFreeVars map) (e₂.replaceFreeVars map)
   | .app      e₁ e₂ => .app (e₁.replaceFreeVars map) (e₂.replaceFreeVars map)
+  | .eval₂    e₁ e₂ => .eval₂ (e₁.replaceFreeVars map) (e₂.replaceFreeVars map)
   | .if       e₁ e₂ e₃ =>
     .if (e₁.replaceFreeVars map) (e₂.replaceFreeVars map) (e₃.replaceFreeVars map)
   | x => x
@@ -128,10 +134,12 @@ partial def pruneBlocks : Expr → Expr
     else mkLet bs.data (b.replaceFreeVars bindings)
   | .op₁    o e => .op₁ o e.pruneBlocks
   | .app₀     e => .app₀ e.pruneBlocks
+  | .eval₁    e => .eval₁ e.pruneBlocks
   | .lambda s e => .lambda s e.pruneBlocks
   | .op₂    o e₁ e₂ => .op₂ o e₁.pruneBlocks e₂.pruneBlocks
   | .begin    e₁ e₂ => .begin e₁.pruneBlocks e₂.pruneBlocks
   | .app      e₁ e₂ => .app e₁.pruneBlocks e₂.pruneBlocks
+  | .eval₂    e₁ e₂ => .eval₂ e₁.pruneBlocks e₂.pruneBlocks
   | .if       e₁ e₂ e₃ => .if e₁.pruneBlocks e₂.pruneBlocks e₃.pruneBlocks
   | x => x
 
@@ -252,9 +260,11 @@ partial def anon (x : Expr) : Expr :=
         (mkLetrec bs.data (aux ctx b).1, ctx)
     | .op₁ o e => (.op₁ o (aux ctx e).1, ctx)
     | .app₀  e => (.app₀  (aux ctx e).1, ctx)
+    | .eval₁ e => (.eval₁ (aux ctx e).1, ctx)
     | .op₂ o e₁ e₂ => (.op₂ o (aux ctx e₁).1 (aux ctx e₂).1, ctx)
     | .begin e₁ e₂ => (.begin (aux ctx e₁).1 (aux ctx e₂).1, ctx)
     | .app   e₁ e₂ => (.app   (aux ctx e₁).1 (aux ctx e₂).1, ctx)
+    | .eval₂ e₁ e₂ => (.eval₂ (aux ctx e₁).1 (aux ctx e₂).1, ctx)
     | .if    e₁ e₂ e₃ => (.if (aux ctx e₁).1 (aux ctx e₂).1 (aux ctx e₃).1, ctx)
     | x => (x, ctx)
   (aux default x).1

@@ -308,7 +308,6 @@ def openComm (comm : F) : EvalM Value := do
   | .ok ldon => return .ofLDON ldon
 
 def Expr.evalOp₁ (e : Expr) : Op₁ → Value → EvalM Value
-  | .eval, _ => unreachable!
   | .atom, .cons .. => return .nil
   | .atom, _ => return .t
   | .car, .cons car _ => return car
@@ -358,6 +357,9 @@ def Expr.evalOp₂ (e : Expr) : Op₂ → Value → Value → EvalM Value
   | .eq, v₁, v₂ => return v₁.beq v₂
   | .hide, .num f, v => hideLDON f v.toLDON
   | .hide, v, _ => error e s!"expected a num, got {v}"
+
+
+def Value.toEnv : Value → EvalM Env := panic! "TODO"
 
 mutual
 
@@ -417,16 +419,14 @@ partial def Expr.evalM
     | _ => y.evalM env
   | .app₀ fn => fn.evalApp₀ env
   | .app fn arg => fn.evalApp arg env
-  | .op₁ .eval (.quote d) => match d.toExpr with
-    | .error err => error e err
-    | .ok e => e.evalM env -- should we reset the environment here?
-  | .op₁ .eval e => e.evalM env
   | x@(.op₁ op e) => do evalOp₁ x op (← e.evalM env)
   | x@(.op₂ op e₁ e₂) => do evalOp₂ x op (← e₁.evalM env) (← e₂.evalM env)
   | .lambda s e => return .fun s env e
   | .let s v b    => do b.evalM (env.insert s ⟨false, ← v.evalM env⟩)
   | .letrec s v b => do b.evalM (env.insert s ⟨true, ← v.evalM env⟩)
   | .quote d => return .ofLDON d
+  | .eval₁ e => e.evalM env
+  | .eval₂ e₁ e₂ => do let v ← e₂.evalM env; e₁.evalM (← v.toEnv)
 
 end
 

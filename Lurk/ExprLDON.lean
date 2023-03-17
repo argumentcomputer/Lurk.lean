@@ -41,6 +41,8 @@ partial def toLDON : Expr → LDON
           .cons (.cons (.sym s) (.cons v.toLDON .nil)) acc) .nil) $
         .cons b.toLDON .nil
   | .quote d => .cons (.sym "QUOTE") $ .cons d .nil
+  | .eval₁ x => .cons (.sym "EVAL") $ .cons x.toLDON .nil
+  | .eval₂ x y => .cons (.sym "EVAL") $ .cons x.toLDON (.cons y.toLDON .nil)
 
 end Expr
 
@@ -51,7 +53,6 @@ def mkOp₁ (op₁ : String) : Expr → Expr := match op₁ with
   | "CAR"    => .op₁ .car
   | "CDR"    => .op₁ .cdr
   | "EMIT"   => .op₁ .emit
-  | "EVAL"   => .op₁ .eval
   | "COMMIT" => .op₁ .commit
   | "COMM"   => .op₁ .comm
   | "OPEN"   => .op₁ .open
@@ -127,6 +128,8 @@ partial def toExpr : LDON → Except String Expr
       fun (n, e) acc => .letrec n e acc
   -- quoting consumes the expression as-is
   | ~[.sym "QUOTE", x] => return .quote x
+  | ~[.sym "EVAL", x] => return .eval₁ (← x.toExpr)
+  | ~[.sym "EVAL", x, y] => return .eval₂ (← x.toExpr) (← y.toExpr)
   -- binary operators
   | ~[.sym op₂, x, y] => return mkOp₂ op₂ (← x.toExpr) (← y.toExpr)
   -- unary operators
