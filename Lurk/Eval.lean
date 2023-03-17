@@ -294,12 +294,6 @@ def openComm (comm : F) : EvalM Value := do
   | .error err => throw err
   | .ok ldon => return .ofLDON ldon
 
-@[inline] def hide (secret : F) (v : Value) : EvalM Value :=
-  hideLDON secret v.toLDON
-
-@[inline] def commit (v : Value) : EvalM Value :=
-  hide (.ofNat 0) v
-
 def Expr.evalOp₁ (e : Expr) : Op₁ → Value → EvalM Value
   | .eval, _ => unreachable!
   | .atom, .cons .. => return .nil
@@ -313,7 +307,7 @@ def Expr.evalOp₁ (e : Expr) : Op₁ → Value → EvalM Value
   | .cdr, .str ⟨_::t⟩ => return .str ⟨t⟩
   | .cdr, v => error e s!"expected cons value, got\n  {v}"
   | .emit, v => dbg_trace v; return v
-  | .commit, v => commit v
+  | .commit, v => hideLDON (.ofNat 0) v.toLDON
   | .comm, .num n => return .comm n
   | .comm, v => error e s!"expected a num, got\n  {v}"
   | .open, .num f
@@ -349,7 +343,7 @@ def Expr.evalOp₂ (e : Expr) : Op₂ → Value → Value → EvalM Value
   | .le, v₁, v₂ => numLe e v₁ v₂
   | .ge, v₁, v₂ => numGe e v₁ v₂
   | .eq, v₁, v₂ => return v₁.beq v₂
-  | .hide, .num f, v => hide f v
+  | .hide, .num f, v => hideLDON f v.toLDON
   | .hide, v, _ => error e s!"expected a num, got {v}"
 
 mutual
@@ -419,8 +413,9 @@ partial def Expr.evalM
 
 end
 
-def Expr.eval (e : Expr) (env : Env := default) : Except String Value :=
-  match EStateM.run (e.evalM env) default with
+def Expr.eval (e : Expr) (env : Env := default) (store : Scalar.Store := default) :
+    Except String Value :=
+  match EStateM.run (e.evalM env) ⟨store, default, default⟩ with
   | .ok a _ => .ok a
   | .error e _ => .error e
 
