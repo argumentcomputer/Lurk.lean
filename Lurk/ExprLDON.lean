@@ -20,7 +20,8 @@ partial def toLDON : Expr → LDON
   | .op₁ o e => .cons (.sym o.toString) (.cons e.toLDON .nil)
   | .op₂ o e₁ e₂ => .cons (.sym o.toString) $ .cons e₁.toLDON $ .cons e₂.toLDON .nil
   | e@(.begin ..) =>
-    .cons (.sym "BEGIN") $ e.telescopeBegin.foldr (.cons ·.toLDON ·) .nil
+    let (es, e) := e.telescopeBegin
+    .cons (.sym "BEGIN") $ es.foldr (.cons ·.toLDON ·) e.toLDON
   | .if a b c => .cons (.sym "IF") $ .cons a.toLDON $ .cons b.toLDON $ .cons c.toLDON .nil
   | .app₀ e => .cons e.toLDON .nil
   | .app f a => .cons f.toLDON (.cons a.toLDON .nil)
@@ -44,9 +45,12 @@ partial def toLDON : Expr → LDON
   | .eval₁ x => .cons (.sym "EVAL") $ .cons x.toLDON .nil
   | .eval₂ x y => .cons (.sym "EVAL") $ .cons x.toLDON (.cons y.toLDON .nil)
 
-end Expr
+def symOfString : String → Expr
+  | "NIL" => .nil
+  | "T"   => .t
+  | x     => .sym x
 
-namespace LDON
+end Expr
 
 def mkOp₁ (op₁ : String) : Expr → Expr := match op₁ with
   | "ATOM"   => .op₁ .atom
@@ -58,7 +62,7 @@ def mkOp₁ (op₁ : String) : Expr → Expr := match op₁ with
   | "OPEN"   => .op₁ .open
   | "NUM"    => .op₁ .num
   | "CHAR"   => .op₁ .char
-  | x => fun y => .app (.sym x) y
+  | x => fun y => .app (.symOfString x) y
 
 def mkOp₂ (op₂ : String) : Expr → Expr → Expr := match op₂ with
   | "CONS"    => .op₂ .cons
@@ -74,7 +78,9 @@ def mkOp₂ (op₂ : String) : Expr → Expr → Expr := match op₂ with
   | ">="      => .op₂ .ge
   | "EQ"      => .op₂ .eq
   | "HIDE"    => .op₂ .hide
-  | x => fun y z => .app (.app (.sym x) y) z
+  | x => fun y z => .app (.app (.symOfString x) y) z
+
+namespace LDON
 
 def asArgs : LDON → Except String (List String)
   | .nil => return []
@@ -90,23 +96,22 @@ def asBindings : LDON → Except String (List (String × LDON))
 
 partial def toExpr : LDON → Except String Expr
   -- trivial cases
-  | .nil     => return .atom .nil
-  | .t       => return .atom .t
   | .num  n  => return .atom $ .num (.ofNat n)
   | .u64  n  => return .atom $ .u64 n
   | .char c  => return .atom $ .char c
   | .str  s  => return .atom $ .str s
   | ~[.sym "CURRENT-ENV"] => return .env
-  | .sym s  => return .sym s
+  | .sym s  => return .symOfString s
   -- `begin` is a sequence of expressions
-  | .cons (.sym "BEGIN") tail => do
-    let (tail, ini) := tail.telescopeCons
-    (← tail.mapM toExpr).foldrM (init := ← ini.toExpr)
-      fun e acc => pure $ .begin e acc
+  | .cons (.sym "BEGIN") tail => match tail.telescopeCons with
+    | (xs, .nil) =>
+      xs.foldrM (init := .nil) fun x acc => do
+        pure $ .begin (← x.toExpr) acc
+    | x => throw s!"expected a list terminating with `nil` but got {x}"
   -- `if` is a sequence of (up to) three expressions
-  | ~[.sym "IF"] => return .if (.atom .nil) (.atom .nil) (.atom .nil)
-  | ~[.sym "IF", x] => return .if (← x.toExpr) (.atom .nil) (.atom .nil)
-  | ~[.sym "IF", x, y] => return .if (← x.toExpr) (← y.toExpr) (.atom .nil)
+  | ~[.sym "IF"] => return .if .nil .nil .nil
+  | ~[.sym "IF", x] => return .if (← x.toExpr) .nil .nil
+  | ~[.sym "IF", x, y] => return .if (← x.toExpr) (← y.toExpr) .nil
   | ~[.sym "IF", x, y, z] => return .if (← x.toExpr) (← y.toExpr) (← z.toExpr)
   -- `lambda` requires a gradual consumption of a symbol
   | ~[.sym "LAMBDA", args, body] => do
@@ -137,10 +142,11 @@ partial def toExpr : LDON → Except String Expr
   -- everything else is just an `app`
   | cons fn args => match args.telescopeCons with
     | (args, nil) =>
-      return if args.isEmpty then
-        .app₀ (← fn.toExpr)
-      else
-        (← args.mapM toExpr).foldl (fun acc arg => .app acc arg) (← fn.toExpr)
+      if args.isEmpty then
+        return .app₀ (← fn.toExpr)
+      else do
+        args.foldlM (init := ← fn.toExpr) fun acc arg => do
+          pure $ .app acc (← arg.toExpr)
     | x => throw s!"expected a list terminating with `nil` but got {x}"
 
 end Lurk.LDON

@@ -105,9 +105,12 @@ inductive Expr
   | quote : LDON → Expr
   | eval₁ : Expr → Expr
   | eval₂ : Expr → Expr → Expr
-  deriving Inhabited, BEq
+  deriving Inhabited, BEq, Repr
 
 namespace Expr
+
+@[match_pattern] def nil : Expr := .atom .nil
+@[match_pattern] def t   : Expr := .atom .t
 
 class ToExpr (α : Type _) where
   toExpr : α → Expr
@@ -153,9 +156,9 @@ def telescopeApp (acc : List Expr) : Expr → List Expr
   | .app f a => f.telescopeApp (a :: acc)
   | x => x :: acc
 
-def telescopeBegin : Expr → Array Expr
-  | .begin e₁ e₂ => e₁.telescopeBegin ++ e₂.telescopeBegin
-  | x => #[x]
+def telescopeBegin (acc : Array Expr := #[]) : Expr → Array Expr × Expr
+  | begin x y => telescopeBegin (acc.push x) y
+  | x => (acc, x)
 
 open Format
 

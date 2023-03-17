@@ -1,6 +1,6 @@
 import LSpec
-import Lurk.Frontend.Parser
-import Lurk.Frontend.DSL
+import Lurk.Parser
+import Lurk.ExprDSL
 
 def code := "(begin
     nil
@@ -32,13 +32,13 @@ def code := "(begin
     (('1) . ' (cons 2 3))
     ((+ 1 2) (f x)  .    (cons 4 2)))"
 
-open Lurk.Frontend.DSL in def expectedAST := ⟦
+open Lurk.DSL in def expectedAST := ⟦
   (begin
     nil
     t
-    current-env
+    (current-env)
     nilbutsym
-    (nil . 1)
+    ,(2 . 1)
     ()
     ()
     (nil)
@@ -65,6 +65,6 @@ open Lurk.Frontend.DSL in def expectedAST := ⟦
 
 open LSpec in
 def main := lspecIO $
-  withExceptOk "Parsing succeeds" (Lurk.Frontend.Parser.parse code)
+  withExceptOk "Parsing succeeds" (Lurk.Parser.parse code)
     fun resultingAST => 
       test "Parsed correctly" (resultingAST == expectedAST)

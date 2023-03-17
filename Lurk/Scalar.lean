@@ -143,13 +143,7 @@ def hashLDON (x : LDON) : HashM ScalarPtr := do
   | some ptr => pure ptr
   | none =>
     let ptr ← match x with
-      | .nil =>
-        let rootPtr := ⟨.sym, F.zero⟩
-        let nilPtr  ← hashChars ['N', 'I', 'L']
-        let lurkPtr ← hashChars ['L', 'U', 'R', 'K']
-        let symPtr1 ← addExprHash ⟨.sym, hashPtrPair lurkPtr rootPtr⟩ (.symCons lurkPtr rootPtr)
-        let symPtr2 ← addExprHash ⟨.sym, hashPtrPair nilPtr symPtr1⟩ (.symCons nilPtr symPtr1)
-        addExprHash ⟨.nil, symPtr2.val⟩ .nil
+      | .nil => addExprHash ⟨.nil, (← hashStrings ["NIL", "LURK"]).val⟩ .nil
       | .num n => pure ⟨.num, n⟩
       | .u64 n => pure ⟨.u64, .ofNat n.val⟩
       | .char n => pure ⟨.char, .ofNat n.toNat⟩
@@ -165,7 +159,7 @@ def hashLDON (x : LDON) : HashM ScalarPtr := do
 def hideLDON (secret : F) (x : LDON) : HashM F := do
   let ptr ← hashLDON x
   let hash := hashFPtr secret ptr
-  discard $ addExprHash ⟨.comm, hash⟩ (.comm (.ofNat 0) ptr) -- why `.ofNat 0`?
+  discard $ addExprHash ⟨.comm, hash⟩ (.comm secret ptr)
   return hash
 
 abbrev ExtractM := ReaderT StoreCtx $ ExceptT String $ StateM Store

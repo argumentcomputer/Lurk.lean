@@ -24,9 +24,8 @@ require Megaparsec from git
 require std from git
   "https://github.com/leanprover/std4/" @ "fde95b16907bf38ea3f310af406868fc6bcf48d1"
 
-lean_exe Tests.Decoding
--- lean_exe Tests.Encoding
 lean_exe Tests.Evaluation
+lean_exe Tests.Roundtrip
 lean_exe Tests.Parsing
 lean_exe Tests.SerDe
 lean_exe Tests.Pruning

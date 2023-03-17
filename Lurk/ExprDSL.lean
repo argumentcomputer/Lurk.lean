@@ -137,14 +137,15 @@ scoped syntax "lambda" "(" ident* ")" expr : expr
 scoped syntax "LAMBDA" "(" ident* ")" expr : expr
 scoped syntax "quote" ldon                 : expr
 scoped syntax "QUOTE" ldon                 : expr
-scoped syntax "quote" expr                 : expr
-scoped syntax "QUOTE" expr                 : expr
 scoped syntax "eval" expr                  : expr
 scoped syntax "eval" expr expr             : expr
 scoped syntax "EVAL" expr                  : expr
 scoped syntax "EVAL" expr expr             : expr
 scoped syntax "," ldon                     : expr
-scoped syntax "(" expr ")"                 : expr
+scoped syntax "(" (expr)? ")"              : expr
+
+scoped syntax (priority := low) "QUOTE" expr : expr
+scoped syntax (priority := low) "quote" expr : expr
 
 declare_syntax_cat binder
 scoped syntax "(" ident expr ")" : binder
@@ -165,9 +166,9 @@ partial def elabExpr : TSyntax `expr → TermElabM Lean.Expr
   | `(expr| $o:op₁ $e:expr) => do mkAppM ``Expr.op₁ #[← elabOp₁ o, ← elabExpr e]
   | `(expr| $o:op₂ $e₁:expr $e₂:expr) => do
     mkAppM ``Expr.op₂ #[← elabOp₂ o, ← elabExpr e₁, ← elabExpr e₂]
-  | `(expr| BEGIN) | `(expr| begin) => mkAppM ``Expr.atom #[mkConst ``Atom.nil]
-  | `(expr| BEGIN $es:expr* $e:expr) | `(expr| begin $es:expr* $e:expr) => do
-    es.foldrM (init := ← elabExpr e) fun e acc => do
+  | `(expr| BEGIN) | `(expr| begin) => return mkConst ``Expr.nil
+  | `(expr| BEGIN $es:expr*) | `(expr| begin $es:expr*) => do
+    es.foldrM (init := mkConst ``Expr.nil) fun e acc => do
       mkAppM ``Expr.begin #[← elabExpr e, acc]
   | `(expr| IF $a:expr $b:expr $c:expr)
   | `(expr| if $a:expr $b:expr $c:expr) => do
@@ -210,6 +211,7 @@ partial def elabExpr : TSyntax `expr → TermElabM Lean.Expr
     mkAppM ``Expr.eval₁ #[← elabExpr e]
   | `(expr| EVAL $e₁:expr $e₂:expr) | `(expr| eval $e₁:expr $e₂:expr) => do
     mkAppM ``Expr.eval₂ #[← elabExpr e₁, ← elabExpr e₂]
+  | `(expr| ()) => return mkConst ``Expr.nil
   | `(expr| ($e:expr)) => elabExpr e
   | `(expr| $x) =>
     if x.raw.isAntiquot then do

@@ -1,5 +1,5 @@
 import LSpec
-import Lurk.DSL
+import Lurk.ExprDSL
 import Lurk.Eval
 import Lurk.ExprUtils
 

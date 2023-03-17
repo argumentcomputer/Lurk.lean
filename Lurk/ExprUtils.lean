@@ -23,7 +23,7 @@ Given a list of Exprs `xs := [x₁, x₂, ..]` and `tail`, create the explicit l
 
 Note: this is *different* from creating the literal list `(x₁ x₂ .. . tail)`.
 -/
-def mkConsListWith (xs : List Expr) (tail : Expr := .atom .nil) : Expr :=
+def mkConsListWith (xs : List Expr) (tail : Expr := .nil) : Expr :=
   xs.foldr (init := tail) fun x acc => .op₂ .cons x acc
 
 def getFreeVars (bVars acc : Std.RBSet String compare := default) :
@@ -143,9 +143,9 @@ partial def pruneBlocks : Expr → Expr
   | .if       e₁ e₂ e₃ => .if e₁.pruneBlocks e₂.pruneBlocks e₃.pruneBlocks
   | x => x
 
-def mkIfElses (ifThens : List (Expr × Expr)) (finalElse : Expr := .atom .nil) : Expr :=
+def mkIfElses (ifThens : List (Expr × Expr)) (finalElse : Expr := .nil) : Expr :=
   match ifThens with
-  | [] => .atom .nil
+  | [] => .nil
   | [(cond, body)] => .if cond body finalElse
   | (cond, body) :: es => .if cond body (mkIfElses es finalElse)
 

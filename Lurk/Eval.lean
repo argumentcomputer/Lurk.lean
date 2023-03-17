@@ -93,8 +93,8 @@ def ofLDON : LDON → Value
   | .cons x y => .cons (ofLDON x) (ofLDON y)
 
 def ofAtom : Atom → Value
-  | .t      => .sym "T"
-  | .nil    => .sym "NIL"
+  | .t      => .t
+  | .nil    => .nil
   | .num  x => .num  x
   | .u64  x => .u64  x
   | .char x => .char x
@@ -316,7 +316,7 @@ def Expr.evalOp₁ (e : Expr) : Op₁ → Value → EvalM Value
   | .car, v => error e s!"expected cons value, got\n  {v}"
   | .cdr, .cons _ cdr => return cdr
   | .cdr, .str ⟨[]⟩ => return .str ""
-  | .cdr, .str ⟨_::t⟩ => return .str ⟨t⟩
+  | .cdr, .str ⟨_::cs⟩ => return .str ⟨cs⟩
   | .cdr, v => error e s!"expected cons value, got\n  {v}"
   | .emit, v => dbg_trace v; return v
   | .commit, v => hideLDON (.ofNat 0) v.toLDON
@@ -411,7 +411,7 @@ partial def Expr.evalM (e : Expr) (env : Env := default) : EvalM Value :=
   | .env =>
     return env.toArray.foldr (init := .nil)
       fun (k, v) acc => .cons (.cons (.sym k) v.value) acc
-  | .begin x (atom .nil) => x.evalM env
+  | .begin x .nil => x.evalM env
   | .begin x y => do discard $ x.evalM env; y.evalM env
   | .if x y z => do match ← x.evalM env with
     | .nil => z.evalM env
