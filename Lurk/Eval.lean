@@ -115,6 +115,16 @@ def ofAtom : Atom → Value
   | .char x => .char x
   | .str  x => .str  x
 
+def toLDON : Value → LDON
+  | num x => .num x
+  | u64 x => .u64 x
+  | char x => .char x
+  | str x => .str x
+  | sym x => .sym x
+  | cons x y => .cons x.toLDON y.toLDON
+  | comm _ => panic! "TODO"
+  | .fun .. => panic! "TODO"
+
 end Value
 
 instance : ToString Value where
@@ -284,7 +294,8 @@ def openComm (comm : F) : EvalM Value := do
   | .error err => throw err
   | .ok ldon => return .ofLDON ldon
 
-@[inline] def hide (secret : F) : Value → EvalM Value := sorry
+@[inline] def hide (secret : F) (v : Value) : EvalM Value :=
+  hideLDON secret v.toLDON
 
 @[inline] def commit (v : Value) : EvalM Value :=
   hide (.ofNat 0) v
