@@ -168,9 +168,6 @@ def hideLDON (secret : F) (x : LDON) : HashM F := do
   discard $ addExprHash ⟨.comm, hash⟩ (.comm (.ofNat 0) ptr) -- why `.ofNat 0`?
   return hash
 
-def LDON.commit (ldon : LDON) (stt : LDONHashState) : F × LDONHashState :=
-  StateT.run (hideLDON (.ofNat 0) ldon) stt
-
 abbrev ExtractM := ReaderT StoreCtx $ ExceptT String $ StateM Store
 
 @[inline] def ExtractM.withVisited (ptr : ScalarPtr) : ExtractM α → ExtractM α :=
@@ -200,4 +197,15 @@ def LDONHashState.extractComms (stt : LDONHashState) (comms : Array F) :
   | (.ok _, store) => return store
   | (.error e, _) => throw e
 
-end Lurk.Scalar
+end Scalar
+
+open Scalar
+
+@[inline] def LDON.hide (ldon : LDON) (secret : F) (stt : LDONHashState) :
+    F × LDONHashState :=
+  StateT.run (hideLDON secret ldon) stt
+
+@[inline] def LDON.commit (ldon : LDON) (stt : LDONHashState) : F × LDONHashState :=
+  StateT.run (hideLDON (.ofNat 0) ldon) stt
+
+end Lurk

@@ -25,7 +25,7 @@ inductive Env
   | mk : Lean.RBNode String (fun _ => EnvImg) → Env
 
 inductive Value where
-  | num  : Fin N  → Value
+  | num  : F      → Value
   | u64  : UInt64 → Value
   | char : Char   → Value
   | str  : String → Value
@@ -48,6 +48,7 @@ namespace Value
 @[match_pattern] def t   := Value.sym "T"
 @[match_pattern] def nil := Value.sym "NIL"
 
+section ValueDSL
 /- The following metaprogramming layer is merely for testing -/
 
 declare_syntax_cat                        value
@@ -76,6 +77,8 @@ partial def elabValue : Lean.TSyntax `value → TermElabM Lean.Expr
 
 scoped elab "⦃" v:value "⦄" : term =>
   elabValue v
+
+end ValueDSL
 
 partial def telescopeCons (acc : Array Value := #[]) : Value → Array Value × Value
   | cons x y => telescopeCons (acc.push x) y
@@ -272,6 +275,20 @@ def numGe (e : Expr) : Value → Value → EvalM Value
   | .u64 x, .num y => return F.ge (.ofNat x.toNat) y
   | v₁, v₂ => error e s!"expected numeric values, got\n  {v₁} and {v₂}"
 
+def hideLDON (secret : F) (ldon : LDON) : EvalM Value := do
+  let (comm, hashState) := ldon.hide secret (← get).hashState
+  modifyGet fun stt => (.comm comm, { stt with hashState := hashState })
+
+def openComm (comm : F) : EvalM Value := do
+  match (← get).hashState.store.open comm with
+  | .error err => throw err
+  | .ok ldon => return .ofLDON ldon
+
+@[inline] def hide (secret : F) : Value → EvalM Value := sorry
+
+@[inline] def commit (v : Value) : EvalM Value :=
+  hide (.ofNat 0) v
+
 def Expr.evalOp₁ (e : Expr) : Op₁ → Value → EvalM Value
   | .eval, _ => unreachable!
   | .atom, .cons .. => return .nil
@@ -285,10 +302,12 @@ def Expr.evalOp₁ (e : Expr) : Op₁ → Value → EvalM Value
   | .cdr, .str ⟨_::t⟩ => return .str ⟨t⟩
   | .cdr, v => error e s!"expected cons value, got\n  {v}"
   | .emit, v => dbg_trace v; return v
-  | .commit, v => return .u64 v.toString.hash
+  | .commit, v => commit v
   | .comm, .num n => return .comm n
   | .comm, v => error e s!"expected a num, got\n  {v}"
-  | .open, _ => error e "TODO open"
+  | .open, .num f
+  | .open, .comm f => openComm f
+  | .open, v => error e s!"expected a num or comm, got\n  {v}"
   | .num, x@(.num _) => return x
   | .num, .u64 n => return .num (.ofNat n.toNat)
   | .num, .char c => return .num (.ofNat c.toNat)
@@ -319,7 +338,8 @@ def Expr.evalOp₂ (e : Expr) : Op₂ → Value → Value → EvalM Value
   | .le, v₁, v₂ => numLe e v₁ v₂
   | .ge, v₁, v₂ => numGe e v₁ v₂
   | .eq, v₁, v₂ => return v₁.beq v₂
-  | .hide, _, _ => error e "TODO hide"
+  | .hide, .num f, v => hide f v
+  | .hide, v, _ => error e s!"expected a num, got {v}"
 
 mutual
 
