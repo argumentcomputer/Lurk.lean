@@ -1,5 +1,5 @@
 import Lean
-import Lurk.Expr
+import Lurk.ExprLDON
 
 namespace Lurk.DSL
 open Lean Elab Meta Term
@@ -32,18 +32,16 @@ partial def elabLDON : TSyntax `ldon → TermElabM Lean.Expr
 /- `atom` clashes with something in core -/
 declare_syntax_cat    atom_
 scoped syntax "t"   : atom_
-scoped syntax "nil" : atom_
 scoped syntax "T"   : atom_
+scoped syntax "nil" : atom_
 scoped syntax "NIL" : atom_
 scoped syntax num   : atom_
 scoped syntax char  : atom_
 scoped syntax str   : atom_
 
 def elabAtom : TSyntax `atom_ → TermElabM Lean.Expr
-  | `(atom_| T)
-  | `(atom_| t) => return mkConst ``Atom.t
-  | `(atom_| NIL)
-  | `(atom_| nil) => return mkConst ``Atom.nil
+  | `(atom_| T)   | `(atom_| t)   => return mkConst ``Atom.t
+  | `(atom_| NIL) | `(atom_| nil) => return mkConst ``Atom.nil
   | `(atom_| $n:num) => do
     mkAppM ``Atom.num #[← mkAppM ``F.ofNat #[mkNatLit n.getNat]]
   | `(atom_| $c:char) => do
@@ -139,6 +137,12 @@ scoped syntax "lambda" "(" ident* ")" expr : expr
 scoped syntax "LAMBDA" "(" ident* ")" expr : expr
 scoped syntax "quote" ldon                 : expr
 scoped syntax "QUOTE" ldon                 : expr
+scoped syntax "quote" expr                 : expr
+scoped syntax "QUOTE" expr                 : expr
+scoped syntax "eval" expr                  : expr
+scoped syntax "eval" expr expr             : expr
+scoped syntax "EVAL" expr                  : expr
+scoped syntax "EVAL" expr expr             : expr
 scoped syntax "," ldon                     : expr
 scoped syntax "(" expr ")"                 : expr
 
@@ -200,13 +204,17 @@ partial def elabExpr : TSyntax `expr → TermElabM Lean.Expr
       let (s, v) ← elabBinder b; mkAppM ``Expr.letrec #[s, v, acc]
   | `(expr| QUOTE $d:ldon) | `(expr| quote $d:ldon) | `(expr| ,$d:ldon) => do
     mkAppM ``Expr.quote #[← elabLDON d]
+  | `(expr| QUOTE $e:expr) | `(expr| quote $e:expr) => do
+    mkAppM ``Expr.quote #[← mkAppM ``Expr.toLDON #[← elabExpr e]]
+  | `(expr| EVAL $e:expr) | `(expr| eval $e:expr) => do
+    mkAppM ``Expr.eval₁ #[← elabExpr e]
+  | `(expr| EVAL $e₁:expr $e₂:expr) | `(expr| eval $e₁:expr $e₂:expr) => do
+    mkAppM ``Expr.eval₂ #[← elabExpr e₁, ← elabExpr e₂]
   | `(expr| ($e:expr)) => elabExpr e
-  | `(expr| $x) => do
-    if x.raw.isAntiquot then
-      let stx := x.raw.getAntiquotTerm
-      let e ← elabTerm stx none
-      let e ← whnf e
-      mkAppM ``Expr.toExpr #[e]
+  | `(expr| $x) =>
+    if x.raw.isAntiquot then do
+      let e ← elabTerm x.raw.getAntiquotTerm none
+      mkAppM ``Expr.toExpr #[← whnf e]
     else throwUnsupportedSyntax
 
 partial def elabBinder : TSyntax `binder → TermElabM (Lean.Expr × Lean.Expr)

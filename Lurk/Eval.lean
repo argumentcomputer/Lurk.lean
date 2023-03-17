@@ -397,8 +397,7 @@ partial def Expr.evalApp (fn : Expr) (arg : Expr) (env : Env) : EvalM Value := d
       body.evalM fnEnv
     | x => error fn s!"error evaluating\n{fn}\nlambda was expected, got\n  {x}"
 
-partial def Expr.evalM
-    (e : Expr) (env : Env := default) : EvalM Value :=
+partial def Expr.evalM (e : Expr) (env : Env := default) : EvalM Value :=
   -- let frames := match frames with | .mk frames => .mk $ (e, env) :: frames
   match e with
   | .atom a => return .ofAtom a
@@ -422,11 +421,19 @@ partial def Expr.evalM
   | x@(.op₁ op e) => do evalOp₁ x op (← e.evalM env)
   | x@(.op₂ op e₁ e₂) => do evalOp₂ x op (← e₁.evalM env) (← e₂.evalM env)
   | .lambda s e => return .fun s env e
-  | .let s v b    => do b.evalM (env.insert s ⟨false, ← v.evalM env⟩)
+  | .let    s v b => do b.evalM (env.insert s ⟨false, ← v.evalM env⟩)
   | .letrec s v b => do b.evalM (env.insert s ⟨true, ← v.evalM env⟩)
   | .quote d => return .ofLDON d
-  | .eval₁ e => e.evalM env
-  | .eval₂ e₁ e₂ => do let v ← e₂.evalM env; e₁.evalM (← v.toEnv)
+  | .eval₁ e => do
+    match (← e.evalM env).toLDON.toExpr with
+    | .error err => error e err
+    | .ok e => e.evalM default
+  | .eval₂ e₁ e₂ => do
+    match (← e₁.evalM env).toLDON.toExpr with
+    | .error err => error e err
+    | .ok e =>
+      let envV ← e₂.evalM env
+      e.evalM (← envV.toEnv)
 
 end
 
