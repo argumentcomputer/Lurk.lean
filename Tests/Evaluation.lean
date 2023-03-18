@@ -3,7 +3,7 @@ import Lurk.ExprDSL
 import Lurk.Eval
 import Lurk.ExprUtils
 
-open Lurk DSL
+open Lurk Expr.DSL
 
 abbrev Test := Option Value × Expr
 
@@ -349,6 +349,7 @@ def tail_call2 : Test :=
 
 open Value
 
+open LDON.DSL in
 def outer_evaluate_make_tree : Test :=
 (some ⦃(((h . g) . (f . e)) . ((d . c) . (b . a)))⦄,
              ⟦(letrec ((mapcar (lambda (f list)

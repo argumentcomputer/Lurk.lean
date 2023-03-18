@@ -2,7 +2,7 @@ import LSpec
 import Lurk.ExprDSL
 import Lurk.ExprUtils
 
-open Lurk DSL
+open Lurk.Expr.DSL
 
 def cases := [
   (⟦(let ((a 1)) a)⟧, ⟦1⟧),

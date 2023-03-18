@@ -1,33 +1,10 @@
 import Lean
+import Lurk.LDONDSL
 import Lurk.ExprLDON
 
-namespace Lurk.DSL
+namespace Lurk.Expr.DSL
+
 open Lean Elab Meta Term
-
-declare_syntax_cat                      ldon
-scoped syntax num                     : ldon
-scoped syntax str                     : ldon
-scoped syntax ident                   : ldon
-scoped syntax "(" ldon " . " ldon ")" : ldon
-scoped syntax "(" ldon* ")"           : ldon
-
-partial def elabLDON : TSyntax `ldon → TermElabM Lean.Expr
-  | `(ldon| $n:num) => do
-    mkAppM ``LDON.num #[← mkAppM ``F.ofNat #[mkNatLit n.getNat]]
-  | `(ldon| $s:str) => mkAppM ``LDON.str #[mkStrLit s.getString]
-  | `(ldon| $s:ident) => mkAppM ``LDON.sym #[mkStrLit s.getId.toString]
-  | `(ldon| ($d₁:ldon . $d₂:ldon)) => do
-    mkAppM ``LDON.cons #[← elabLDON d₁, ← elabLDON d₂]
-  | `(ldon| ($ds:ldon*)) => do
-    ds.foldrM (init := ← mkAppM ``LDON.sym #[mkStrLit "NIL"]) fun v acc => do
-      mkAppM ``LDON.cons #[← elabLDON v, acc]
-  | `(ldon| $x) => do
-    if x.raw.isAntiquot then
-      let stx := x.raw.getAntiquotTerm
-      let e ← elabTerm stx none
-      let e ← whnf e
-      mkAppM ``LDON.ToLDON.toLDON #[e]
-    else throwUnsupportedSyntax
 
 /- `atom` clashes with something in core -/
 declare_syntax_cat    atom_
@@ -135,15 +112,17 @@ scoped syntax "IF" expr expr expr          : expr
 scoped syntax "(" expr+ ")"                : expr
 scoped syntax "lambda" "(" ident* ")" expr : expr
 scoped syntax "LAMBDA" "(" ident* ")" expr : expr
-scoped syntax "quote" ldon                 : expr
-scoped syntax "QUOTE" ldon                 : expr
 scoped syntax "eval" expr                  : expr
 scoped syntax "eval" expr expr             : expr
 scoped syntax "EVAL" expr                  : expr
 scoped syntax "EVAL" expr expr             : expr
-scoped syntax "," ldon                     : expr
 scoped syntax "(" (expr)? ")"              : expr
 
+scoped syntax (priority := high) "," ldon     : expr
+scoped syntax (priority := high) "quote" ldon : expr
+scoped syntax (priority := high) "QUOTE" ldon : expr
+
+scoped syntax (priority := low) "," expr : expr
 scoped syntax (priority := low) "QUOTE" expr : expr
 scoped syntax (priority := low) "quote" expr : expr
 
@@ -204,8 +183,8 @@ partial def elabExpr : TSyntax `expr → TermElabM Lean.Expr
     bs.foldrM (init := init) fun b acc => do
       let (s, v) ← elabBinder b; mkAppM ``Expr.letrec #[s, v, acc]
   | `(expr| QUOTE $d:ldon) | `(expr| quote $d:ldon) | `(expr| ,$d:ldon) => do
-    mkAppM ``Expr.quote #[← elabLDON d]
-  | `(expr| QUOTE $e:expr) | `(expr| quote $e:expr) => do
+    mkAppM ``Expr.quote #[← LDON.DSL.elabLDON d]
+  | `(expr| QUOTE $e:expr) | `(expr| quote $e:expr) | `(expr| ,$e:expr) => do
     mkAppM ``Expr.quote #[← mkAppM ``Expr.toLDON #[← elabExpr e]]
   | `(expr| EVAL $e:expr) | `(expr| eval $e:expr) => do
     mkAppM ``Expr.eval₁ #[← elabExpr e]
@@ -228,4 +207,4 @@ end
 scoped elab "⟦" e:expr "⟧" : term =>
   elabExpr e
 
-end Lurk.DSL
+end Lurk.Expr.DSL
