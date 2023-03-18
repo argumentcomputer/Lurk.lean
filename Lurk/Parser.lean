@@ -2,16 +2,33 @@ import Megaparsec.Char
 import Megaparsec.Common
 import Lurk.LDON
 
+def Char.isHexDigit (c : Char) : Bool :=
+  c.isDigit || (c.val ≥ 97 && c.val ≤ 102)
+
+def Char.asHexDigitToNat (c : Char) : Nat :=
+  if c.isDigit then c.val.toNat - 48
+  else 10 + c.val.toNat - 97
+
 namespace Lurk.Parser
 
 open Megaparsec Char Parsec Common
 
 abbrev P := Parsec Char String Unit
 
-def numP : P LDON := do
-  let x ← some' (satisfy Char.isDigit)
-  let str := String.mk x
+def nonHexNumP : P LDON := do
+  let str := String.mk (← some' (satisfy Char.isDigit))
   return .num $ .ofNat $ String.toNat! str
+
+def hexNumP : P LDON := do
+  discard $ string "0x"
+  discard $ many' (satisfy (· == '0'))
+  let chars ← some' (satisfy Char.isHexDigit)
+  let (n, _) := chars.foldr (init := (0, 1)) fun c (n, p) =>
+    (n + p * c.asHexDigitToNat, 16 * p)
+  return .num $ .ofNat n
+
+def numP : P LDON :=
+  hexNumP <|> nonHexNumP
 
 -- def charP : P LDON := attempt do
 --   discard $ single '\''
@@ -24,7 +41,7 @@ def charP : P LDON := do
   .char <$> anySingle
 
 def strP : P LDON := between '"' '"' $
-  .str <$> String.mk <$> many' (satisfy fun c => c != '\"')
+  .str <$> String.mk <$> many' (satisfy (· != '\"'))
 
 def validSpecialSymChar : Char → Bool
   | '+'
@@ -47,7 +64,7 @@ def noEscSymP : P LDON := do
     return .sym i
 
 def escSymP : P LDON := between '|' '|' $
-  .sym <$> String.mk <$> many' (satisfy fun c => c != '|')
+  .sym <$> String.mk <$> many' (satisfy (· != '|'))
 
 def symP : P LDON :=
   escSymP <|> noEscSymP
