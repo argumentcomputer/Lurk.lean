@@ -61,6 +61,7 @@ def mkOp₁ (op₁ : String) : Expr → Expr := match op₁ with
   | "COMM"   => .op₁ .comm
   | "OPEN"   => .op₁ .open
   | "NUM"    => .op₁ .num
+  | "U64"    => .op₁ .u64
   | "CHAR"   => .op₁ .char
   | x => fun y => .app (.symOfString x) y
 
