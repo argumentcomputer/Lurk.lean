@@ -675,5 +675,6 @@ def main := lspecIO $
         let excepts := extract5Excepts e.eval e.pruneBlocks.eval e.anon.eval
           e.pruneBlocks.anon.eval e.anon.pruneBlocks.eval
         withExceptOk s!"{e} evaluation succeeds" excepts fun (v₁, v₂, v₃, v₄, v₅) =>
+          let (v₁, v₂, v₃, v₄, v₅) := (v₁.1, v₂.1, v₃.1, v₄.1, v₅.1)
           test s!"{e} evaluates to correctly" $
             expect == v₁ && v₁ == v₂ && v₂ == v₃ && v₃ == v₄ && v₄ == v₅
