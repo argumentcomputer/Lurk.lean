@@ -670,10 +670,10 @@ open LSpec in
 def main := lspecIO $
   pairs.foldl (init := .done) fun tSeq (expect, e) =>
     tSeq ++ match expect with
-      | none => withExceptError s!"{e} fails on evaluation" e.eval fun _ => .done
+      | none => withExceptError s!"{e} fails on evaluation" e.evaluate fun _ => .done
       | some expect =>
-        let excepts := extract5Excepts e.eval e.pruneBlocks.eval e.anon.eval
-          e.pruneBlocks.anon.eval e.anon.pruneBlocks.eval
+        let excepts := extract5Excepts e.evaluate e.pruneBlocks.evaluate e.anon.evaluate
+          e.pruneBlocks.anon.evaluate e.anon.pruneBlocks.evaluate
         withExceptOk s!"{e} evaluation succeeds" excepts fun (v₁, v₂, v₃, v₄, v₅) =>
           test s!"{e} evaluates to correctly" $
             expect == v₁ && v₁ == v₂ && v₂ == v₃ && v₃ == v₄ && v₄ == v₅

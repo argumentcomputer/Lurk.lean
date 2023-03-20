@@ -13,18 +13,20 @@ def Atom.toLDON : Atom → LDON
 
 namespace Expr
 
+open LDON Macro
+
 partial def toLDON : Expr → LDON
   | .atom a => a.toLDON
   | .sym s => .sym s
-  | .env => .cons (.sym "CURRENT-ENV") .nil
-  | .op₁ o e => .cons (.sym o.toString) (.cons e.toLDON .nil)
-  | .op₂ o e₁ e₂ => .cons (.sym o.toString) $ .cons e₁.toLDON $ .cons e₂.toLDON .nil
+  | .env => ~[.sym "CURRENT-ENV"]
+  | .op₁ o e => ~[.sym o.toString, e.toLDON]
+  | .op₂ o e₁ e₂ => ~[.sym o.toString, e₁.toLDON, e₂.toLDON]
   | e@(.begin ..) =>
     let (es, e) := e.telescopeBegin
     .cons (.sym "BEGIN") $ es.foldr (.cons ·.toLDON ·) e.toLDON
   | .if a b c => .cons (.sym "IF") $ .cons a.toLDON $ .cons b.toLDON $ .cons c.toLDON .nil
-  | .app₀ e => .cons e.toLDON .nil
-  | .app f a => .cons f.toLDON (.cons a.toLDON .nil)
+  | .app₀ e => ~[e.toLDON]
+  | .app f a => ~[f.toLDON, a.toLDON]
   | .lambda s e =>
     let (ss, b) := e.telescopeLam #[s]
     .cons (.sym "LAMBDA") $
@@ -41,9 +43,12 @@ partial def toLDON : Expr → LDON
       .cons (bs.foldr (fun (s, v) acc =>
           .cons (.cons (.sym s) (.cons v.toLDON .nil)) acc) .nil) $
         .cons b.toLDON .nil
-  | .quote d => .cons (.sym "QUOTE") $ .cons d .nil
-  | .eval₁ x => .cons (.sym "EVAL") $ .cons x.toLDON .nil
-  | .eval₂ x y => .cons (.sym "EVAL") $ .cons x.toLDON (.cons y.toLDON .nil)
+  | .quote d => ~[.sym "QUOTE", d]
+  | .eval e env? =>
+    if env? == .nil then
+      ~[.sym "EVAL", e.toLDON]
+    else
+      ~[.sym "EVAL", e.toLDON, env?.toLDON]
 
 def symOfString : String → Expr
   | "NIL" => .nil
@@ -133,8 +138,8 @@ partial def toExpr : LDON → Except String Expr
       fun (n, e) acc => .letrec n e acc
   -- quoting consumes the expression as-is
   | ~[.sym "QUOTE", x] => return .quote x
-  | ~[.sym "EVAL", x] => return .eval₁ (← x.toExpr)
-  | ~[.sym "EVAL", x, y] => return .eval₂ (← x.toExpr) (← y.toExpr)
+  | ~[.sym "EVAL", x] => return .eval (← x.toExpr) .nil
+  | ~[.sym "EVAL", x, y] => return .eval (← x.toExpr) (← y.toExpr)
   -- binary operators
   | ~[.sym op₂, x, y] => return mkOp₂ op₂ (← x.toExpr) (← y.toExpr)
   -- unary operators

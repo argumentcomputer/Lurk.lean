@@ -103,8 +103,7 @@ inductive Expr
   | «let»  : String → Expr → Expr → Expr
   | letrec : String → Expr → Expr → Expr
   | quote : LDON → Expr
-  | eval₁ : Expr → Expr
-  | eval₂ : Expr → Expr → Expr
+  | eval : Expr → Expr → Expr
   deriving Inhabited, BEq, Repr
 
 namespace Expr
@@ -193,8 +192,9 @@ partial def toFormat (esc := false) (e : Expr) : Format :=
     let bs := bs.data.map fun (n, e) => paren $ formatSym n ++ indentD (e.toFormat esc)
     paren $ "LETREC " ++ nest 7 (paren $ joinSep bs line) ++ indentD (b.toFormat esc)
   | .quote ldon => paren $ "QUOTE" ++ line ++ ldon.toFormat esc
-  | .eval₁ e => paren $ "EVAL" ++ line ++ e.toFormat esc
-  | .eval₂ e₁ e₂ => paren $ "EVAL" ++ line ++ e₁.toFormat esc ++ line ++ e₂.toFormat esc
+  | .eval e env? =>
+    let env? := if env? == .nil then .nil else line ++ env?.toFormat esc
+    paren $ "EVAL" ++ line ++ e.toFormat esc ++ env?
 where
   formatSym s := if esc then s!"|{s}|" else s
 

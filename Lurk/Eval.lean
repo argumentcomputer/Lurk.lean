@@ -123,6 +123,9 @@ def insert (s : String) (v : EnvImg) : Env → Env
 def toArray : Env → Array (String × EnvImg)
   | mk e => e.fold (init := #[]) fun acc k v => acc.push (k, v)
 
+def ofArray : Array (String × EnvImg) → Env
+  | es => es.foldl (init := .mk .leaf) fun acc (name, img) => acc.insert name img
+
 def toList : Env → List (String × EnvImg)
   | mk e => e.fold (init := []) fun acc k v => (k, v) :: acc
 
@@ -228,7 +231,7 @@ instance : Coe String Value := ⟨.str⟩
 instance : OfNat Value n where
   ofNat := .num (.ofNat n)
 
-def error (e : Expr) (msg : String) : EvalM Value :=
+def error (e : Expr) (msg : String) : EvalM α :=
   throw s!"Error when evaluating {e}:\n{msg}"
 
 def numAdd (e : Expr) : Value → Value → EvalM Value
@@ -359,7 +362,14 @@ def Expr.evalOp₂ (e : Expr) : Op₂ → Value → Value → EvalM Value
   | .hide, v, _ => error e s!"expected a num, got {v}"
 
 
-def Value.toEnv : Value → EvalM Env := panic! "TODO"
+def Value.toEnv (env? : Value) (e : Expr) : EvalM Env :=
+  match env?.toLDON.telescopeCons with
+  | (binds, .nil) => do
+    let binds := ← binds.mapM fun bind => match bind with
+      | .cons (.sym name) v => return (name, EnvImg.mk false (Value.ofLDON v))
+      | x => error e s!"expected a binding `(sym . expr)`, got {x}"
+    return .ofArray binds
+  | (_, tail) => error e s!"expected a `nil` terminated list, got {tail}"
 
 mutual
 
@@ -424,20 +434,20 @@ partial def Expr.evalM (e : Expr) (env : Env := default) : EvalM Value :=
   | .let    s v b => do b.evalM (env.insert s ⟨false, ← v.evalM env⟩)
   | .letrec s v b => do b.evalM (env.insert s ⟨true, ← v.evalM env⟩)
   | .quote d => return .ofLDON d
-  | .eval₁ e => do
+  | .eval e .nil => do
     match (← e.evalM env).toLDON.toExpr with
     | .error err => error e err
     | .ok e => e.evalM default
-  | .eval₂ e₁ e₂ => do
-    match (← e₁.evalM env).toLDON.toExpr with
+  | .eval e env? => do
+    match (← e.evalM env).toLDON.toExpr with
     | .error err => error e err
     | .ok e =>
-      let envV ← e₂.evalM env
-      e.evalM (← envV.toEnv)
+      let env? ← env?.evalM env
+      e.evalM (← env?.toEnv e)
 
 end
 
-def Expr.eval (e : Expr) (env : Env := default) (store : Scalar.Store := default) :
+def Expr.evaluate (e : Expr) (env : Env := default) (store : Scalar.Store := default) :
     Except String Value :=
   match EStateM.run (e.evalM env) ⟨store, default, default⟩ with
   | .ok a _ => .ok a
