@@ -5,6 +5,7 @@ import Lurk.LDONDSL
 def code := "(begin
     nil
     t
+    0x3fddeb1275663f07154d612a0c2e8271644e9ed24a15bbf6864f51f63dbf5b88
     current-env
     nilbutsym
     (nil.1)
@@ -37,6 +38,7 @@ def expected := ⟪
   (begin
     nil
     t
+    0x3fddeb1275663f07154d612a0c2e8271644e9ed24a15bbf6864f51f63dbf5b88
     current-env
     nilbutsym
     (nil . 1)

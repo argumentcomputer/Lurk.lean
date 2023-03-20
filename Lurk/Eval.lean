@@ -12,6 +12,7 @@ structure EvalError where
 
 structure EvalState where
   hashState : LDONHashState
+  iterations : Nat
   deriving Inhabited
 
 
@@ -24,6 +25,7 @@ inductive EnvImg
 inductive Env 
   | mk : Lean.RBNode String (fun _ => EnvImg) → Env
 
+-- Does it make sense to extend LDON and use it here instead?
 inductive Value where
   | num  : F      → Value
   | u64  : UInt64 → Value
@@ -407,8 +409,9 @@ partial def Expr.evalApp (fn : Expr) (arg : Expr) (env : Env) : EvalM Value := d
       body.evalM fnEnv
     | x => error fn s!"error evaluating\n{fn}\nlambda was expected, got\n  {x}"
 
-partial def Expr.evalM (e : Expr) (env : Env := default) : EvalM Value :=
+partial def Expr.evalM (e : Expr) (env : Env) : EvalM Value := do
   -- let frames := match frames with | .mk frames => .mk $ (e, env) :: frames
+  modify fun stt => { stt with iterations := stt.iterations.succ }
   match e with
   | .atom a => return .ofAtom a
   | .sym n => match env.find? n with
@@ -447,10 +450,16 @@ partial def Expr.evalM (e : Expr) (env : Env := default) : EvalM Value :=
 
 end
 
-def Expr.evaluate (e : Expr) (env : Env := default) (store : Scalar.Store := default) :
-    Except String Value :=
-  match EStateM.run (e.evalM env) ⟨store, default, default⟩ with
-  | .ok a _ => .ok a
+def Expr.evaluate (e : Expr) (store : Scalar.Store := default) :
+    Except String (Value × Nat) :=
+  match EStateM.run (e.evalM default) ⟨⟨store, default, default⟩, 0⟩ with
+  | .ok a stt => .ok (a, stt.iterations)
+  | .error e _ => .error e
+
+def Expr.evaluate' (e : Expr) (hashState : LDONHashState) :
+    Except String (Value × Nat) :=
+  match EStateM.run (e.evalM default) ⟨hashState, 0⟩ with
+  | .ok a stt => .ok (a, stt.iterations)
   | .error e _ => .error e
 
 end Lurk
