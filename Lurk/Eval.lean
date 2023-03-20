@@ -39,11 +39,27 @@ inductive Value where
 
 end
 
-def EnvImg.recr : EnvImg → Bool
+abbrev Frames := List $ Expr × Env
+
+namespace EvalState
+
+def withHashState (stt : LDONHashState) : EvalState → EvalState
+  | .mk _ n => .mk stt n
+
+def withIterCountSucc : EvalState → EvalState
+  | .mk stt n => .mk stt n.succ
+
+end EvalState
+
+namespace EnvImg
+
+def recr : EnvImg → Bool
   | .mk recr _ => recr
 
-def EnvImg.value : EnvImg → Value
+def value : EnvImg → Value
   | .mk _ value => value
+
+end EnvImg
 
 namespace Value
 
@@ -146,7 +162,6 @@ partial def Env.toString : Env → String := fun env =>
     env.toList.map fun (n, img) => s!"({n}, {img.toString})"
   s!"⦃ {env} ⦄"
 
-
 partial def Value.toString : Value → String
   | .num x | .sym x => ToString.toString x
   | .u64 x => s!"{x}u64"
@@ -169,34 +184,23 @@ instance : ToString Value where
 
 instance : Inhabited Env := ⟨.mk .leaf⟩
 
-abbrev EvalM := EStateM String EvalState
+abbrev EvalM := ReaderT Frames $ EStateM (String × Frames) EvalState
 
--- @[inline] def EnvImg.toResult : EnvImg → Result
---   | .thunk v => v.get
---   | .value v => pure v
-
--- instance : ToString (String × Frames) := ⟨Prod.fst⟩
-
--- def Frames.pprint (n : Nat) : Frames → String
---   | .mk frames =>
---     let rec aux (acc : String) : List (Expr × Env) → String
---       | [] => acc
---       | f :: fs => aux s!"{acc}\n{frameToString f}" fs
---     aux default (frames.take n) |>.trimLeft
--- where
---   frameToString : Expr × Env → String
---     | (e, env) =>
---       let fVars := e.getFreeVars
---       -- considering relevant variables, only
---       let env := env.toRBMap |>.filter fun s _ => fVars.contains s
---       let init := "\n########################################################\n"
---         ++ e.toString ++ "\n"
---         ++ "--------------------------------------------------------"
---       env.foldl (init := init) fun acc s v =>
---         match v with
---         | .thunk v => match v.get with
---           | .ok x | .error x => s!"{acc}\n{s} ⇒ {x}"
---         | .value x => s!"{acc}\n{s} ⇒ {x}"
+def Frames.pprint (frames : Frames) (n : Nat) : String :=
+  let rec aux (acc : String) : List (Expr × Env) → String
+    | [] => acc
+    | f :: fs => aux s!"{acc}\n{frameToString f}" fs
+  aux default (frames.take n) |>.trimLeft
+where
+  frameToString : Expr × Env → String
+    | (e, env) =>
+      let fVars := e.getFreeVars
+      -- considering relevant variables, only
+      let env := env.toRBMap |>.filter fun s _ => fVars.contains s
+      let init := "\n########################################################\n"
+        ++ e.toString ++ "\n"
+        ++ "--------------------------------------------------------"
+      env.foldl (init := init) fun acc s ⟨_, v⟩ => s!"{acc}\n{s} ⇒ {v}"
 
 mutual
 
@@ -233,8 +237,8 @@ instance : Coe String Value := ⟨.str⟩
 instance : OfNat Value n where
   ofNat := .num (.ofNat n)
 
-def error (e : Expr) (msg : String) : EvalM α :=
-  throw s!"Error when evaluating {e}:\n{msg}"
+def error (e : Expr) (msg : String) : EvalM α := do
+  throw (s!"Error when evaluating {e}:\n{msg}", (← read))
 
 def numAdd (e : Expr) : Value → Value → EvalM Value
   | .num x, .num y => return .num (x + y)
@@ -305,12 +309,7 @@ def numGe (e : Expr) : Value → Value → EvalM Value
 
 def hideLDON (secret : F) (ldon : LDON) : EvalM Value := do
   let (comm, hashState) := ldon.hide secret (← get).hashState
-  modifyGet fun stt => (.comm comm, { stt with hashState := hashState })
-
-def openComm (comm : F) : EvalM Value := do
-  match (← get).hashState.store.open comm with
-  | .error err => throw err
-  | .ok ldon => return .ofLDON ldon
+  modifyGet fun stt => (.comm comm, stt.withHashState hashState)
 
 def Expr.evalOp₁ (e : Expr) : Op₁ → Value → EvalM Value
   | .atom, .cons .. => return .nil
@@ -328,7 +327,10 @@ def Expr.evalOp₁ (e : Expr) : Op₁ → Value → EvalM Value
   | .comm, .num n => return .comm n
   | .comm, v => error e s!"expected a num, got\n  {v}"
   | .open, .num f
-  | .open, .comm f => openComm f
+  | .open, .comm f =>  do
+    match (← get).hashState.store.open f with
+    | .error err => error e err
+    | .ok ldon => return .ofLDON ldon
   | .open, v => error e s!"expected a num or comm, got\n  {v}"
   | .num, x@(.num _) => return x
   | .num, .u64 n => return .num (.ofNat n.toNat)
@@ -369,9 +371,12 @@ def Value.toEnv (env? : Value) (e : Expr) : EvalM Env :=
   | (binds, .nil) => do
     let binds := ← binds.mapM fun bind => match bind with
       | .cons (.sym name) v => return (name, EnvImg.mk false (Value.ofLDON v))
-      | x => error e s!"expected a binding `(sym . expr)`, got {x}"
+      | x => do error e s!"expected a binding `(sym . expr)`, got {x}"
     return .ofArray binds
   | (_, tail) => error e s!"expected a `nil` terminated list, got {tail}"
+
+def withFrame (fr : Expr × Env) : EvalM α → EvalM α :=
+  withReader (fr :: ·)
 
 mutual
 
@@ -409,9 +414,8 @@ partial def Expr.evalApp (fn : Expr) (arg : Expr) (env : Env) : EvalM Value := d
       body.evalM fnEnv
     | x => error fn s!"error evaluating\n{fn}\nlambda was expected, got\n  {x}"
 
-partial def Expr.evalM (e : Expr) (env : Env) : EvalM Value := do
-  -- let frames := match frames with | .mk frames => .mk $ (e, env) :: frames
-  modify fun stt => { stt with iterations := stt.iterations.succ }
+partial def Expr.evalM (e : Expr) (env : Env) : EvalM Value := withFrame (e, env) do
+  modify .withIterCountSucc
   match e with
   | .atom a => return .ofAtom a
   | .sym n => match env.find? n with
@@ -451,15 +455,17 @@ partial def Expr.evalM (e : Expr) (env : Env) : EvalM Value := do
 end
 
 def Expr.evaluate (e : Expr) (store : Scalar.Store := default) :
-    Except String (Value × Nat) :=
-  match EStateM.run (e.evalM default) ⟨⟨store, default, default⟩, 0⟩ with
-  | .ok a stt => .ok (a, stt.iterations)
-  | .error e _ => .error e
+    Except (String × Frames) (Value × Nat) :=
+  match EStateM.run (ReaderT.run (e.evalM default) default)
+    ⟨⟨store, default, default⟩, 0⟩ with
+  | .ok v stt => .ok (v, stt.iterations)
+  | .error err _ => .error err
 
-def Expr.evaluate' (e : Expr) (hashState : LDONHashState) :
+def Expr.evaluate' (e : Expr) (store : Scalar.Store := default) :
     Except String (Value × Nat) :=
-  match EStateM.run (e.evalM default) ⟨hashState, 0⟩ with
-  | .ok a stt => .ok (a, stt.iterations)
-  | .error e _ => .error e
+  match EStateM.run (ReaderT.run (e.evalM default) default)
+    ⟨⟨store, default, default⟩, 0⟩ with
+  | .ok v stt => .ok (v, stt.iterations)
+  | .error err _ => .error err.1
 
 end Lurk
