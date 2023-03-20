@@ -24,6 +24,9 @@ require LightData from git
 require Megaparsec from git
   "https://github.com/yatima-inc/Megaparsec.lean" @ "3a0fc855661b9179362aac65cbeb08560be32f29"
 
+require Cli from git
+  "https://github.com/yatima-inc/Cli.lean" @ "ef6f9bcd1738638fca8d319dbee653540d56614e"
+
 require std from git
   "https://github.com/leanprover/std4/" @ "fde95b16907bf38ea3f310af406868fc6bcf48d1"
 

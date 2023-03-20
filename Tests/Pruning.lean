@@ -26,7 +26,8 @@ def cases := [
   (⟦(let ((x a) (a 1) (b a)) (+ b x))⟧, ⟦(+ 1 a)⟧),
   (⟦(let ((x (+ a a)) (a 1) (b a)) (+ b x))⟧, ⟦(+ 1 (+ a a))⟧),
   (⟦(let ((x (+ a a)) (a 1) (b a)) (+ (+ b x) x))⟧, ⟦(let ((x (+ a a))) (+ (+ 1 x) x))⟧),
-  (⟦(let ((a 1) (b (lambda (a) a))) (b a))⟧, ⟦((lambda (a) a) 1)⟧)
+  (⟦(let ((a 1) (b (lambda (a) a))) (b a))⟧, ⟦((lambda (a) a) 1)⟧),
+  (⟦(let ((z (let ((x 1)) x)) (a (+ z z))) (+ a a))⟧, ⟦(let ((a (+ 1 1))) (+ a a))⟧)
 ]
 
 open LSpec

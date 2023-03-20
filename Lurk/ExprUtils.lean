@@ -102,15 +102,16 @@ partial def pruneBlocks : Expr → Expr
   | x@(.let s v b) =>
     let letrec := x matches .letrec _ _ _
     let (bs, b) := if letrec then b.telescopeLetrec #[(s, v)] else b.telescopeLet #[(s, v)]
+    let b := b.pruneBlocks
     if b.containsCurrentEnv then x else
     -- remove unused binders
     let (bs, _) := bs.foldr (init := (default, b.getFreeVars))
       fun (s, v) (accBinders, accFVars) =>
         if accFVars.contains s then
+          let v := v.pruneBlocks
           ((s, v) :: accBinders, (accFVars.erase fun s' => compare s' s).union -- `s` is no longer a free variable TODO double-check ordering of arguments to "compare"
             $ v.getFreeVars (if letrec then .single s else default)) -- if letrec, s is not free in v
         else (accBinders, accFVars) -- drop binder
-    let b := b.pruneBlocks
     -- inline atom binders or that are called only once
     let (counts, bindings) : Std.RBMap String Nat compare × Std.RBMap String Expr compare := 
       bs.foldl (init := default) fun (counts, bindings) (name, val) =>
