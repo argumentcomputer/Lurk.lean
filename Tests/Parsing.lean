@@ -33,7 +33,7 @@ def code := "(begin
     (('1) . ' (cons 2 3))
     ((+ 1 2) (f x)  .    (cons 4 2)))"
 
-open Lurk.LDON.DSL in
+open Lurk LDON.DSL DSL in
 def expected := ⟪
   (begin
     nil

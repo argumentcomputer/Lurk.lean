@@ -3,7 +3,7 @@ import Lurk.ExprDSL
 import Lurk.Eval
 import Lurk.ExprUtils
 
-open Lurk Expr.DSL
+open Lurk Expr.DSL DSL
 
 abbrev Test := Option Value × Expr
 

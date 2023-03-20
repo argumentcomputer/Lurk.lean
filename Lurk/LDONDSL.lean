@@ -1,5 +1,6 @@
 import Lean
 import Lurk.LDON
+import Lurk.Keywords
 
 namespace Lurk.LDON.DSL
 
@@ -7,18 +8,24 @@ open Lean Elab Meta Term
 
 declare_syntax_cat    sym
 scoped syntax ident : sym
-scoped syntax "+"   : sym
-scoped syntax "*"   : sym
-scoped syntax "-"   : sym
-scoped syntax "/"   : sym
-scoped syntax "="   : sym
-scoped syntax "<"   : sym
-scoped syntax ">"   : sym
-scoped syntax "<="  : sym
-scoped syntax ">="  : sym
+scoped syntax atom_ : sym
+scoped syntax op₁   : sym
+scoped syntax op₂   : sym
 -- these can't be simple idents because they'd clash with Lean's syntax
 scoped syntax "if"  : sym
+scoped syntax "IF"  : sym
 scoped syntax "let" : sym
+scoped syntax "LET" : sym
+scoped syntax "letrec" : sym
+scoped syntax "LETREC" : sym
+scoped syntax "lambda" : sym
+scoped syntax "LAMBDA" : sym
+scoped syntax "begin" : sym
+scoped syntax "BEGIN" : sym
+scoped syntax "quote" : sym
+scoped syntax "QUOTE" : sym
+scoped syntax "eval" : sym
+scoped syntax "EVAL" : sym
 -- a workaround for the dash
 scoped syntax "current-env" : sym
 scoped syntax "CURRENT-ENV" : sym
@@ -31,37 +38,76 @@ scoped syntax "[anonymous]" : sym
 def mergeWithDot (s : String) (n : Nat) : String :=
   s!"{s}.{n}"
 
+private def mkSym (sym : String) :=
+  mkAppM ``LDON.sym #[mkStrLit sym]
+
+open Lurk.DSL in
+def elabAtom : TSyntax `atom_ → TermElabM Lean.Expr
+  | `(atom_| T)   | `(atom_| t)   => mkSym "T"
+  | `(atom_| NIL) | `(atom_| nil) => mkSym "NIL"
+  | _ => throwUnsupportedSyntax
+
+open Lurk.DSL in
+def elabOp₁ : TSyntax `op₁ → TermElabM Lean.Expr
+  | `(op₁| ATOM)   | `(op₁| atom)   => mkSym "ATOM"
+  | `(op₁| CAR)    | `(op₁| car)    => mkSym "CAR"
+  | `(op₁| CDR)    | `(op₁| cdr)    => mkSym "CDR"
+  | `(op₁| EMIT)   | `(op₁| emit)   => mkSym "EMIT"
+  | `(op₁| COMMIT) | `(op₁| commit) => mkSym "COMMIT"
+  | `(op₁| COMM)   | `(op₁| comm)   => mkSym "COMM"
+  | `(op₁| OPEN)   | `(op₁| open)   => mkSym "OPEN"
+  | `(op₁| NUM)    | `(op₁| num)    => mkSym "NUM"
+  | `(op₁| U64)    | `(op₁| u64)    => mkSym "U64"
+  | `(op₁| CHAR)   | `(op₁| char)   => mkSym "CHAR"
+  | _ => throwUnsupportedSyntax
+  
+open Lurk.DSL in
+def elabOp₂ : TSyntax `op₂ → TermElabM Lean.Expr
+  | `(op₂| CONS)    | `(op₂| cons)    => mkSym "CONS"
+  | `(op₂| STRCONS) | `(op₂| strcons) => mkSym "STRCONS"
+  | `(op₂| EQ)      | `(op₂| eq)      => mkSym "EQ"
+  | `(op₂| HIDE)    | `(op₂| hide)    => mkSym "HIDE"
+  | `(op₂| +)  => mkSym "+"
+  | `(op₂| -)  => mkSym "-"
+  | `(op₂| *)  => mkSym "*"
+  | `(op₂| /)  => mkSym "/"
+  | `(op₂| %)  => mkSym "%"
+  | `(op₂| =)  => mkSym "="
+  | `(op₂| <)  => mkSym "<"
+  | `(op₂| >)  => mkSym ">"
+  | `(op₂| <=) => mkSym "<="
+  | `(op₂| >=) => mkSym ">="
+  | _ => throwUnsupportedSyntax
+
 partial def elabSym : TSyntax `sym → TermElabM Lean.Expr
   | `(sym| $i:ident) =>
     let i  := i.getId.toString
     let iU := i.toUpper
     if LDON.reservedSyms.contains iU then
-      mkAppM ``LDON.sym #[mkStrLit iU]
+      mkSym iU
     else
-      mkAppM ``LDON.sym #[mkStrLit i]
-  | `(sym| +)  | `(sym| | + |)  => mkAppM ``LDON.sym #[mkStrLit "+"]
-  | `(sym| *)  | `(sym| | * |)  => mkAppM ``LDON.sym #[mkStrLit "*"]
-  | `(sym| -)  | `(sym| | - |)  => mkAppM ``LDON.sym #[mkStrLit "-"]
-  | `(sym| /)  | `(sym| | / |)  => mkAppM ``LDON.sym #[mkStrLit "/"]
-  | `(sym| =)  | `(sym| | = |)  => mkAppM ``LDON.sym #[mkStrLit "="]
-  | `(sym| <)  | `(sym| | < |)  => mkAppM ``LDON.sym #[mkStrLit "<"]
-  | `(sym| >)  | `(sym| | > |)  => mkAppM ``LDON.sym #[mkStrLit ">"]
-  | `(sym| <=) | `(sym| | <= |) => mkAppM ``LDON.sym #[mkStrLit "<="]
-  | `(sym| >=) | `(sym| | >= |) => mkAppM ``LDON.sym #[mkStrLit ">="]
-  | `(sym| CURRENT-ENV)  => mkAppM ``LDON.sym #[mkStrLit "CURRENT-ENV"]
-  | `(sym| current-env)  => mkAppM ``LDON.sym #[mkStrLit "CURRENT-ENV"]
-  | `(sym| | current-env |)  => mkAppM ``LDON.sym #[mkStrLit "current-env"]
-  | `(sym| if)  => mkAppM ``LDON.sym #[mkStrLit "IF"]
-  | `(sym| let) => mkAppM ``LDON.sym #[mkStrLit "LET"]
-  | `(sym| | $i:ident |) => mkAppM ``LDON.sym #[mkStrLit i.getId.toString]
-  | `(sym| | if |)  => mkAppM ``LDON.sym #[mkStrLit "if"]
-  | `(sym| | let |) => mkAppM ``LDON.sym #[mkStrLit "let"]
+      mkSym i
+  | `(sym| $a:atom_) => elabAtom a
+  | `(sym| $o:op₁) => elabOp₁ o
+  | `(sym| $o:op₂) => elabOp₂ o
+  | `(sym| current-env) | `(sym| CURRENT-ENV) => mkSym "CURRENT-ENV"
+  | `(sym| if)          | `(sym| IF)          => mkSym "IF"
+  | `(sym| let)         | `(sym| LET)         => mkSym "LET"
+  | `(sym| letrec)      | `(sym| LETREC)      => mkSym "LETREC"
+  | `(sym| lambda)      | `(sym| LAMBDA)      => mkSym "LAMBDA"
+  | `(sym| begin)       | `(sym| BEGIN)       => mkSym "BEGIN"
+  | `(sym| quote)       | `(sym| QUOTE)       => mkSym "QUOTE"
+  | `(sym| eval)        | `(sym| EVAL)        => mkSym "EVAL"
+  | `(sym| | $i:ident |) => mkSym i.getId.toString
+  | `(sym| | current-env |)  => mkSym "current-env"
+  | `(sym| | if |)  => mkSym "if"  
+  | `(sym| | let |) => mkSym "let"
   | `(sym| $i:ident.$n:num)
   | `(sym| | $i:ident.$n:num |) => do
     let sym ← mkAppM ``mergeWithDot #[mkStrLit i.getId.toString, mkNatLit n.getNat]
     mkAppM ``LDON.sym #[sym]
   | `(sym| [anonymous])
-  | `(sym| |[anonymous]|) => mkAppM ``LDON.sym #[mkStrLit "[anonymous]"]
+  | `(sym| |[anonymous]|) => mkSym "[anonymous]"
   | _ => throwUnsupportedSyntax
 
 declare_syntax_cat                       ldon

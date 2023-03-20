@@ -4,7 +4,7 @@ import Lurk.Scalar
 
 open Lurk
 
-open LDON.DSL Expr.DSL in
+open LDON.DSL Expr.DSL DSL in
 def exprs := [
   ⟦nil⟧,
   ⟦t⟧,
@@ -29,9 +29,9 @@ def exprs := [
   ⟦(let ((a 1) (b c)) (+ a b))⟧,
   ⟦(quote 1)⟧,
   ⟦(quote x)⟧,
-  ⟦(quote (nil))⟧,
-  ⟦(quote (nil 1))⟧,
-  ⟦(quote (1 . 1))⟧,
+  ⟦(quote (nil cons IF lambda begin quote + / eval))⟧,
+  ⟦(eval (quote (nil 1)))⟧,
+  ⟦(,(1 . 1))⟧,
   ⟦(quote ((1 . 1) x))⟧,
   ⟦((+ 1 2) (f x) (cons 4 2))⟧
 ]
@@ -42,6 +42,6 @@ def main :=
     fun tSeq (e : Expr) =>
       let ldon := e.toLDON
       let (comm, stt) := ldon.commit default
-      withExceptOk s!"Openning {comm.asHex} succeeds" (stt.store.open comm) fun ldon' =>
+      withExceptOk s!"Opening {comm.asHex} succeeds" (stt.store.open comm) fun ldon' =>
         withExceptOk s!"Converting {ldon'} back to Expr succeeds" ldon'.toExpr fun e' =>
           tSeq ++ test s!"{e} roundtrips" (e == e')
