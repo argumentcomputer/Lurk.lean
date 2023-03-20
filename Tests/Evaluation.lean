@@ -579,6 +579,13 @@ def any_non_nil_is_true : Test :=
 def overflow : Test :=
   (some .nil, ⟦(< 1 (- 0 1))⟧)
 
+def get_nil : Test :=
+  (some .nil, ⟦
+    (letrec (
+        (getelem (LAMBDA (xs n)
+          (IF (= n 0) (CAR xs) (getelem (CDR xs) (- n 1))))))
+      (getelem nil 0))⟧)
+
 def pairs : List Test := [
   outer_evaluate,
   outer_evaluate2,
@@ -660,7 +667,8 @@ def pairs : List Test := [
   car_unicode_char,
   closure,
   any_non_nil_is_true,
-  overflow
+  overflow,
+  get_nil
 ]
 
 def extract5Excepts (e₁ e₂ e₃ e₄ e₅ : Except ε α) : Except ε (α × α × α × α × α) :=

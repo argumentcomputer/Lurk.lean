@@ -314,6 +314,7 @@ def hideLDON (secret : F) (ldon : LDON) : EvalM Value := do
 def Expr.evalOp₁ (e : Expr) : Op₁ → Value → EvalM Value
   | .atom, .cons .. => return .nil
   | .atom, _ => return .t
+  | .car, .nil => return .nil
   | .car, .cons car _ => return car
   | .car, .str ⟨[]⟩ => return .nil
   | .car, .str ⟨h::_⟩ => return .char h
