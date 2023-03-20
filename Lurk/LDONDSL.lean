@@ -135,7 +135,13 @@ partial def elabLDON : TSyntax `ldon → TermElabM Expr
   | `(ldon| ($x . $y)) => do mkAppM ``LDON.cons #[← elabLDON x, ← elabLDON y]
   | `(ldon| ($xs* . $x)) => do elabLDONCons xs (← elabLDON x)
   | `(ldon| ,$x:ldon) => do mkAppM ``LDON.mkQuote #[← elabLDON x]
-  | _ => throwUnsupportedSyntax
+  | `(ldon| $x) => do
+    if x.raw.isAntiquot then
+      let stx := x.raw.getAntiquotTerm
+      let e ← elabTerm stx none
+      let e ← whnf e
+      mkAppM ``LDON.toLDON #[e]
+    else throwUnsupportedSyntax
 
 end
 
