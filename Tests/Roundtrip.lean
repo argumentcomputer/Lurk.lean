@@ -16,6 +16,8 @@ def exprs := [
   ⟦(nil t)⟧,
   ⟦(t nil)⟧,
   ⟦((current-env) t nil)⟧,
+  ⟦(num 1)⟧,
+  ⟦(char 1)⟧,
   ⟦(f)⟧,
   ⟦(f a)⟧,
   ⟦(f 1 q)⟧,

@@ -7,7 +7,7 @@ def eval (code : String) (store : Lurk.Scalar.Store) : IO UInt32 :=
   | .error err => do IO.eprintln s!"Parsing error:\n{err}"; return 1
   | .ok x => match x.toExpr with
     | .error err => do IO.eprintln s!"Formatting error:\n{err}"; return 1
-    | .ok e => match e.eval store with
+    | .ok e => match e.evaluate store with
       | .ok (v, n) => do IO.println s!"[{n} iterations] => {v}"; return 0
       | .error (err, frames) => do
         IO.eprintln s!"Evaluation error:\n{err}"

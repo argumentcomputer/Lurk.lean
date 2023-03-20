@@ -65,7 +65,7 @@ scoped syntax "(" "QUOTE" ldon ")"                 : expr
 scoped syntax "," ldon                             : expr
 scoped syntax "(" "eval" expr (expr)? ")"          : expr
 scoped syntax "(" "EVAL" expr (expr)? ")"          : expr
-scoped syntax "(" expr* ")"                        : expr
+scoped syntax (priority := low) "(" expr* ")"      : expr
 
 declare_syntax_cat binder
 scoped syntax "(" ident expr ")" : binder
