@@ -114,7 +114,8 @@ partial def pruneBlocksAux : Expr → Expr
     let (bs, trivs) : (Array $ String × Expr) × RBMap String Expr compare :=
       bs.foldl (init := default) fun (accBinders, accTrivials) (s, v) =>
         let v := v.replaceFreeVars accTrivials
-        if v matches .atom _ | .sym _ then (accBinders, accTrivials.insert s v)
+        if v matches .atom _ | .sym _ | .quote _ then
+          (accBinders, accTrivials.insert s v)
         else (accBinders.push (s, v), accTrivials)
     mkLet bs.data (b.replaceFreeVars trivs)
   | .letrec s v b =>
@@ -133,7 +134,7 @@ partial def pruneBlocksAux : Expr → Expr
       bs.foldl (init := default) fun (accBinders, accTrivials) (s, v) =>
         let v := v.replaceFreeVars (accTrivials.erase s) -- s is not free in v
         match v with
-        | .atom _ => (accBinders, accTrivials.insert s v)
+        | .atom _ | .quote _ => (accBinders, accTrivials.insert s v)
         | .sym s' =>
           if s != s' then (accBinders, accTrivials.insert s v)
           else (accBinders.push (s, v), accTrivials) -- an unfortunate loop

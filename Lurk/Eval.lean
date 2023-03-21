@@ -7,16 +7,11 @@ namespace Lurk
 
 open Scalar
 
-structure EvalError where
-  err : String
-
 structure EvalState where
   hashState : LDONHashState
-  iterations : Nat
+  evalCount : Nat
   deriving Inhabited
 
-
--- set_option genSizeOfSpec false in
 mutual
 
 inductive EnvImg
@@ -459,14 +454,14 @@ def Expr.evaluate (e : Expr) (store : Scalar.Store := default) :
     Except (String × Frames) (Value × Nat) :=
   match EStateM.run (ReaderT.run (e.evalM default) default)
     ⟨⟨store, default, default⟩, 0⟩ with
-  | .ok v stt => .ok (v, stt.iterations)
+  | .ok v stt => .ok (v, stt.evalCount)
   | .error err _ => .error err
 
 def Expr.evaluate' (e : Expr) (store : Scalar.Store := default) :
-    Except String (Value × Nat) :=
+    Except String Value :=
   match EStateM.run (ReaderT.run (e.evalM default) default)
     ⟨⟨store, default, default⟩, 0⟩ with
-  | .ok v stt => .ok (v, stt.iterations)
+  | .ok v _ => .ok v
   | .error err _ => .error err.1
 
 end Lurk

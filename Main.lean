@@ -25,7 +25,7 @@ def lurkRun (p : Cli.Parsed) : IO UInt32 := do
     | .ok x => match x.toExpr with
       | .error err => do IO.eprintln s!"Formatting error:\n{err}"; return 1
       | .ok e => match e.evaluate store with
-        | .ok (v, n) => do IO.println s!"[{n} iterations] => {v}"; return 0
+        | .ok (v, n) => do IO.println s!"[{n} evaluations] => {v}"; return 0
         | .error (err, frames) => do
           IO.eprintln s!"Evaluation error:\n{err}"
           IO.FS.writeFile (path.withExtension "frames") (frames.pprint 5)

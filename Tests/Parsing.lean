@@ -1,6 +1,6 @@
 import LSpec
 import Lurk.Parser
-import Lurk.LDONDSL
+import Lurk.DSL
 
 def code := "(begin
     nil

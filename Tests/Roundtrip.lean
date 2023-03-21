@@ -1,5 +1,5 @@
 import LSpec
-import Lurk.ExprDSL
+import Lurk.DSL
 import Lurk.Scalar
 
 open Lurk
