@@ -116,6 +116,9 @@ class ToExpr (α : Type _) where
 
 export ToExpr (toExpr)
 
+instance : ToExpr F where
+  toExpr := .atom ∘ .num
+
 instance : ToExpr Nat where
   toExpr := .atom ∘ .num ∘ .ofNat
 

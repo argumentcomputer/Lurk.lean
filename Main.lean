@@ -28,7 +28,8 @@ def lurkRun (p : Cli.Parsed) : IO UInt32 := do
         | .ok (v, n) => do IO.println s!"[{n} evaluations] => {v}"; return 0
         | .error (err, frames) => do
           IO.eprintln s!"Evaluation error:\n{err}"
-          IO.FS.writeFile (path.withExtension "frames") (frames.pprint 5)
+          let nFrames := (p.flag? "frames").map (·.as! Nat) |>.getD 5
+          IO.FS.writeFile (path.withExtension "frames") (frames.pprint nFrames)
           return 1
 
 def lurkCmd : Cli.Cmd := `[Cli|
@@ -37,6 +38,7 @@ def lurkCmd : Cli.Cmd := `[Cli|
 
   FLAGS:
     ls, "lightstore" : String; "Optional path to the data store"
+    f, "frames" : Nat; "The number of frames dumped to a file in case of an error (defaults to 5)"
   
   ARGS:
     source : String; "Lurk source file"
