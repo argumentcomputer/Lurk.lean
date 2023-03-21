@@ -1,9 +1,9 @@
 import LSpec
-import Lurk.Backend.DSL
-import Lurk.Backend.Eval
-import Lurk.Backend.ExprUtils
+import Lurk.DSL
+import Lurk.Eval
+import Lurk.ExprUtils
 
-open Lurk Backend DSL
+open Lurk Expr.DSL DSL
 
 abbrev Test := Option Value × Expr
 
@@ -172,7 +172,7 @@ def outer_evaluate_recursion_optimized : Test :=
                                                 1
                                                 (* base (base_inner (- exponent 1)))))))
                                         base_inner))))
-                   ((exp 5) 3))⟧)
+                   (exp 5 3))⟧)
 
 def outer_evaluate_tail_recursion : Test :=
 (some 125, ⟦(letrec ((exp (lambda (base)
@@ -349,6 +349,7 @@ def tail_call2 : Test :=
 
 open Value
 
+open LDON.DSL in
 def outer_evaluate_make_tree : Test :=
 (some ⦃(((h . g) . (f . e)) . ((d . c) . (b . a)))⦄,
              ⟦(letrec ((mapcar (lambda (f list)
@@ -578,6 +579,13 @@ def any_non_nil_is_true : Test :=
 def overflow : Test :=
   (some .nil, ⟦(< 1 (- 0 1))⟧)
 
+def get_nil : Test :=
+  (some .nil, ⟦
+    (letrec (
+        (getelem (LAMBDA (xs n)
+          (IF (= n 0) (CAR xs) (getelem (CDR xs) (- n 1))))))
+      (getelem nil 0))⟧)
+
 def pairs : List Test := [
   outer_evaluate,
   outer_evaluate2,
@@ -659,7 +667,8 @@ def pairs : List Test := [
   car_unicode_char,
   closure,
   any_non_nil_is_true,
-  overflow
+  overflow,
+  get_nil
 ]
 
 def extract5Excepts (e₁ e₂ e₃ e₄ e₅ : Except ε α) : Except ε (α × α × α × α × α) :=
@@ -669,10 +678,11 @@ open LSpec in
 def main := lspecIO $
   pairs.foldl (init := .done) fun tSeq (expect, e) =>
     tSeq ++ match expect with
-      | none => withExceptError s!"{e} fails on evaluation" e.eval fun _ => .done
+      | none => withExceptError s!"{e} fails on evaluation" e.evaluate fun _ => .done
       | some expect =>
-        let excepts := extract5Excepts e.eval e.pruneBlocks.eval e.anon.eval
-          e.pruneBlocks.anon.eval e.anon.pruneBlocks.eval
+        let excepts := extract5Excepts e.evaluate' e.pruneBlocks.evaluate' e.anon.evaluate'
+          e.pruneBlocks.anon.evaluate' e.anon.pruneBlocks.evaluate'
         withExceptOk s!"{e} evaluation succeeds" excepts fun (v₁, v₂, v₃, v₄, v₅) =>
+          let (v₁, v₂, v₃, v₄, v₅) := (v₁, v₂, v₃, v₄, v₅)
           test s!"{e} evaluates to correctly" $
             expect == v₁ && v₁ == v₂ && v₂ == v₃ && v₃ == v₄ && v₄ == v₅

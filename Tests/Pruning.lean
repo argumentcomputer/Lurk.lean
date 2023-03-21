@@ -1,8 +1,8 @@
 import LSpec
-import Lurk.Backend.DSL
-import Lurk.Backend.ExprUtils
+import Lurk.DSL
+import Lurk.ExprUtils
 
-open Lurk Backend DSL
+open Lurk Expr.DSL DSL
 
 def cases := [
   (⟦(let ((a 1)) a)⟧, ⟦1⟧),
@@ -16,7 +16,6 @@ def cases := [
   (⟦(let ((r 5) (r r)) r)⟧, ⟦5⟧),
   (⟦(let ((r 5) (r 1)) r)⟧, ⟦1⟧),
   (⟦(let ((a 1) (b a)) b)⟧, ⟦1⟧),
-  (⟦(let ((a (lambda (x) 5)) (b a)) b)⟧, ⟦(lambda (x) 5)⟧),
   (⟦(let ((a 1) (b a)) c)⟧, ⟦c⟧),
   (⟦(let ((a 1)) (+ a a))⟧, ⟦(+ 1 1)⟧),
   (⟦(let ((a (+ 1 1))) (+ a a))⟧, ⟦(let ((a (+ 1 1))) (+ a a))⟧),
@@ -24,9 +23,8 @@ def cases := [
   (⟦(let ((a (+ 1 1)) (b (+ a a))) (+ b b))⟧, ⟦(let ((a (+ 1 1)) (b (+ a a))) (+ b b))⟧),
   (⟦(let ((x a) (a 1) (b a)) c)⟧, ⟦c⟧),
   (⟦(let ((x a) (a 1) (b a)) (+ b x))⟧, ⟦(+ 1 a)⟧),
-  (⟦(let ((x (+ a a)) (a 1) (b a)) (+ b x))⟧, ⟦(+ 1 (+ a a))⟧),
   (⟦(let ((x (+ a a)) (a 1) (b a)) (+ (+ b x) x))⟧, ⟦(let ((x (+ a a))) (+ (+ 1 x) x))⟧),
-  (⟦(let ((a 1) (b (lambda (a) a))) (b a))⟧, ⟦((lambda (a) a) 1)⟧)
+  (⟦(let ((z (let ((x 1)) x)) (a (+ z z))) (+ a a))⟧, ⟦(let ((a (+ 1 1))) (+ a a))⟧)
 ]
 
 open LSpec

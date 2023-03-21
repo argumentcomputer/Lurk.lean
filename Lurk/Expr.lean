@@ -1,8 +1,9 @@
 import Lurk.Field
+import Lurk.LDON
 
 open Std
 
-namespace Lurk.Backend
+namespace Lurk
 
 /-- Basic Lurk primitives -/
 inductive Atom
@@ -88,34 +89,6 @@ def Op₂.toString := ToString.toString ∘ Op₂.toFormat
 
 instance : Std.ToFormat Op₂ := ⟨Op₂.toFormat⟩
 
-inductive Datum
-  | num  : Fin N  → Datum
-  | u64  : UInt64 → Datum
-  | char : Char   → Datum
-  | str  : String → Datum
-  | sym  : String → Datum
-  | cons : Datum  → Datum → Datum
-  deriving Inhabited, BEq
-
-@[match_pattern] def Datum.nil := Datum.sym "NIL"
-@[match_pattern] def Datum.t   := Datum.sym "T"
-
-class ToDatum (α : Type _) where
-  toDatum : α → Datum
-
-export ToDatum (toDatum)
-
-instance : ToDatum Nat where
-  toDatum := .num ∘ .ofNat
-
-instance : ToDatum String where
-  toDatum := .str
-
-instance [ToDatum α] : ToDatum (List α) where
-  toDatum as := as.foldl (fun acc a => .cons acc (toDatum a)) (.sym "NIL")
-
-instance [ToDatum α] : ToDatum (Array α) := ⟨toDatum ∘ Array.toList⟩
-
 inductive Expr
   | atom : Atom → Expr
   | sym : String → Expr
@@ -129,10 +102,14 @@ inductive Expr
   | lambda : String → Expr → Expr
   | «let»  : String → Expr → Expr → Expr
   | letrec : String → Expr → Expr → Expr
-  | quote : Datum → Expr
-  deriving Inhabited, BEq
+  | quote : LDON → Expr
+  | eval : Expr → Expr → Expr
+  deriving Inhabited, BEq, Repr
 
 namespace Expr
+
+@[match_pattern] def nil : Expr := .atom .nil
+@[match_pattern] def t   : Expr := .atom .t
 
 class ToExpr (α : Type _) where
   toExpr : α → Expr
@@ -178,35 +155,11 @@ def telescopeApp (acc : List Expr) : Expr → List Expr
   | .app f a => f.telescopeApp (a :: acc)
   | x => x :: acc
 
-def telescopeBegin : Expr → Array Expr
-  | .begin e₁ e₂ => e₁.telescopeBegin ++ e₂.telescopeBegin
-  | x => #[x]
-
-def telescopeDatumCons (acc : Array Datum := #[]) : Datum → Array Datum × Datum
-  | .cons x y => telescopeDatumCons (acc.push x) y
+def telescopeBegin (acc : Array Expr := #[]) : Expr → Array Expr × Expr
+  | begin x y => telescopeBegin (acc.push x) y
   | x => (acc, x)
 
 open Format
-
-partial def datumFormat : Datum → Format
-  | .num x | .sym x => format x
-  | .u64 x => s!"{x}u64"
-  | .char c => s!"#\\{c}"
-  | .str s => s!"\"{s}\""
-  | x@(.cons ..) =>
-    match telescopeDatumCons #[] x with
-    | (xs, .sym "NIL") => paren $ fmtList xs.data
-    | (xs, y) => paren $ fmtList xs.data ++ line ++ "." ++ line ++ (datumFormat y)
-where
-  fmtList : List Datum → Format
-    | [] => .nil
-    | x::xs => xs.foldl (fun acc x => acc ++ line ++ (datumFormat x)) (datumFormat x)
-
-def datumString : Datum → String :=
-  toString ∘ datumFormat
-
-instance : ToFormat Datum := ⟨datumFormat⟩
-instance : ToString Datum := ⟨datumString⟩
 
 partial def toFormat (esc := false) (e : Expr) : Format :=
   have : ToFormat Expr := ⟨toFormat⟩
@@ -215,30 +168,33 @@ partial def toFormat (esc := false) (e : Expr) : Format :=
   | .sym s => formatSym s
   | .env => .text "CURRENT-ENV"
   | .op₁ op e =>
-    paren <| format op ++ " " ++ e.toFormat esc
+    paren $ format op ++ " " ++ e.toFormat esc
   | .op₂ op e₁ e₂ =>
-    paren <| format op ++ " " ++ e₁.toFormat esc ++ line ++ e₂.toFormat esc
+    paren $ format op ++ " " ++ e₁.toFormat esc ++ line ++ e₂.toFormat esc
   | .begin e₁ e₂ =>
-    paren <| "BEGIN" ++ line ++ e₁.toFormat esc ++ line ++ e₂.toFormat esc
+    paren $ "BEGIN" ++ line ++ e₁.toFormat esc ++ line ++ e₂.toFormat esc
   | .if cond e₁ e₂ =>
-    paren <| "IF " ++ cond.toFormat esc ++ indentD (e₁.toFormat esc ++ line ++ e₂.toFormat esc)
-  | .app₀ fn => paren <| fn.toFormat esc
+    paren $ "IF " ++ cond.toFormat esc ++ indentD (e₁.toFormat esc ++ line ++ e₂.toFormat esc)
+  | .app₀ fn => paren $ fn.toFormat esc
   | .app f a =>
     let as := f.telescopeApp [a] |>.map $ toFormat esc
     paren (joinSep as " ")
   | .lambda s b =>
     let (as, b) := b.telescopeLam #[s]
     let as := as.data.map formatSym
-    paren <| "LAMBDA " ++ nest 2 (paren (joinSep as " ")) ++ indentD (b.toFormat esc)
+    paren $ "LAMBDA " ++ nest 2 (paren (joinSep as " ")) ++ indentD (b.toFormat esc)
   | .let s v b =>
     let (bs, b) := b.telescopeLet #[(s, v)]
-    let bs := bs.data.map fun (n, e) => paren <| formatSym n ++ indentD (e.toFormat esc)
-    paren <| "LET " ++ nest 4 (paren <| joinSep bs line) ++ indentD (b.toFormat esc)
+    let bs := bs.data.map fun (n, e) => paren $ formatSym n ++ indentD (e.toFormat esc)
+    paren $ "LET " ++ nest 4 (paren $ joinSep bs line) ++ indentD (b.toFormat esc)
   | .letrec s v b =>
     let (bs, b) := b.telescopeLetrec #[(s, v)]
-    let bs := bs.data.map fun (n, e) => paren <| formatSym n ++ indentD (e.toFormat esc)
-    paren <| "LETREC " ++ nest 7 (paren <| joinSep bs line) ++ indentD (b.toFormat esc)
-  | .quote datum => paren <| "QUOTE" ++ line ++ format datum
+    let bs := bs.data.map fun (n, e) => paren $ formatSym n ++ indentD (e.toFormat esc)
+    paren $ "LETREC " ++ nest 7 (paren $ joinSep bs line) ++ indentD (b.toFormat esc)
+  | .quote ldon => paren $ "QUOTE" ++ line ++ ldon.toFormat esc
+  | .eval e env? =>
+    let env? := if env? == .nil then .nil else line ++ env?.toFormat esc
+    paren $ "EVAL" ++ line ++ e.toFormat esc ++ env?
 where
   formatSym s := if esc then s!"|{s}|" else s
 
@@ -248,4 +204,4 @@ def toString (esc := false) : Expr → String :=
 instance : ToFormat Expr := ⟨toFormat⟩
 instance : ToString Expr := ⟨toString⟩
 
-end Lurk.Backend.Expr
+end Lurk.Expr

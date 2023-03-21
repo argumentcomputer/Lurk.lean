@@ -32,6 +32,18 @@
     "name": "Poseidon",
     "inputRev?": "4180a316a7822b924e05cda1729d8612fcc81ee7"}},
   {"git":
+   {"url": "https://github.com/yatima-inc/Cli.lean",
+    "subDir?": null,
+    "rev": "ef6f9bcd1738638fca8d319dbee653540d56614e",
+    "name": "Cli",
+    "inputRev?": "ef6f9bcd1738638fca8d319dbee653540d56614e"}},
+  {"git":
+   {"url": "https://github.com/yatima-inc/LightData",
+    "subDir?": null,
+    "rev": "6dfd01c9e056deaf5b76e20f995c39e840bbde86",
+    "name": "LightData",
+    "inputRev?": "6dfd01c9e056deaf5b76e20f995c39e840bbde86"}},
+  {"git":
    {"url": "https://github.com/leanprover/std4/",
     "subDir?": null,
     "rev": "fde95b16907bf38ea3f310af406868fc6bcf48d1",

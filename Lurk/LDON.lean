@@ -1,29 +1,31 @@
 import YatimaStdLib.RBMap
+import Lurk.Field
 
-namespace Lurk.Frontend
+namespace Lurk
 
 /--
 Reserved symbols are expected to be in uppercase. Planned to be dropped in favor
 of LDON.
 -/
-inductive AST
-  | num : Nat → AST
-  | char : Char → AST
-  | str : String → AST
-  | sym : String → AST
-  | cons : AST → AST → AST
+inductive LDON
+  | num : F → LDON
+  | u64 : UInt64 → LDON
+  | char : Char → LDON
+  | str : String → LDON
+  | sym : String → LDON
+  | cons : LDON → LDON → LDON
   deriving Ord, BEq, Repr, Inhabited
 
-namespace AST
+namespace LDON
 
-@[match_pattern] def nil : AST := sym "NIL"
-@[match_pattern] def t   : AST := sym "T"
+@[match_pattern] def nil : LDON := sym "NIL"
+@[match_pattern] def t   : LDON := sym "T"
 
-def telescopeCons (acc : Array AST := #[]) : AST → Array AST × AST
+def telescopeCons (acc : Array LDON := #[]) : LDON → Array LDON × LDON
   | cons x y => telescopeCons (acc.push x) y
   | x => (acc, x)
 
-def consWith (xs : List AST) (init : AST) : AST :=
+def consWith (xs : List LDON) (init : LDON) : LDON :=
   xs.foldr (init := init) cons
 
 def reservedSyms : Std.RBSet String compare := .ofList [
@@ -40,6 +42,7 @@ def reservedSyms : Std.RBSet String compare := .ofList [
   "CAR",
   "CDR",
   "EMIT",
+  "EVAL",
   "COMMIT",
   "COMM",
   "OPEN",
@@ -66,8 +69,9 @@ def reservedSyms : Std.RBSet String compare := .ofList [
 ] _
 
 open Std Format in
-partial def toFormat (esc : Bool) : AST → Format
+partial def toFormat (esc : Bool) : LDON → Format
   | num n => format n
+  | u64 n => format n
   | char c => s!"#\\{c}"
   | str s => s!"\"{s}\""
   | sym s => if esc && !reservedSyms.contains s then s!"|{s}|" else s
@@ -76,15 +80,15 @@ partial def toFormat (esc : Bool) : AST → Format
     | (xs, nil) => paren $ fmtList xs.data
     | (xs, y) => paren $ fmtList xs.data ++ line ++ "." ++ line ++ (y.toFormat esc)
 where
-  fmtList : List AST → Format
+  fmtList : List LDON → Format
     | [] => .nil
     | x::xs => xs.foldl (fun acc x => acc ++ line ++ (x.toFormat esc)) (x.toFormat esc)
 
-def toString (esc : Bool) : AST → String :=
+def toString (esc : Bool) : LDON → String :=
   ToString.toString ∘ toFormat esc
 
-instance : Std.ToFormat AST := ⟨toFormat false⟩
-instance : ToString AST := ⟨toString false⟩
+instance : Std.ToFormat LDON := ⟨toFormat false⟩
+instance : ToString LDON := ⟨toString false⟩
 
 namespace Macro
 
@@ -92,36 +96,36 @@ scoped syntax "~[" withoutPosition(term,*) "]"  : term
 
 macro_rules
   | `(~[$xs,*]) => do
-    let ret ← xs.getElems.foldrM (fun x xs => `(AST.cons $x $xs)) (← `(AST.nil))
+    let ret ← xs.getElems.foldrM (fun x xs => `(LDON.cons $x $xs)) (← `(LDON.nil))
     return ret
 
 end Macro
 
 open Macro in
 /-- This helper is needed for the DSL and for the parser -/
-def mkQuote (x : AST) : AST :=
+def mkQuote (x : LDON) : LDON :=
   ~[sym "QUOTE", x]
 
-class ToAST (α : Type _) where
-  toAST : α → AST
+class ToLDON (α : Type _) where
+  toLDON : α → LDON
 
-export ToAST (toAST)
+export ToLDON (toLDON)
 
-instance : ToAST Nat where
-  toAST := .num
+instance : ToLDON Nat where
+  toLDON := .num ∘ .ofNat
 
-instance : ToAST Char where
-  toAST := .char
+instance : ToLDON Char where
+  toLDON := .char
 
-instance : ToAST String where
-  toAST := .str
+instance : ToLDON String where
+  toLDON := .str
 
-instance [ToAST α] : ToAST (List α) where
-  toAST es := AST.consWith (es.map toAST) .nil
+instance [ToLDON α] : ToLDON (List α) where
+  toLDON es := LDON.consWith (es.map toLDON) .nil
 
-instance [ToAST α] : ToAST (Array α) where
-  toAST es := AST.consWith (es.data.map toAST) .nil
+instance [ToLDON α] : ToLDON (Array α) where
+  toLDON es := LDON.consWith (es.data.map toLDON) .nil
 
-instance : ToAST AST := ⟨id⟩
+instance : ToLDON LDON := ⟨id⟩
 
-end Lurk.Frontend.AST
+end Lurk.LDON
