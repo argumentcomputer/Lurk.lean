@@ -26,8 +26,10 @@ Note: this is *different* from creating the literal list `(x₁ x₂ .. . tail)`
 def mkConsListWith (xs : List Expr) (tail : Expr := .nil) : Expr :=
   xs.foldr (init := tail) fun x acc => .op₂ .cons x acc
 
-def getFreeVars (bVars acc : Std.RBSet String compare := default) :
-    Expr → Std.RBSet String compare
+open Std (RBMap RBSet)
+
+def getFreeVars (bVars acc : RBSet String compare := default) :
+    Expr → RBSet String compare
   | .atom _ | .env | .quote _ => acc
   | .sym s => if bVars.contains s then acc else acc.insert s
   | .op₁ _ e
@@ -44,11 +46,11 @@ def getFreeVars (bVars acc : Std.RBSet String compare := default) :
     let bVars := bVars.insert s; b.getFreeVars bVars (v.getFreeVars bVars acc)
 
 def countFreeVarOccs
-  (bVars : Std.RBSet String compare := default)
-  (acc : Std.RBMap String Nat compare := default) :
-    Expr → Std.RBMap String Nat compare
+  (bVars : RBSet String compare := default)
+  (acc : RBMap String Nat compare := default) :
+    Expr → RBMap String Nat compare
   | .atom _ | .env | .quote _ => acc
-  | .sym s => if bVars.contains s then acc else acc.insert s $ acc.findD s 0 |>.succ
+  | .sym s => if bVars.contains s then acc else acc.insert s (acc.findD s 0).succ
   | .op₁ _ e
   | .app₀  e
   | .eval e .nil => e.countFreeVarOccs bVars acc
@@ -78,7 +80,7 @@ def containsCurrentEnv : Expr → Bool
     e₁.containsCurrentEnv || e₂.containsCurrentEnv || e₃.containsCurrentEnv
   | _ => false
 
-def replaceFreeVars (map : Std.RBMap String Expr compare) : Expr → Expr
+def replaceFreeVars (map : RBMap String Expr compare) : Expr → Expr
   | .sym s => match map.find? s with | some x => x | none => sym s
   | .lambda s b => .lambda s (b.replaceFreeVars (map.erase s))
   | .let s v b => .let s (v.replaceFreeVars map) (b.replaceFreeVars (map.erase s))
@@ -96,53 +98,60 @@ def replaceFreeVars (map : Std.RBMap String Expr compare) : Expr → Expr
     .if (e₁.replaceFreeVars map) (e₂.replaceFreeVars map) (e₃.replaceFreeVars map)
   | x => x
 
-/-- Eagerly remove unnecessary binders from `let` and `letrec` blocks. -/
-partial def pruneBlocks : Expr → Expr
-  | x@(.letrec s v b)
-  | x@(.let s v b) =>
-    let letrec := x matches .letrec _ _ _
-    let (bs, b) := if letrec then b.telescopeLetrec #[(s, v)] else b.telescopeLet #[(s, v)]
-    let b := b.pruneBlocks
-    if b.containsCurrentEnv then x else
-    -- remove unused binders
+partial def pruneBlocksAux : Expr → Expr
+  | .let s v b =>
+    let (bs, b) := b.telescopeLet #[(s, v)]
+    let b := b.pruneBlocksAux
+    let bs := bs.map fun (s, v) => (s, v.pruneBlocksAux)
+    -- drop unused binders
     let (bs, _) := bs.foldr (init := (default, b.getFreeVars))
-      fun (s, v) (accBinders, accFVars) =>
-        if accFVars.contains s then
-          let v := v.pruneBlocks
-          ((s, v) :: accBinders, (accFVars.erase fun s' => compare s' s).union -- `s` is no longer a free variable TODO double-check ordering of arguments to "compare"
-            $ v.getFreeVars (if letrec then .single s else default)) -- if letrec, s is not free in v
-        else (accBinders, accFVars) -- drop binder
-    -- inline atom binders or that are called only once
-    let (counts, bindings) : Std.RBMap String Nat compare × Std.RBMap String Expr compare := 
-      bs.foldl (init := default) fun (counts, bindings) (name, val) =>
-        let counts := countFreeVarOccs default (counts.filter fun n _ => bindings.contains n) val
-        let bindings := bindings.insert name val
-        (counts, bindings)
-    let toInline := countFreeVarOccs default counts b |>.filter fun name count =>
-      let val := bindings.find! name
-      let isAtom := match val with | .sym _ | .atom _ => true | _ => false
-      let isRec := letrec && (val.getFreeVars).contains name
-      (isAtom || count == 1) && !isRec
-    let (bs, bindings, _) : (Array $ String × Expr) ×
-        Std.RBMap String Expr compare × Std.RBSet String compare :=
-      bs.foldl (init := (default, bindings, default)) fun (bs, bindings, seenSyms) (name, val) =>
-        let val := val.replaceFreeVars $ bindings.filter fun n _ =>
-          seenSyms.contains n && toInline.contains n
-        (if toInline.contains name then bs else bs.push (name, val),
-          bindings.insert name val, seenSyms.insert name)
-    let bindings := bindings.filter fun n _ => toInline.contains n
-    if letrec then mkLetrec bs.data (b.replaceFreeVars bindings)
-    else mkLet bs.data (b.replaceFreeVars bindings)
-  | .op₁    o e => .op₁ o e.pruneBlocks
-  | .app₀     e => .app₀ e.pruneBlocks
-  | .lambda s e => .lambda s e.pruneBlocks
-  | .op₂    o e₁ e₂ => .op₂ o e₁.pruneBlocks e₂.pruneBlocks
-  | .begin    e₁ e₂ => .begin e₁.pruneBlocks e₂.pruneBlocks
-  | .app      e₁ e₂ => .app e₁.pruneBlocks e₂.pruneBlocks
-  | .eval e .nil => .eval e.pruneBlocks .nil
-  | .eval e env? => .eval e.pruneBlocks env?.pruneBlocks
-  | .if       e₁ e₂ e₃ => .if e₁.pruneBlocks e₂.pruneBlocks e₃.pruneBlocks
+      fun (s, v) (accBinders, accFreeVars) =>
+        if accFreeVars.contains s then -- include binder and its free variables
+          ((s, v) :: accBinders, (accFreeVars.erase (compare · s)).union
+            v.getFreeVars)
+        else (accBinders, accFreeVars) -- drop binder
+    -- inline trivial binders
+    let (bs, trivs) : (Array $ String × Expr) × RBMap String Expr compare :=
+      bs.foldl (init := default) fun (accBinders, accTrivials) (s, v) =>
+        let v := v.replaceFreeVars accTrivials
+        if v matches .atom _ | .sym _ then (accBinders, accTrivials.insert s v)
+        else (accBinders.push (s, v), accTrivials)
+    mkLet bs.data (b.replaceFreeVars trivs)
+  | .letrec s v b =>
+    let (bs, b) := b.telescopeLetrec #[(s, v)]
+    let b := b.pruneBlocksAux
+    let bs := bs.map fun (s, v) => (s, v.pruneBlocksAux)
+    -- drop unused binders
+    let (bs, _) := bs.foldr (init := (default, b.getFreeVars))
+      fun (s, v) (accBinders, accFreeVars) =>
+        if accFreeVars.contains s then -- include binder and its free variables
+          ((s, v) :: accBinders, (accFreeVars.erase (compare · s)).union $
+            v.getFreeVars $ .single s) -- s is not free in v
+        else (accBinders, accFreeVars) -- drop binder
+    -- inline trivial binders
+    let (bs, trivs) : (Array $ String × Expr) × RBMap String Expr compare :=
+      bs.foldl (init := default) fun (accBinders, accTrivials) (s, v) =>
+        let v := v.replaceFreeVars (accTrivials.erase s) -- s is not free in v
+        match v with
+        | .atom _ => (accBinders, accTrivials.insert s v)
+        | .sym s' =>
+          if s != s' then (accBinders, accTrivials.insert s v)
+          else (accBinders.push (s, v), accTrivials) -- an unfortunate loop
+        | _ => (accBinders.push (s, v), accTrivials)
+    mkLetrec bs.data (b.replaceFreeVars trivs)
+  | .op₁    o e => .op₁    o e.pruneBlocksAux
+  | .app₀     e => .app₀     e.pruneBlocksAux
+  | .lambda s e => .lambda s e.pruneBlocksAux
+  | .op₂ o e₁ e₂ => .op₂ o e₁.pruneBlocksAux e₂.pruneBlocksAux
+  | .begin e₁ e₂ => .begin e₁.pruneBlocksAux e₂.pruneBlocksAux
+  | .app   e₁ e₂ => .app   e₁.pruneBlocksAux e₂.pruneBlocksAux
+  | .eval  e₁ e₂ => .eval  e₁.pruneBlocksAux e₂.pruneBlocksAux
+  | .if e₁ e₂ e₃ => .if e₁.pruneBlocksAux e₂.pruneBlocksAux e₃.pruneBlocksAux
   | x => x
+
+/-- Eagerly remove unnecessary binders from `let` and `letrec` blocks. -/
+@[inline] def pruneBlocks (e : Expr) : Expr :=
+  if e.containsCurrentEnv then e else e.pruneBlocksAux
 
 def mkIfElses (ifThens : List (Expr × Expr)) (finalElse : Expr := .nil) : Expr :=
   match ifThens with
@@ -196,7 +205,7 @@ collect all the strongly connected components and then make them into mutual blo
 -/
 def mutualize (binders : List $ String × Expr) : List $ String × Expr :=
   let names := binders.map Prod.fst
-  let binders := Std.RBMap.ofList binders compare
+  let binders := RBMap.ofList binders compare
   let blocks := Lean.SCC.scc names fun name =>
     binders.find! name |>.getFreeVars default default |>.toList
   List.join <| blocks.map fun block =>
@@ -207,7 +216,7 @@ namespace Anon
 
 structure AnonCtx where
   highest : String
-  map : Std.RBMap String String compare
+  map : RBMap String String compare
   deriving Inhabited
 
 def AnonCtx.next (ctx : AnonCtx) (k : String) : String × AnonCtx :=
@@ -235,30 +244,27 @@ partial def anon (x : Expr) : Expr :=
     | .lambda "_" b => (.lambda "_" (aux ctx b).1, ctx)
     | x@(.lambda ..) =>
       let (as, b) := x.telescopeLam
-      if b.containsCurrentEnv then (x, ctx) else
-        let (as, ctx) := as.foldl (init := (#[], ctx))
-          fun (as, ctx) s =>
-            let (curr, ctx) := ctx.next s
-            (as.push curr, ctx.update s curr)
-        (mkLambda as.data (aux ctx b).1, ctx)
+      let (as, ctx) := as.foldl (init := (#[], ctx))
+        fun (as, ctx) s =>
+          let (curr, ctx) := ctx.next s
+          (as.push curr, ctx.update s curr)
+      (mkLambda as.data (aux ctx b).1, ctx)
     | x@(.let ..) =>
       let (bs, b) := x.telescopeLet
-      if b.containsCurrentEnv then (x, ctx) else
-        let (bs, ctx) := bs.foldl (init := (#[], ctx))
-          fun (bs, ctx) (s, v) =>
-            let (v, _) := aux ctx v
-            let (curr, ctx) := ctx.next s
-            (bs.push (curr, v), ctx)
-        (mkLet bs.data (aux ctx b).1, ctx)
+      let (bs, ctx) := bs.foldl (init := (#[], ctx))
+        fun (bs, ctx) (s, v) =>
+          let (v, _) := aux ctx v
+          let (curr, ctx) := ctx.next s
+          (bs.push (curr, v), ctx)
+      (mkLet bs.data (aux ctx b).1, ctx)
     | x@(.letrec ..) =>
       let (bs, b) := x.telescopeLetrec
-      if b.containsCurrentEnv then (x, ctx) else
-        let (bs, ctx) := bs.foldl (init := (#[], ctx))
-          fun (bs, ctx) (s, v) =>
-            let (curr, ctx) := ctx.next s
-            let (v, _) := aux ctx v
-            (bs.push (curr, v), ctx)
-        (mkLetrec bs.data (aux ctx b).1, ctx)
+      let (bs, ctx) := bs.foldl (init := (#[], ctx))
+        fun (bs, ctx) (s, v) =>
+          let (curr, ctx) := ctx.next s
+          let (v, _) := aux ctx v
+          (bs.push (curr, v), ctx)
+      (mkLetrec bs.data (aux ctx b).1, ctx)
     | .op₁ o e => (.op₁ o (aux ctx e).1, ctx)
     | .app₀  e => (.app₀  (aux ctx e).1, ctx)
     | .op₂ o e₁ e₂ => (.op₂ o (aux ctx e₁).1 (aux ctx e₂).1, ctx)
@@ -268,6 +274,6 @@ partial def anon (x : Expr) : Expr :=
     | .eval e env? => (.eval (aux ctx e).1 (aux ctx env?).1, ctx)
     | .if    e₁ e₂ e₃ => (.if (aux ctx e₁).1 (aux ctx e₂).1 (aux ctx e₃).1, ctx)
     | x => (x, ctx)
-  (aux default x).1
+  if x.containsCurrentEnv then x else (aux default x).1
 
 end Lurk.Expr
