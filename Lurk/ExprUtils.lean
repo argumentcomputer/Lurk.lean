@@ -277,4 +277,14 @@ partial def anon (x : Expr) : Expr :=
     | x => (x, ctx)
   if x.containsCurrentEnv then x else (aux default x).1
 
+def depthLE (e : Expr) (n : Nat) : Bool :=
+  if n == 0 then false else
+  match e with
+  | .atom _ | .sym _ | .quote _ | .env => true
+  | .op₁ _ e | .app₀ e | .lambda _ e => e.depthLE n.pred
+  | .op₂ _ e₁ e₂ | .begin e₁ e₂ | .app e₁ e₂
+  | .let _ e₁ e₂ | .letrec _ e₁ e₂ | .eval e₁ e₂ =>
+    let n := n.pred; e₁.depthLE n && e₂.depthLE n
+  | .if e₁ e₂ e₃ => let n := n.pred; e₁.depthLE n && e₂.depthLE n && e₃.depthLE n
+
 end Lurk.Expr
