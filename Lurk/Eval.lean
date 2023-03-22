@@ -163,7 +163,8 @@ partial def Value.toString : Value → String
   | .comm c => s!"<comm {c.asHex}>"
   | .fun n _ b =>
     let (ns, b) := b.telescopeLam #[n]
-    s!"<fun ({" ".intercalate ns.data}) {b}>"
+    if b.depthLE 20 then s!"<fun ({" ".intercalate ns.data}) {b}>"
+    else s!"<fun ({" ".intercalate ns.data}) ...>"
 
 instance : ToString Value where
   toString := Value.toString
