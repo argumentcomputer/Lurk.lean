@@ -147,32 +147,23 @@ def toRBMap : Env → Std.RBMap String EnvImg compare
 
 end Env
 
-mutual 
-
-partial def EnvImg.toString : EnvImg → String
-  | .mk r v => s!"recr! {r} @ {v.toString}"
-
-partial def Env.toString : Env → String := fun env =>
-  let env : String :=  " ".intercalate $ 
-    env.toList.map fun (n, img) => s!"({n}, {img.toString})"
-  s!"⦃ {env} ⦄"
-
 partial def Value.toString : Value → String
-  | .num x | .sym x => ToString.toString x
+  | .num x => x.asHex
+  | .sym x => s!"|{x}|"
   | .u64 x => s!"{x}u64"
   | .char c => s!"#\\{c}"
   | .str s => s!"\"{s}\""
   | v@(.cons ..) => match v.telescopeCons with
     | (#[], .nil) => "NIL"
     | (vs, v) =>
-      let vs := vs.data.map Value.toString |> " ".intercalate
+      let vs := " ".intercalate $ vs.data.map toString
       match v with
       | .nil => "(" ++ vs ++ ")"
       | _ => s!"({vs} . {v.toString})"
   | .comm c => s!"<comm {c.asHex}>"
-  | .fun n img body => s!"<fun ({n}) {img.toString} {body}>"
-
-end
+  | .fun n _ b =>
+    let (ns, b) := b.telescopeLam #[n]
+    s!"<fun ({" ".intercalate ns.data}) {b}>"
 
 instance : ToString Value where
   toString := Value.toString
