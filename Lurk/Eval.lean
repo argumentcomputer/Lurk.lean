@@ -123,6 +123,12 @@ def toLDON : Value → LDON
   | comm _ => panic! "TODO"
   | .fun .. => panic! "TODO"
 
+def depthLE (v : Value) (n : Nat) : Bool :=
+  if n == 0 then false else
+  match v with
+  | .cons x y => let n := n.pred; x.depthLE n && y.depthLE n
+  | _ => true
+
 end Value
 
 namespace Env
@@ -153,18 +159,21 @@ partial def Value.toString : Value → String
   | .u64 x => s!"{x}u64"
   | .char c => s!"#\\{c}"
   | .str s => s!"\"{s}\""
-  | v@(.cons ..) => match v.telescopeCons with
-    | (#[], .nil) => "NIL"
-    | (vs, v) =>
-      let vs := " ".intercalate $ vs.data.map toString
-      match v with
-      | .nil => "(" ++ vs ++ ")"
-      | _ => s!"({vs} . {v.toString})"
+  | v@(.cons ..) =>
+    if v.depthLE 20 then
+      match v.telescopeCons with
+      | (#[], .nil) => "NIL"
+      | (vs, v) =>
+        let vs := " ".intercalate $ vs.data.map toString
+        match v with
+        | .nil => "(" ++ vs ++ ")"
+        | _ => s!"({vs} . {v.toString})"
+    else "( ⋯ )"
   | .comm c => s!"<comm {c.asHex}>"
   | .fun n _ b =>
     let (ns, b) := b.telescopeLam #[n]
     if b.depthLE 20 then s!"<fun ({" ".intercalate ns.data}) {b}>"
-    else s!"<fun ({" ".intercalate ns.data}) ...>"
+    else s!"<fun ({" ".intercalate ns.data}) ⋯>"
 
 instance : ToString Value where
   toString := Value.toString
