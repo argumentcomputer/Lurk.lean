@@ -155,6 +155,8 @@ end Env
 
 partial def Value.toString : Value → String
   | .num x => x.asHex
+  | .nil => "NIL"
+  | .t   => "T"
   | .sym x => s!"|{x}|"
   | .u64 x => s!"{x}u64"
   | .char c => s!"#\\{c}"
