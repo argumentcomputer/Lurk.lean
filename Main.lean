@@ -3,6 +3,7 @@ import Lurk.Eval
 import Lurk.LightData
 import Cli
 
+
 def lurkRun (p : Cli.Parsed) : IO UInt32 := do
   let store ← match p.flag? "lightstore" |>.map (·.value) with
     | none => pure .empty
