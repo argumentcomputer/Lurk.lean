@@ -31,4 +31,4 @@ open LSpec
 
 def main := lspecIO $
   cases.foldl (init := .done) fun tSeq (inp, out) =>
-    tSeq ++ test s!"inlines {inp} correctly" (inp.pruneBlocks == out)
+    tSeq ++ test s!"inlines {inp} correctly" (inp.dropUnusedAndInlineImmediates == out)
