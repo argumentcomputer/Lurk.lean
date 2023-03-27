@@ -98,11 +98,11 @@ def replaceFreeVars (map : RBMap String Expr compare) : Expr → Expr
     .if (e₁.replaceFreeVars map) (e₂.replaceFreeVars map) (e₃.replaceFreeVars map)
   | x => x
 
-partial def pruneBlocksAux : Expr → Expr
+partial def dropInlineAux : Expr → Expr
   | .let s v b =>
     let (bs, b) := b.telescopeLet #[(s, v)]
-    let b := b.pruneBlocksAux
-    let bs := bs.map fun (s, v) => (s, v.pruneBlocksAux)
+    let b := b.dropInlineAux
+    let bs := bs.map fun (s, v) => (s, v.dropInlineAux)
     -- drop unused binders
     let (bs, _) := bs.foldr (init := (default, b.getFreeVars))
       fun (s, v) (accBinders, accFreeVars) =>
@@ -120,8 +120,8 @@ partial def pruneBlocksAux : Expr → Expr
     mkLet bs.data (b.replaceFreeVars trivs)
   | .letrec s v b =>
     let (bs, b) := b.telescopeLetrec #[(s, v)]
-    let b := b.pruneBlocksAux
-    let bs := bs.map fun (s, v) => (s, v.pruneBlocksAux)
+    let b := b.dropInlineAux
+    let bs := bs.map fun (s, v) => (s, v.dropInlineAux)
     -- drop unused binders
     let (bs, _) := bs.foldr (init := (default, b.getFreeVars))
       fun (s, v) (accBinders, accFreeVars) =>
@@ -140,19 +140,19 @@ partial def pruneBlocksAux : Expr → Expr
           else (accBinders.push (s, v), accTrivials) -- an unfortunate loop
         | _ => (accBinders.push (s, v), accTrivials)
     mkLetrec bs.data (b.replaceFreeVars trivs)
-  | .op₁    o e => .op₁    o e.pruneBlocksAux
-  | .app₀     e => .app₀     e.pruneBlocksAux
-  | .lambda s e => .lambda s e.pruneBlocksAux
-  | .op₂ o e₁ e₂ => .op₂ o e₁.pruneBlocksAux e₂.pruneBlocksAux
-  | .begin e₁ e₂ => .begin e₁.pruneBlocksAux e₂.pruneBlocksAux
-  | .app   e₁ e₂ => .app   e₁.pruneBlocksAux e₂.pruneBlocksAux
-  | .eval  e₁ e₂ => .eval  e₁.pruneBlocksAux e₂.pruneBlocksAux
-  | .if e₁ e₂ e₃ => .if e₁.pruneBlocksAux e₂.pruneBlocksAux e₃.pruneBlocksAux
+  | .op₁    o e => .op₁    o e.dropInlineAux
+  | .app₀     e => .app₀     e.dropInlineAux
+  | .lambda s e => .lambda s e.dropInlineAux
+  | .op₂ o e₁ e₂ => .op₂ o e₁.dropInlineAux e₂.dropInlineAux
+  | .begin e₁ e₂ => .begin e₁.dropInlineAux e₂.dropInlineAux
+  | .app   e₁ e₂ => .app   e₁.dropInlineAux e₂.dropInlineAux
+  | .eval  e₁ e₂ => .eval  e₁.dropInlineAux e₂.dropInlineAux
+  | .if e₁ e₂ e₃ => .if e₁.dropInlineAux e₂.dropInlineAux e₃.dropInlineAux
   | x => x
 
 /-- Eagerly remove unnecessary binders from `let` and `letrec` blocks. -/
-@[inline] def pruneBlocks (e : Expr) : Expr :=
-  if e.containsCurrentEnv then e else e.pruneBlocksAux
+@[inline] def dropUnusedAndInlineImmediates (e : Expr) : Expr :=
+  if e.containsCurrentEnv then e else e.dropInlineAux
 
 def mkIfElses (ifThens : List (Expr × Expr)) (finalElse : Expr := .nil) : Expr :=
   match ifThens with

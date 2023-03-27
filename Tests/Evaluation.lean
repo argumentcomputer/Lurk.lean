@@ -680,8 +680,11 @@ def main := lspecIO $
     tSeq ++ match expect with
       | none => withExceptError s!"{e} fails on evaluation" e.evaluate fun _ => .done
       | some expect =>
-        let excepts := extract5Excepts e.evaluate' e.pruneBlocks.evaluate' e.anon.evaluate'
-          e.pruneBlocks.anon.evaluate' e.anon.pruneBlocks.evaluate'
+        let excepts := extract5Excepts e.evaluate'
+          e.anon.evaluate'
+          e.dropUnusedAndInlineImmediates.evaluate'
+          e.dropUnusedAndInlineImmediates.anon.evaluate'
+          e.anon.dropUnusedAndInlineImmediates.evaluate'
         withExceptOk s!"{e} evaluation succeeds" excepts fun (v₁, v₂, v₃, v₄, v₅) =>
           let (v₁, v₂, v₃, v₄, v₅) := (v₁, v₂, v₃, v₄, v₅)
           test s!"{e} evaluates to correctly" $
