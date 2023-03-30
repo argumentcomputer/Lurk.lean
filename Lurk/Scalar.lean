@@ -41,24 +41,12 @@ inductive ScalarExpr
   | strCons : ScalarPtr → ScalarPtr → ScalarExpr
   | symCons : ScalarPtr → ScalarPtr → ScalarExpr
   | comm : F → ScalarPtr → ScalarExpr
-  | num : F → ScalarExpr
-  | char : F → ScalarExpr
   | nil
-  | strNil
-  | symNil
   deriving Repr
 
 open Std (RBMap RBSet)
 
 abbrev Store := RBMap ScalarPtr (Option ScalarExpr) compare
-
-/-- Recovers expressions in case they're paired with immediate pointers -/
-def Store.get? (store : Store) : ScalarPtr → Option (Option ScalarExpr)
-  | ⟨.num,  x⟩ => return some $ .num  x
-  | ⟨.char, x⟩ => return some $ .char x
-  | ⟨.str, F.zero⟩ => return some .strNil
-  | ⟨.sym, F.zero⟩ => return some .symNil
-  | ptr => store.find? ptr
 
 structure StoreCtx where
   store   : Store
@@ -180,7 +168,7 @@ partial def loadExprs (ptr : ScalarPtr) : ExtractM Unit := do
       match expr with
       | .cons x y | .strCons x y | .symCons x y => loadExprs x; loadExprs y
       | .comm _ x => loadExprs x
-      | _ => pure ()
+      | .nil => loadExprs ⟨.sym, ptr.val⟩
 
 def loadComms (comms : Array F) : ExtractM Unit :=
   comms.forM (loadExprs ⟨.comm, ·⟩)

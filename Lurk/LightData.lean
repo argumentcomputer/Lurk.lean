@@ -25,21 +25,13 @@ instance : Encodable ScalarPtr LightData where
 
 instance : Encodable ScalarExpr LightData where
   encode
-    | .nil    => 0
-    | .strNil => 1
-    | .symNil => 2
-    | .num  x => .cell #[false, x]
-    | .char x => .cell #[true,  x]
+    | .nil => false
     | .cons    x y => .cell #[0, x, y]
     | .strCons x y => .cell #[1, x, y]
     | .symCons x y => .cell #[2, x, y]
     | .comm    x y => .cell #[3, x, y]
   decode
-    | 0 => return .nil
-    | 1 => return .strNil
-    | 2 => return .symNil
-    | .cell #[false, x] => return .num  (← dec x)
-    | .cell #[true,  x] => return .char (← dec x)
+    | false => return .nil
     | .cell #[0, x, y] => return .cons    (← dec x) (← dec y)
     | .cell #[1, x, y] => return .strCons (← dec x) (← dec y)
     | .cell #[2, x, y] => return .symCons (← dec x) (← dec y)
