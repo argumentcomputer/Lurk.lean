@@ -12,11 +12,13 @@ def hash7 : F → F → F → F → F → F → F → F := sorry
 def hash8 : F → F → F → F → F → F → F → F → F := sorry
 
 inductive ExprTag
-  | cons | nil | num | u64 | char | str | comm | sym | «fun»
+  | num | u64 | char | str | comm | «fun» | sym | cons
   deriving Ord, BEq
 
 inductive ContTag
-  | contEnd | contAdd₁ | contAdd₂
+  | done
+  | car
+  | add₁ | add₂
   deriving Ord, BEq
 
 def ExprTag.toF : ExprTag → F := sorry
@@ -26,7 +28,7 @@ def ContTag.toF : ContTag → F := sorry
 structure ExprPtr where
   tag : ExprTag
   val : F
-  deriving Ord
+  deriving Ord, BEq
 
 inductive ExprPtrImg
   | cons : ExprPtr → ExprPtr → ExprPtrImg
@@ -41,6 +43,7 @@ structure ContPtr where
   deriving Ord
 
 inductive ContPtrImg
+  | cont0 : ContPtr → ContPtrImg
   | cont1 : ExprPtr → ContPtr → ContPtrImg
   | cont2 : ExprPtr → ExprPtr → ContPtr → ContPtrImg
 
@@ -84,17 +87,30 @@ def getSym : ExprPtr → EvalM Symbol := sorry
 def putStr : String → EvalM ExprPtr := sorry
 def putSym : Symbol → EvalM ExprPtr := sorry
 
+def ExprPtr.isNil (ptr : ExprPtr) : EvalM Bool :=
+  return ptr == (← putSym .nil)
+
 def unfold1 : ExprPtr → EvalM ExprPtr := sorry
 def unfold2 : ExprPtr → EvalM (ExprPtr × ExprPtr) := sorry
 
-def getCont2 (contPtr : ContPtr) : EvalM (ExprPtr × ExprPtr × ContPtr) := do
+def getExprPtrImg (ptr : ExprPtr) : EvalM ExprPtrImg := do
+  match (← get).exprStore.find? ptr with
+  | some img => pure img
+  | none => throw ""
+
+def getCont0 (contPtr : ContPtr) : EvalM ContPtr := do
   match (← get).contStore.find? contPtr with
-  | some $ .cont2 a b c => return (a, b, c)
+  | some $ .cont0 a => return a
   | _ => throw ""
 
 def getCont1 (contPtr : ContPtr) : EvalM (ExprPtr × ContPtr) := do
   match (← get).contStore.find? contPtr with
   | some $ .cont1 a b => return (a, b)
+  | _ => throw ""
+
+def getCont2 (contPtr : ContPtr) : EvalM (ExprPtr × ExprPtr × ContPtr) := do
+  match (← get).contStore.find? contPtr with
+  | some $ .cont2 a b c => return (a, b, c)
   | _ => throw ""
 
 @[inline] def addToExprStore (ptr : ExprPtr) (img : ExprPtrImg) : EvalM ExprPtr :=
@@ -116,39 +132,50 @@ def State.intoBinOp (stt : State) (tag : ContTag) (tailPtr: ExprPtr) : EvalM Sta
     (.cont2 y envPtr contPtr)
   return ⟨x, envPtr, contPtr⟩
 
+def State.intoUnOp (stt : State) (tag : ContTag) (tailPtr: ExprPtr) : EvalM State := do
+  let x ← unfold1 tailPtr
+  let contPtr := stt.cont
+  let contPtr ← addToContStore
+    ⟨tag, hash2 contPtr.tag.toF contPtr.val⟩
+    (.cont0 contPtr)
+  return ⟨x, stt.env, contPtr⟩
+
 def State.continue (stt : State) (valPtr? : Option ExprPtr) : EvalM State := do
   let valPtr := valPtr?.getD stt.expr
   match stt.cont.tag with
-  | .contEnd => return { stt with expr := valPtr}
-  | .contAdd₁ =>
+  | .done => return { stt with expr := valPtr}
+  | .car => match ← getExprPtrImg valPtr with
+    | .cons x _ => sorry
+    | _ => sorry
+  | .add₁ =>
     let (y, envPtr, contPtr) ← getCont2 stt.cont
     let contPtr ← addToContStore
-      ⟨.contAdd₂, hash4 valPtr.tag.toF valPtr.val contPtr.tag.toF contPtr.val⟩
+      ⟨.add₂, hash4 valPtr.tag.toF valPtr.val contPtr.tag.toF contPtr.val⟩
       (.cont1 valPtr contPtr)
     return ⟨y, envPtr, contPtr⟩
-  | .contAdd₂ =>
+  | .add₂ =>
     let (x, contPtr) ← getCont1 stt.cont
     return ⟨sorry, stt.env, contPtr⟩
 
 def State.step (stt : State) : EvalM State :=
   match stt.expr.tag with
-  | .nil => do stt.continue (some $ ← putSym .nil)
   | .num | .u64 | .char | .str | .comm | .fun => stt.continue none
   | .sym => do match ← getSym stt.expr with
     | .nil | .t => stt.continue none
     | sym => match (← read).find? sym with
       | some valPtr => stt.continue (some valPtr)
       | none => throw s!"{sym} not found"
-  | .cons => do match (← get).exprStore.find? stt.expr with
-    | some $ .cons head tail =>
+  | .cons => do match ← getExprPtrImg stt.expr with
+    | .cons head tail =>
       if head.tag == .sym then match ← getSym head with
-        | sym! "+" => stt.intoBinOp .contAdd₁ tail
+        | sym! "car" => stt.intoUnOp .car tail
+        | sym! "+" => stt.intoBinOp .add₁ tail
         | sym => sorry
       else sorry
     | _ => throw ""
 
 def State.run (stt : State) : EvalM State := do
   let mut stt' := stt
-  while stt'.cont.tag != .contEnd do
+  while stt'.cont.tag != .done do
     stt' ← stt'.step
   return stt'
