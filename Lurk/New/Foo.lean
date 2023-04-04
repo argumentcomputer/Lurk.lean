@@ -12,8 +12,8 @@ def hash7 : F → F → F → F → F → F → F → F := sorry
 def hash8 : F → F → F → F → F → F → F → F → F := sorry
 
 inductive Tag
-  | cons | nil | num | u64 | char | str | comm | sym | «fun» | contRes
-  | contAdd₁ | contAdd₂
+  | cons | nil | num | u64 | char | str | comm | sym | «fun»
+  | contEnd | contAdd₁ | contAdd₂
   deriving Ord, BEq
 
 def Tag.toF : Tag → F := sorry
@@ -39,15 +39,12 @@ inductive PtrImg
   | symCons : Ptr → Ptr → PtrImg
   | «fun» : Ptr → Ptr → Ptr → PtrImg
   | comm : F → Ptr → PtrImg
-  | contRes : Ptr → PtrImg
   -- continuations
-  | contUnOp : Ptr → Ptr → PtrImg
-  | contBinOp₁ : Ptr → Ptr → Ptr → PtrImg
-  | contBinOp₂ : Ptr → Ptr → Ptr → PtrImg
+  | cont1 : Ptr → PtrImg
+  | cont2 : Ptr → Ptr → PtrImg
+  | cont3 : Ptr → Ptr → Ptr → PtrImg
 
 open Std (RBMap RBSet)
-
-abbrev Store := RBMap Ptr PtrImg compare
 
 inductive Symbol
   | root
@@ -67,15 +64,13 @@ instance : ToString Symbol := ⟨Symbol.toString⟩
 @[match_pattern, inline] def sym! (s : String) : Symbol :=
   .cons s .root
 
-def Store.getStr : Store → Ptr → String := sorry
-def Store.getSym : Store → Ptr → Symbol := sorry
-
 structure Cache where
-  store : Store
+  store : RBMap Ptr PtrImg compare
   strs : RBMap Ptr String compare
   syms : RBMap Ptr Symbol compare
   strsMemo : RBMap String Ptr compare
   symsMemo : RBMap Symbol Ptr compare
+  deriving Inhabited
 
 abbrev Env := RBMap Symbol Ptr compare
 
@@ -90,7 +85,15 @@ def putSym : Symbol → EvalM Ptr := sorry
 def unfold1 : Ptr → EvalM Ptr := sorry
 def unfold2 : Ptr → EvalM (Ptr × Ptr) := sorry
 
-def cdr : Ptr → EvalM Ptr := sorry
+def getCont3 (contPtr : Ptr) : EvalM (Ptr × Ptr × Ptr) := do
+  match (← get).store.find? contPtr with
+  | some $ .cont3 a b c => return (a, b, c)
+  | _ => sorry
+
+def getCont2 (contPtr : Ptr) : EvalM (Ptr × Ptr) := do
+  match (← get).store.find? contPtr with
+  | some $ .cont2 a b => return (a, b)
+  | _ => sorry
 
 @[inline] def addToStore (ptr : Ptr) (img : PtrImg) : EvalM Ptr :=
   modifyGet fun c => (ptr, { c with store := c.store.insert ptr img })
@@ -105,22 +108,32 @@ def State.stepBinOp₁ (stt : State) (tag : Tag) (tailPtr: Ptr) : EvalM State :=
   let (envPtr, contPtr) := (stt.env, stt.cont)
   let contPtr ← addToStore
     ⟨tag, hash6 y.tag.toF y.val envPtr.tag.toF envPtr.val contPtr.tag.toF contPtr.val⟩
-    (.contBinOp₁ y envPtr contPtr)
+    (.cont3 y envPtr contPtr)
   return ⟨x, envPtr, contPtr⟩
 
-def State.finish (stt : State) (valPtr? : Option Ptr) : EvalM State := do
+def State.continue (stt : State) (valPtr? : Option Ptr) : EvalM State := do
   let valPtr := valPtr?.getD stt.expr
-  let contPtr ← addToStore ⟨.contRes, hash2 valPtr.tag.toF valPtr.val⟩ (.contRes valPtr)
-  return ⟨contPtr, stt.env, stt.cont⟩
+  match stt.cont.tag with
+  | .contEnd => return { stt with expr := valPtr}
+  | .contAdd₁ =>
+    let (y, envPtr, contPtr) ← getCont3 stt.cont
+    let contPtr ← addToStore
+      ⟨.contAdd₂, hash4 valPtr.tag.toF valPtr.val contPtr.tag.toF contPtr.val⟩
+      (.cont2 valPtr contPtr)
+    return ⟨y, envPtr, contPtr⟩
+  | .contAdd₂ =>
+    let (x, contPtr) ← getCont2 stt.cont
+    return ⟨sorry, stt.env, contPtr⟩
+  | _ => sorry
 
-def evalStep (stt : State) : EvalM State :=
+def State.step (stt : State) : EvalM State :=
   match stt.expr.tag with
-  | .nil => do stt.finish (some $ ← putSym .nil)
-  | .num | .u64 | .char | .str | .comm | .fun => stt.finish none
+  | .nil => do stt.continue (some $ ← putSym .nil)
+  | .num | .u64 | .char | .str | .comm | .fun => stt.continue none
   | .sym => do match ← getSym stt.expr with
-    | .nil | .t => stt.finish none
+    | .nil | .t => stt.continue none
     | sym => match (← read).find? sym with
-      | some valPtr => stt.finish (some valPtr)
+      | some valPtr => stt.continue (some valPtr)
       | none => throw s!"{sym} not found"
   | .cons => do match (← get).store.find? stt.expr with
     | some $ .cons head tail =>
@@ -128,9 +141,5 @@ def evalStep (stt : State) : EvalM State :=
         | sym! "+" => stt.stepBinOp₁ .contAdd₁ tail
         | sym => sorry
       else sorry
-    | _ => throw ""
-  | .contRes => do match (← get).store.find? stt.expr with
-    | some $ .contRes valPtr => match stt.cont.tag with
-      | _ => sorry
     | _ => throw ""
   | _ => throw ""
