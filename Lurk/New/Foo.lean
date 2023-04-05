@@ -15,12 +15,29 @@ inductive ExprTag
   | num | u64 | char | str | comm | «fun» | sym | cons
   deriving Ord, BEq
 
+inductive UnOp
+  | car
+  deriving Ord, BEq
+
+inductive BinOp
+  | add
+  deriving Ord, BEq
+
 inductive ContTag
   | done
-  | car
-  | add₁ | add₂
+  | unOp : UnOp → ContTag
+  | binOp₁ : BinOp → ContTag
+  | binOp₂ : BinOp → ContTag
   | appFn | appArg
   deriving Ord, BEq
+
+def ContTag.unOp? : ContTag → Option UnOp
+  | .unOp op => some op
+  | _ => none
+
+def ContTag.binOp? : ContTag → Option BinOp
+  | .binOp₁ op | .binOp₂ op => some op
+  | _ => none
 
 def ExprTag.toF : ExprTag → F := sorry
 
@@ -47,7 +64,6 @@ inductive ContPtrImg
   | cont0 : ContPtr → ContPtrImg
   | cont1 : ExprPtr → ContPtr → ContPtrImg
   | cont2 : ExprPtr → ExprPtr → ContPtr → ContPtrImg
-  | cont3 : ExprPtr → ExprPtr → ExprPtr → ContPtr → ContPtrImg
 
 open Std (RBMap RBSet)
 
@@ -147,13 +163,18 @@ def State.trivial? (stt : State) : EvalM $ Option State :=
       | none => throw s!"{sym} not found"
   | _ => return none
 
-def State.intoBinOp (stt : State) (tag : ContTag) (tailPtr: ExprPtr) : EvalM State := do
-  let (x, y) ← unfold2 tailPtr
-  let contPtr := stt.cont
-  let contPtr ← addToContStore
-    ⟨tag, hash4 y.tag.toF y.val contPtr.tag.toF contPtr.val⟩
-    (.cont1 y contPtr)
-  return ⟨x, stt.env, contPtr⟩
+def State.finishUnOp (stt : State) : UnOp → EvalM State
+  | .car => do
+    let res := stt.expr
+    let res ← match ← getExprPtrImg res with
+      | .cons x _ => pure x
+      | _ => if ← res.isNil then pure res else throw ""
+    return ⟨res, stt.env, ← getCont0 stt.cont⟩
+
+def State.finishBinOp (stt : State) : BinOp → EvalM State
+  | .add => do
+    let (x, contPtr) ← getCont1 stt.cont
+    return ⟨← x.add stt.expr, stt.env, contPtr⟩
 
 def State.intoUnOp (stt : State) (tag : ContTag) (tailPtr: ExprPtr) : EvalM State := do
   let contPtr := stt.cont
@@ -161,6 +182,14 @@ def State.intoUnOp (stt : State) (tag : ContTag) (tailPtr: ExprPtr) : EvalM Stat
     ⟨tag, hash2 contPtr.tag.toF contPtr.val⟩
     (.cont0 contPtr)
   return ⟨← unfold1 tailPtr, stt.env, contPtr⟩
+
+def State.intoBinOp (stt : State) (tag : ContTag) (tailPtr: ExprPtr) : EvalM State := do
+  let (x, y) ← unfold2 tailPtr
+  let contPtr := stt.cont
+  let contPtr ← addToContStore
+    ⟨tag, hash4 y.tag.toF y.val contPtr.tag.toF contPtr.val⟩
+    (.cont1 y contPtr)
+  return ⟨x, stt.env, contPtr⟩
 
 def State.intoApp (stt : State) (fnPtr argsPtr : ExprPtr) : EvalM State := do
   let contPtr := stt.cont
@@ -172,32 +201,25 @@ def State.intoApp (stt : State) (fnPtr argsPtr : ExprPtr) : EvalM State := do
 def State.continue (stt : State) : EvalM State := do
   match stt.cont.tag with
   | .done => return stt
-  | .car =>
-    let res := stt.expr
-    let res ← match ← getExprPtrImg res with
-      | .cons x _ => pure x
-      | _ => if ← res.isNil then pure res else throw ""
-    return ⟨res, stt.env, ← getCont0 stt.cont⟩
-  | .add₁ =>
-    let res := stt.expr
+  | .unOp op => stt.finishUnOp op
+  | .binOp₁ op =>
+    let x := stt.expr
     let (y, contPtr) ← getCont1 stt.cont
     let contPtr ← addToContStore
-      ⟨.add₂, hash4 res.tag.toF res.val contPtr.tag.toF contPtr.val⟩
-      (.cont1 res contPtr)
+      ⟨.binOp₂ op, hash4 x.tag.toF x.val contPtr.tag.toF contPtr.val⟩
+      (.cont1 x contPtr)
     return ⟨y, stt.env, contPtr⟩
-  | .add₂ =>
-    let (x, contPtr) ← getCont1 stt.cont
-    return ⟨← x.add stt.expr, stt.env, contPtr⟩
+  | .binOp₂ op => stt.finishBinOp op
   | .appFn =>
     let fnPtr := stt.expr
     let (argsPtr, contPtr) ← getCont1 stt.cont
     match ← getExprPtrImg fnPtr with
     | .fun argsSymsPtr funEnvPtr funBodyPtr =>
       match ← argsSymsPtr.isNil, ← argsPtr.isNil with
-      | true,  true  => return ⟨funBodyPtr, funEnvPtr, contPtr⟩
-      | false, true  => return ⟨fnPtr, stt.env, contPtr⟩
+      | true,  true  => return ⟨funBodyPtr, funEnvPtr, contPtr⟩ -- fulfilled
+      | false, true  => return ⟨fnPtr, stt.env, contPtr⟩        -- missing args
       | true,  false => throw "Too many arguments"
-      | false, false =>
+      | false, false => -- curry
         let (argPtr, argsPtr) ← cadr argsPtr
         let contPtr ← addToContStore
           ⟨.appArg, hash6 fnPtr.tag.toF fnPtr.val argsPtr.tag.toF argsPtr.val
@@ -229,11 +251,11 @@ def State.step (stt : State) : EvalM State := do
     | .cons => do match ← getExprPtrImg stt.expr with
       | .cons head tail =>
         if head.tag == .sym then match ← getSym head with
-          | sym! "car" => stt.intoUnOp .car tail
-          | sym! "+" => stt.intoBinOp .add₁ tail
+          | sym! "car" => stt.intoUnOp (.unOp .car) tail
+          | sym! "+" => stt.intoBinOp (.binOp₁ .add) tail
           | _ => stt.intoApp head tail
         else stt.intoApp head tail
-      | _ => throw ""
+      | _ => throw "Expected cons. Malformed store"
     | _ => unreachable! -- trivial
 
 def State.run (stt : State) : EvalM State := do
