@@ -19,7 +19,7 @@ inductive ContTag
   | done
   | car
   | add₁ | add₂
-  | app₁ | app₂
+  | appFn | appArg
   deriving Ord, BEq
 
 def ExprTag.toF : ExprTag → F := sorry
@@ -47,6 +47,7 @@ inductive ContPtrImg
   | cont0 : ContPtr → ContPtrImg
   | cont1 : ExprPtr → ContPtr → ContPtrImg
   | cont2 : ExprPtr → ExprPtr → ContPtr → ContPtrImg
+  | cont3 : ExprPtr → ExprPtr → ExprPtr → ContPtr → ContPtrImg
 
 open Std (RBMap RBSet)
 
@@ -78,9 +79,7 @@ structure Cache where
   contStore : RBMap ContPtr ContPtrImg compare
   deriving Inhabited
 
-abbrev Env := RBMap Symbol ExprPtr compare
-
-abbrev EvalM := ReaderT Env $ EStateM String Cache
+abbrev EvalM := EStateM String Cache
 
 def getStr : ExprPtr → EvalM String := sorry
 def getSym : ExprPtr → EvalM Symbol := sorry
@@ -100,11 +99,15 @@ def ExprPtr.add : ExprPtr → ExprPtr → EvalM ExprPtr
 
 def unfold1 : ExprPtr → EvalM ExprPtr := sorry
 def unfold2 : ExprPtr → EvalM (ExprPtr × ExprPtr) := sorry
+def cadr : ExprPtr → EvalM (ExprPtr × ExprPtr) := sorry
 
 def getExprPtrImg (ptr : ExprPtr) : EvalM ExprPtrImg := do
   match (← get).exprStore.find? ptr with
   | some img => pure img
   | none => throw ""
+
+def find? (envPtr symPtr : ExprPtr) : EvalM (Option ExprPtr) := sorry
+def insert (envPtr symPtr valPtr : ExprPtr) : EvalM ExprPtr := sorry
 
 def getCont0 (contPtr : ContPtr) : EvalM ContPtr := do
   match (← get).contStore.find? contPtr with
@@ -132,71 +135,106 @@ structure State where
   env  : ExprPtr
   cont : ContPtr
 
+def State.trivial? (stt : State) : EvalM $ Option State :=
+  match stt.expr.tag with
+  | .num | .u64 | .char | .str | .comm | .fun => return some stt
+  | .sym => do
+    let symPtr := stt.expr
+    match ← getSym symPtr with
+    | .nil | .t => return some stt
+    | sym => match ← find? stt.env symPtr with
+      | some symValPtr => return some { stt with expr := symValPtr }
+      | none => throw s!"{sym} not found"
+  | _ => return none
+
 def State.intoBinOp (stt : State) (tag : ContTag) (tailPtr: ExprPtr) : EvalM State := do
   let (x, y) ← unfold2 tailPtr
-  let (envPtr, contPtr) := (stt.env, stt.cont)
+  let contPtr := stt.cont
   let contPtr ← addToContStore
-    ⟨tag, hash6 y.tag.toF y.val envPtr.tag.toF envPtr.val contPtr.tag.toF contPtr.val⟩
-    (.cont2 y envPtr contPtr)
-  return ⟨x, envPtr, contPtr⟩
+    ⟨tag, hash4 y.tag.toF y.val contPtr.tag.toF contPtr.val⟩
+    (.cont1 y contPtr)
+  return ⟨x, stt.env, contPtr⟩
 
 def State.intoUnOp (stt : State) (tag : ContTag) (tailPtr: ExprPtr) : EvalM State := do
-  let x ← unfold1 tailPtr
   let contPtr := stt.cont
   let contPtr ← addToContStore
     ⟨tag, hash2 contPtr.tag.toF contPtr.val⟩
     (.cont0 contPtr)
-  return ⟨x, stt.env, contPtr⟩
+  return ⟨← unfold1 tailPtr, stt.env, contPtr⟩
 
-def State.intoApp (stt : State) (fnPtr argPtr : ExprPtr) : EvalM State := do
-  let (envPtr, contPtr) := (stt.env, stt.cont)
+def State.intoApp (stt : State) (fnPtr argsPtr : ExprPtr) : EvalM State := do
+  let contPtr := stt.cont
   let contPtr ← addToContStore
-    ⟨.app₁, hash6 argPtr.tag.toF argPtr.val envPtr.tag.toF envPtr.val contPtr.tag.toF contPtr.val⟩
-    (.cont2 argPtr envPtr contPtr)
-  return ⟨fnPtr, envPtr, contPtr⟩
+    ⟨.appFn, hash4 argsPtr.tag.toF argsPtr.val contPtr.tag.toF contPtr.val⟩
+    (.cont1 argsPtr contPtr)
+  return ⟨fnPtr, stt.env, contPtr⟩
 
-def State.continue (stt : State) (valPtr? : Option ExprPtr := none) : EvalM State := do
-  let valPtr := valPtr?.getD stt.expr
+def State.continue (stt : State) : EvalM State := do
   match stt.cont.tag with
-  | .done => return { stt with expr := valPtr}
+  | .done => return stt
   | .car =>
-    let res ← match ← getExprPtrImg valPtr with
+    let res := stt.expr
+    let res ← match ← getExprPtrImg res with
       | .cons x _ => pure x
-      | _ => if ← valPtr.isNil then pure valPtr else throw ""
+      | _ => if ← res.isNil then pure res else throw ""
     return ⟨res, stt.env, ← getCont0 stt.cont⟩
   | .add₁ =>
-    let (y, envPtr, contPtr) ← getCont2 stt.cont
+    let res := stt.expr
+    let (y, contPtr) ← getCont1 stt.cont
     let contPtr ← addToContStore
-      ⟨.add₂, hash4 valPtr.tag.toF valPtr.val contPtr.tag.toF contPtr.val⟩
-      (.cont1 valPtr contPtr)
-    return ⟨y, envPtr, contPtr⟩
+      ⟨.add₂, hash4 res.tag.toF res.val contPtr.tag.toF contPtr.val⟩
+      (.cont1 res contPtr)
+    return ⟨y, stt.env, contPtr⟩
   | .add₂ =>
     let (x, contPtr) ← getCont1 stt.cont
-    return ⟨← x.add valPtr, stt.env, contPtr⟩
-  | .app₁ => match ← getExprPtrImg valPtr with
-    | .fun argsPtr funEnvPtr funBodyPtr =>
-      let (argPtr, envPtr, contPtr) ← getCont2 stt.cont
-      sorry
+    return ⟨← x.add stt.expr, stt.env, contPtr⟩
+  | .appFn =>
+    let fnPtr := stt.expr
+    let (argsPtr, contPtr) ← getCont1 stt.cont
+    match ← getExprPtrImg fnPtr with
+    | .fun argsSymsPtr funEnvPtr funBodyPtr =>
+      match ← argsSymsPtr.isNil, ← argsPtr.isNil with
+      | true,  true  => return ⟨funBodyPtr, funEnvPtr, contPtr⟩
+      | false, true  => return ⟨fnPtr, stt.env, contPtr⟩
+      | true,  false => throw "Too many arguments"
+      | false, false =>
+        let (argPtr, argsPtr) ← cadr argsPtr
+        let contPtr ← addToContStore
+          ⟨.appArg, hash6 fnPtr.tag.toF fnPtr.val argsPtr.tag.toF argsPtr.val
+            contPtr.tag.toF contPtr.val⟩
+          (.cont2 fnPtr argsPtr contPtr)
+        return ⟨argPtr, stt.env, contPtr⟩
     | _ => throw ""
-  | .app₂ => sorry
+  | .appArg =>
+    let (fnPtr, argsPtr, contPtr) ← getCont2 stt.cont
+    match ← getExprPtrImg fnPtr with
+    | .fun argsSymsPtr funEnvPtr funBodyPtr =>
+      let (argSymPtr, argsSymsPtr) ← cadr argsSymsPtr
+      let funEnvPtr ← insert funEnvPtr argSymPtr stt.expr
+      let funPtr ← addToExprStore
+        ⟨.fun, hash6 argsSymsPtr.tag.toF argsSymsPtr.val funEnvPtr.tag.toF funEnvPtr.val
+          funBodyPtr.tag.toF funBodyPtr.val⟩
+        (.fun argsSymsPtr funEnvPtr funBodyPtr)
+      let contPtr ← addToContStore
+        ⟨.appFn, hash4 argsPtr.tag.toF argsPtr.val contPtr.tag.toF contPtr.val⟩
+        (.cont1 argsPtr contPtr)
+      return ⟨funPtr, stt.env, contPtr⟩
+    | _ => throw ""
 
-def State.step (stt : State) : EvalM State :=
-  match stt.expr.tag with
-  | .num | .u64 | .char | .str | .comm | .fun => stt.continue
-  | .sym => do match ← getSym stt.expr with
-    | .nil | .t => stt.continue
-    | sym => match (← read).find? sym with
-      | some valPtr => stt.continue (some valPtr)
-      | none => throw s!"{sym} not found"
-  | .cons => do match ← getExprPtrImg stt.expr with
-    | .cons head tail =>
-      -- check if tail is nil for app₀
-      if head.tag == .sym then match ← getSym head with
-        | sym! "car" => stt.intoUnOp .car tail
-        | sym! "+" => stt.intoBinOp .add₁ tail
-        | _ => stt.intoApp head tail
-      else stt.intoApp head tail
-    | _ => throw ""
+-- TODO : skip evaluation steps on before trivial cases
+def State.step (stt : State) : EvalM State := do
+  match ← stt.trivial? with
+  | some stt => stt.continue
+  | none => match stt.expr.tag with
+    | .cons => do match ← getExprPtrImg stt.expr with
+      | .cons head tail =>
+        if head.tag == .sym then match ← getSym head with
+          | sym! "car" => stt.intoUnOp .car tail
+          | sym! "+" => stt.intoBinOp .add₁ tail
+          | _ => stt.intoApp head tail
+        else stt.intoApp head tail
+      | _ => throw ""
+    | _ => unreachable! -- trivial
 
 def State.run (stt : State) : EvalM State := do
   let mut stt' := stt
