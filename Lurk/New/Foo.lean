@@ -35,11 +35,13 @@ inductive ContTag
 
 def ExprTag.toF : ExprTag → F := sorry
 
-theorem ExprTag.toF_inj : ∀ t₁ t₂ : ExprTag, t₁ ≠ t₂ → t₁.toF ≠ t₂.toF := sorry
-
 def ContTag.toF : ContTag → F := sorry
 
-theorem ContTag.toF_inj : ∀ t₁ t₂ : ContTag, t₁ ≠ t₂ → t₁.toF ≠ t₂.toF := sorry
+theorem ExprTag.toF_inj {t₁ t₂ : ExprTag} (h : t₁ ≠ t₂) : t₁.toF ≠ t₂.toF := sorry
+
+theorem ContTag.toF_inj {t₁ t₂ : ContTag} (h : t₁ ≠ t₂) : t₁.toF ≠ t₂.toF := sorry
+
+theorem toF_disj {et : ExprTag} {ct : ContTag} : et.toF ≠ ct.toF := sorry
 
 structure ExprPtr where
   tag : ExprTag
