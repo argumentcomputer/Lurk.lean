@@ -1,108 +1,25 @@
 import Std.Data.RBMap
-import Lurk.Field
+import Lurk.New.Store
 
-open Lurk (F)
+open Std (RBMap)
 
-def hash2 : F → F → F := sorry
-def hash3 : F → F → F → F := sorry
-def hash4 : F → F → F → F → F := sorry
-def hash5 : F → F → F → F → F → F := sorry
-def hash6 : F → F → F → F → F → F → F := sorry
-def hash7 : F → F → F → F → F → F → F → F := sorry
-def hash8 : F → F → F → F → F → F → F → F → F := sorry
+abbrev EvalM := EStateM String Store
 
-inductive ExprTag
-  | num | u64 | char | str | comm | «fun» | sym | cons
-  deriving Ord, BEq
+def getStr (exprPtr : ExprPtr) : EvalM String := do
+  match (← get).getStr exprPtr with
+  | .ok s => pure s
+  | .error e => throw e
 
-inductive UnOp
-  | car
-  deriving Ord, BEq
+def getSym (exprPtr : ExprPtr) : EvalM Symbol := do
+  match (← get).getSym exprPtr with
+  | .ok s => pure s
+  | .error e => throw e
 
-inductive BinOp
-  | add
-  deriving Ord, BEq
+def putStr (str : String) : EvalM ExprPtr :=
+  modifyGet fun store => store.putStr str
 
-inductive ContTag
-  | done
-  | unOp : UnOp → ContTag
-  | binOp₁ : BinOp → ContTag
-  | binOp₂ : BinOp → ContTag
-  | appFn | appArg
-  | «if»
-  | «let»
-  deriving Ord, BEq
-
-def ExprTag.toF : ExprTag → F := sorry
-
-def ContTag.toF : ContTag → F := sorry
-
-theorem ExprTag.toF_inj {t₁ t₂ : ExprTag} (h : t₁ ≠ t₂) : t₁.toF ≠ t₂.toF := sorry
-
-theorem ContTag.toF_inj {t₁ t₂ : ContTag} (h : t₁ ≠ t₂) : t₁.toF ≠ t₂.toF := sorry
-
-theorem toF_disj {et : ExprTag} {ct : ContTag} : et.toF ≠ ct.toF := sorry
-
-structure ExprPtr where
-  tag : ExprTag
-  val : F
-  deriving Ord, BEq
-
-structure ContPtr where
-  tag : ContTag
-  val : F
-  deriving Ord
-
-inductive ExprPtrImg
-  | cons : ExprPtr → ExprPtr → ExprPtrImg
-  | strCons : ExprPtr → ExprPtr → ExprPtrImg
-  | symCons : ExprPtr → ExprPtr → ExprPtrImg
-  | «fun» : ExprPtr → ExprPtr → ExprPtr → ExprPtrImg
-  | comm : F → ExprPtr → ExprPtrImg
-
-inductive ContPtrImg
-  | cont0 : ContPtr → ContPtrImg
-  | cont1 : ExprPtr → ContPtr → ContPtrImg
-  | cont2 : ExprPtr → ExprPtr → ContPtr → ContPtrImg
-  | cont3 : ExprPtr → ExprPtr → ExprPtr → ContPtr → ContPtrImg
-
-open Std (RBMap RBSet)
-
-inductive Symbol
-  | root
-  | cons : String → Symbol → Symbol
-  deriving Ord
-
-def Symbol.toString : Symbol → String := sorry
-
-instance : ToString Symbol := ⟨Symbol.toString⟩
-
-@[inline] def Symbol.nil : Symbol :=
-  .cons "nil" .root
-
-@[inline] def Symbol.t : Symbol :=
-  .cons "t" .root
-
-@[match_pattern, inline] def sym! (s : String) : Symbol :=
-  .cons s .root
-
-structure Cache where
-  exprStore : RBMap ExprPtr ExprPtrImg compare
-  strs : RBMap ExprPtr String compare
-  syms : RBMap ExprPtr Symbol compare
-  strsMemo : RBMap String ExprPtr compare
-  symsMemo : RBMap Symbol ExprPtr compare
-
-  contStore : RBMap ContPtr ContPtrImg compare
-  deriving Inhabited
-
-abbrev EvalM := EStateM String Cache
-
-def getStr : ExprPtr → EvalM String := sorry
-def getSym : ExprPtr → EvalM Symbol := sorry
-
-def putStr : String → EvalM ExprPtr := sorry
-def putSym : Symbol → EvalM ExprPtr := sorry
+def putSym (sym : Symbol) : EvalM ExprPtr :=
+  modifyGet fun store => store.putSym sym
 
 def ExprPtr.isNil (ptr : ExprPtr) : EvalM Bool :=
   return ptr == (← putSym .nil)
@@ -114,46 +31,84 @@ def ExprPtr.add : ExprPtr → ExprPtr → EvalM ExprPtr
   | ⟨.u64, x⟩, ⟨.u64, y⟩ => return ⟨.u64, .ofNat $ (x + y).val.toUInt64.toNat⟩
   | _, _ => throw ""
 
-def cadr : ExprPtr → EvalM (ExprPtr × ExprPtr) := sorry
-def unfold1 : ExprPtr → EvalM ExprPtr := sorry
-def unfold2 : ExprPtr → EvalM (ExprPtr × ExprPtr) := sorry
-def unfold3 : ExprPtr → EvalM (ExprPtr × ExprPtr × ExprPtr) := sorry
+def ExprPtr.numEq : ExprPtr → ExprPtr → EvalM ExprPtr
+  | ⟨.num, x⟩, ⟨.num, y⟩
+  | ⟨.u64, x⟩, ⟨.num, y⟩
+  | ⟨.num, x⟩, ⟨.u64, y⟩
+  | ⟨.u64, x⟩, ⟨.u64, y⟩ => if x == y then putSym .t else putSym .nil
+  | _, _ => throw ""
 
 def getExprPtrImg (ptr : ExprPtr) : EvalM ExprPtrImg := do
-  match (← get).exprStore.find? ptr with
+  match (← get).exprData.find? ptr with
   | some img => pure img
   | none => throw ""
 
-def find? (envPtr symPtr : ExprPtr) : EvalM (Option ExprPtr) := sorry
-def insert (envPtr symPtr valPtr : ExprPtr) : EvalM ExprPtr := sorry
+def cadr (exprPtr : ExprPtr) : EvalM (ExprPtr × ExprPtr) := do
+  match ← getExprPtrImg exprPtr with
+  | .cons a b => pure (a, b)
+  | _ => throw ""
+
+def unfold1 (exprPtr : ExprPtr) : EvalM ExprPtr := do
+  let (car, cdr) ← cadr exprPtr
+  if ← cdr.isNil then return car
+  throw ""
+
+def unfold2 (exprPtr : ExprPtr) : EvalM (ExprPtr × ExprPtr) := do
+  let (car₁, cdr) ← cadr exprPtr
+  let (car₂, cdr) ← cadr cdr
+  if ← cdr.isNil then return (car₁, car₂)
+  throw ""
+
+def unfold3 (exprPtr : ExprPtr) : EvalM (ExprPtr × ExprPtr × ExprPtr) := do
+  let (car₁, cdr) ← cadr exprPtr
+  let (car₂, cdr) ← cadr cdr
+  let (car₃, cdr) ← cadr cdr
+  if ← cdr.isNil then return (car₁, car₂, car₃)
+  throw ""
+
+@[inline] def addToExprStore (ptr : ExprPtr) (img : ExprPtrImg) : EvalM ExprPtr :=
+  modifyGet fun c => (ptr, { c with exprData := c.exprData.insert ptr img })
+
+@[inline] def addToContStore (ptr : ContPtr) (img : ContPtrImg) : EvalM ContPtr :=
+  modifyGet fun c => (ptr, { c with contData := c.contData.insert ptr img })
+
+def insert (envPtr symPtr valPtr : ExprPtr) : EvalM ExprPtr := do
+  let pair ← addToExprStore
+    ⟨.cons, hash4 symPtr.tag.toF symPtr.val valPtr.tag.toF valPtr.val⟩
+    (.cons symPtr valPtr)
+  addToExprStore
+    ⟨.cons, hash4 pair.tag.toF pair.val envPtr.tag.toF envPtr.val⟩
+    (.cons pair envPtr)
+
+-- eliminate this linear cost
+partial def find? (envPtr symPtr : ExprPtr) : EvalM (Option ExprPtr) := do
+  if ← envPtr.isNil then return none
+  let (head, tail) ← cadr envPtr
+  let (symPtr', valPtr) ← unfold2 head
+  if symPtr' == symPtr then return some valPtr
+  find? tail symPtr
 
 def getCont0 (contPtr : ContPtr) : EvalM ContPtr := do
-  match (← get).contStore.find? contPtr with
+  match (← get).contData.find? contPtr with
   | some $ .cont0 a => return a
   | _ => throw ""
 
 def getCont1 (contPtr : ContPtr) : EvalM (ExprPtr × ContPtr) := do
-  match (← get).contStore.find? contPtr with
+  match (← get).contData.find? contPtr with
   | some $ .cont1 a b => return (a, b)
   | _ => throw ""
 
 def getCont2 (contPtr : ContPtr) : EvalM (ExprPtr × ExprPtr × ContPtr) := do
-  match (← get).contStore.find? contPtr with
+  match (← get).contData.find? contPtr with
   | some $ .cont2 a b c => return (a, b, c)
   | _ => throw ""
 
 def getCont3 (contPtr : ContPtr) : EvalM (ExprPtr × ExprPtr × ExprPtr × ContPtr) := do
-  match (← get).contStore.find? contPtr with
+  match (← get).contData.find? contPtr with
   | some $ .cont3 a b c d => return (a, b, c, d)
   | _ => throw ""
 
-@[inline] def addToExprStore (ptr : ExprPtr) (img : ExprPtrImg) : EvalM ExprPtr :=
-  modifyGet fun c => (ptr, { c with exprStore := c.exprStore.insert ptr img })
-
-@[inline] def addToContStore (ptr : ContPtr) (img : ContPtrImg) : EvalM ContPtr :=
-  modifyGet fun c => (ptr, { c with contStore := c.contStore.insert ptr img })
-
-def mkFunPtr (argsSymsPtr funEnvPtr bodyPtr : ExprPtr) : EvalM ExprPtr :=
+@[inline] def mkFunPtr (argsSymsPtr funEnvPtr bodyPtr : ExprPtr) : EvalM ExprPtr :=
   addToExprStore
     ⟨.fun, hash6 argsSymsPtr.tag.toF argsSymsPtr.val funEnvPtr.tag.toF funEnvPtr.val
       bodyPtr.tag.toF bodyPtr.val⟩
@@ -163,18 +118,6 @@ structure State where
   expr : ExprPtr
   env  : ExprPtr
   cont : ContPtr
-
-def State.trivial? (stt : State) : EvalM $ Option State :=
-  match stt.expr.tag with
-  | .num | .u64 | .char | .str | .comm | .fun => return some stt
-  | .sym => do
-    let symPtr := stt.expr
-    match ← getSym symPtr with
-    | .nil | .t => return some stt
-    | sym => match ← find? stt.env symPtr with
-      | some symValPtr => return some { stt with expr := symValPtr }
-      | none => throw s!"{sym} not found"
-  | _ => return none
 
 def State.finishUnOp (stt : State) : UnOp → EvalM State
   | .car => do
@@ -188,6 +131,9 @@ def State.finishBinOp (stt : State) : BinOp → EvalM State
   | .add => do
     let (x, contPtr) ← getCont1 stt.cont
     return ⟨← x.add stt.expr, stt.env, contPtr⟩
+  | .numEq => do
+    let (x, contPtr) ← getCont1 stt.cont
+    return ⟨← x.numEq stt.expr, stt.env, contPtr⟩
 
 abbrev StepInto := ExprPtr × ContPtr → EvalM State
 
@@ -231,7 +177,15 @@ def intoLet (bindsPtr bodyPtr : ExprPtr) : StepInto := fun (envPtr, contPtr) => 
   return ⟨bindExprPtr, envPtr, contPtr'⟩
 
 def intoLetrec (bindsPtr bodyPtr : ExprPtr) : StepInto := fun (envPtr, contPtr) => do
-  sorry
+  if ← bindsPtr.isNil then return ⟨bodyPtr, envPtr, contPtr⟩
+  let (bindPtr, bindsPtr) ← cadr bindsPtr
+  let (bindSymPtr, bindExprPtr) ← unfold2 bindPtr
+  let contPtr' ← addToContStore
+    ⟨.letrec, hash8 bindSymPtr.tag.toF bindSymPtr.val bindsPtr.tag.toF bindsPtr.val
+      bodyPtr.tag.toF bodyPtr.val contPtr.tag.toF contPtr.val⟩
+    (.cont3 bindSymPtr bindsPtr bodyPtr contPtr)
+  let envPtr' ← insert envPtr bindSymPtr bindExprPtr
+  return ⟨bindExprPtr, envPtr', contPtr'⟩
 
 def State.continue (stt : State) : EvalM State := do
   match stt.cont.tag with
@@ -282,9 +236,28 @@ def State.continue (stt : State) : EvalM State := do
     let (bindSymPtr, bindsPtr, bodyPtr, contPtr) ← getCont3 stt.cont
     let envPtr ← insert stt.env bindSymPtr stt.expr
     intoLet bindsPtr bodyPtr (envPtr, contPtr)
+  | .letrec =>
+    let (bindSymPtr, bindsPtr, bodyPtr, contPtr) ← getCont3 stt.cont
+    let envPtr ← insert stt.env bindSymPtr stt.expr
+    intoLetrec bindsPtr bodyPtr (envPtr, contPtr)
+
+def State.trivial? (stt : State) : EvalM $ Option State :=
+  match stt.expr.tag with
+  | .num | .u64 | .char | .str | .comm | .fun => return some stt
+  | .sym => do
+    let symPtr := stt.expr
+    match ← getSym symPtr with
+    | .nil | .t => return some stt
+    | sym => match ← find? stt.env symPtr with
+      | some symValPtr => return some { stt with expr := symValPtr }
+      | none => throw s!"{sym} not found"
+  | _ => return none
 
 @[inline] def State.stepIntoParams (stt : State) : ExprPtr × ContPtr :=
   (stt.env, stt.cont)
+
+@[match_pattern, inline] def sym! (s : String) : Symbol :=
+  .cons s .root
 
 def State.step (stt : State) : EvalM State := do
   match ← stt.trivial? with
