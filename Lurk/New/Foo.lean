@@ -35,12 +35,21 @@ inductive ContTag
 
 def ExprTag.toF : ExprTag → F := sorry
 
+theorem ExprTag.toF_inj : ∀ t₁ t₂ : ExprTag, t₁ ≠ t₂ → t₁.toF ≠ t₂.toF := sorry
+
 def ContTag.toF : ContTag → F := sorry
+
+theorem ContTag.toF_inj : ∀ t₁ t₂ : ContTag, t₁ ≠ t₂ → t₁.toF ≠ t₂.toF := sorry
 
 structure ExprPtr where
   tag : ExprTag
   val : F
   deriving Ord, BEq
+
+structure ContPtr where
+  tag : ContTag
+  val : F
+  deriving Ord
 
 inductive ExprPtrImg
   | cons : ExprPtr → ExprPtr → ExprPtrImg
@@ -48,11 +57,6 @@ inductive ExprPtrImg
   | symCons : ExprPtr → ExprPtr → ExprPtrImg
   | «fun» : ExprPtr → ExprPtr → ExprPtr → ExprPtrImg
   | comm : F → ExprPtr → ExprPtrImg
-
-structure ContPtr where
-  tag : ContTag
-  val : F
-  deriving Ord
 
 inductive ContPtrImg
   | cont0 : ContPtr → ContPtrImg
@@ -183,48 +187,48 @@ def State.finishBinOp (stt : State) : BinOp → EvalM State
     let (x, contPtr) ← getCont1 stt.cont
     return ⟨← x.add stt.expr, stt.env, contPtr⟩
 
-def State.intoUnOp (stt : State) (tag : ContTag) (tailPtr : ExprPtr) : EvalM State := do
-  let contPtr := stt.cont
-  let contPtr ← addToContStore
-    ⟨tag, hash2 contPtr.tag.toF contPtr.val⟩
-    (.cont0 contPtr)
-  return ⟨← unfold1 tailPtr, stt.env, contPtr⟩
+abbrev StepInto := ExprPtr × ContPtr → EvalM State
 
-def State.intoBinOp (stt : State) (tag : ContTag) (tailPtr : ExprPtr) : EvalM State := do
-  let (x, y) ← unfold2 tailPtr
-  let contPtr := stt.cont
-  let contPtr ← addToContStore
-    ⟨tag, hash4 y.tag.toF y.val contPtr.tag.toF contPtr.val⟩
-    (.cont1 y contPtr)
-  return ⟨x, stt.env, contPtr⟩
+def intoUnOp (tag : ContTag) (tailPtr : ExprPtr) : StepInto :=
+  fun (envPtr, contPtr) => do
+    let contPtr ← addToContStore
+      ⟨tag, hash2 contPtr.tag.toF contPtr.val⟩
+      (.cont0 contPtr)
+    return ⟨← unfold1 tailPtr, envPtr, contPtr⟩
 
-def State.intoApp (stt : State) (fnPtr argsPtr : ExprPtr) : EvalM State := do
-  let contPtr := stt.cont
-  let contPtr ← addToContStore
+def intoBinOp (tag : ContTag) (tailPtr : ExprPtr) : StepInto :=
+  fun (envPtr, contPtr) => do
+    let (x, y) ← unfold2 tailPtr
+    let contPtr' ← addToContStore
+      ⟨tag, hash4 y.tag.toF y.val contPtr.tag.toF contPtr.val⟩
+      (.cont1 y contPtr)
+    return ⟨x, envPtr, contPtr'⟩
+
+def intoApp (fnPtr argsPtr : ExprPtr) : StepInto := fun (envPtr, contPtr) => do
+  let contPtr' ← addToContStore
     ⟨.appFn, hash4 argsPtr.tag.toF argsPtr.val contPtr.tag.toF contPtr.val⟩
     (.cont1 argsPtr contPtr)
-  return ⟨fnPtr, stt.env, contPtr⟩
+  return ⟨fnPtr, envPtr, contPtr'⟩
 
-def State.intoIf (stt : State) (tailPtr : ExprPtr) : EvalM State := do
+def intoIf (tailPtr : ExprPtr) : StepInto := fun (envPtr, contPtr) => do
   let (propPtr, truePtr, falsePtr) ← unfold3 tailPtr -- TODO : handle omitted args
-  let contPtr := stt.cont
-  let contPtr ← addToContStore
+  let contPtr' ← addToContStore
     ⟨.if, hash6 truePtr.tag.toF truePtr.val falsePtr.tag.toF falsePtr.val
       contPtr.tag.toF contPtr.val⟩
     (.cont2 truePtr falsePtr contPtr)
-  return ⟨propPtr, stt.env, contPtr⟩
+  return ⟨propPtr, envPtr, contPtr'⟩
 
-def intoLet (envPtr bindsPtr bodyPtr : ExprPtr) (contPtr : ContPtr) : EvalM State := do
+def intoLet (bindsPtr bodyPtr : ExprPtr) : StepInto := fun (envPtr, contPtr) => do
   if ← bindsPtr.isNil then return ⟨bodyPtr, envPtr, contPtr⟩
   let (bindPtr, bindsPtr) ← cadr bindsPtr
   let (bindSymPtr, bindExprPtr) ← unfold2 bindPtr
-  let contPtr ← addToContStore
+  let contPtr' ← addToContStore
     ⟨.let, hash8 bindSymPtr.tag.toF bindSymPtr.val bindsPtr.tag.toF bindsPtr.val
       bodyPtr.tag.toF bodyPtr.val contPtr.tag.toF contPtr.val⟩
     (.cont3 bindSymPtr bindsPtr bodyPtr contPtr)
-  return ⟨bindExprPtr, envPtr, contPtr⟩
+  return ⟨bindExprPtr, envPtr, contPtr'⟩
 
-def intoLetrec (envPtr bindsPtr bodyPtr : ExprPtr) (contPtr : ContPtr) : EvalM State := do
+def intoLetrec (bindsPtr bodyPtr : ExprPtr) : StepInto := fun (envPtr, contPtr) => do
   sorry
 
 def State.continue (stt : State) : EvalM State := do
@@ -234,10 +238,10 @@ def State.continue (stt : State) : EvalM State := do
   | .binOp₁ op =>
     let x := stt.expr
     let (y, contPtr) ← getCont1 stt.cont
-    let contPtr ← addToContStore
+    let contPtr' ← addToContStore
       ⟨.binOp₂ op, hash4 x.tag.toF x.val contPtr.tag.toF contPtr.val⟩
       (.cont1 x contPtr)
-    return ⟨y, stt.env, contPtr⟩
+    return ⟨y, stt.env, contPtr'⟩
   | .binOp₂ op => stt.finishBinOp op
   | .appFn =>
     let fnPtr := stt.expr
@@ -250,11 +254,11 @@ def State.continue (stt : State) : EvalM State := do
       | true,  false => throw "Too many arguments"
       | false, false => -- currying
         let (argPtr, argsPtr) ← cadr argsPtr
-        let contPtr ← addToContStore
+        let contPtr' ← addToContStore
           ⟨.appArg, hash6 fnPtr.tag.toF fnPtr.val argsPtr.tag.toF argsPtr.val
             contPtr.tag.toF contPtr.val⟩
           (.cont2 fnPtr argsPtr contPtr)
-        return ⟨argPtr, stt.env, contPtr⟩
+        return ⟨argPtr, stt.env, contPtr'⟩
     | _ => throw ""
   | .appArg =>
     let (fnPtr, argsPtr, contPtr) ← getCont2 stt.cont
@@ -263,10 +267,10 @@ def State.continue (stt : State) : EvalM State := do
       let (argSymPtr, argsSymsPtr) ← cadr argsSymsPtr
       let funEnvPtr ← insert funEnvPtr argSymPtr stt.expr
       let funPtr ← mkFunPtr argsSymsPtr funEnvPtr bodyPtr
-      let contPtr ← addToContStore
+      let contPtr' ← addToContStore
         ⟨.appFn, hash4 argsPtr.tag.toF argsPtr.val contPtr.tag.toF contPtr.val⟩
         (.cont1 argsPtr contPtr)
-      return ⟨funPtr, stt.env, contPtr⟩
+      return ⟨funPtr, stt.env, contPtr'⟩
     | _ => throw ""
   | .if =>
     let (truePtr, falsePtr, contPtr) ← getCont2 stt.cont
@@ -275,7 +279,10 @@ def State.continue (stt : State) : EvalM State := do
   | .let =>
     let (bindSymPtr, bindsPtr, bodyPtr, contPtr) ← getCont3 stt.cont
     let envPtr ← insert stt.env bindSymPtr stt.expr
-    intoLet envPtr bindsPtr bodyPtr contPtr
+    intoLet bindsPtr bodyPtr (envPtr, contPtr)
+
+@[inline] def State.stepIntoParams (stt : State) : ExprPtr × ContPtr :=
+  (stt.env, stt.cont)
 
 def State.step (stt : State) : EvalM State := do
   match ← stt.trivial? with
@@ -285,22 +292,22 @@ def State.step (stt : State) : EvalM State := do
       let .cons head tail ← getExprPtrImg stt.expr
         | throw "Expected cons. Malformed store"
       if head.tag == .sym then match ← getSym head with
-        | sym! "car" => stt.intoUnOp (.unOp .car) tail
-        | sym! "+" => stt.intoBinOp (.binOp₁ .add) tail
+        | sym! "car" => intoUnOp (.unOp .car) tail stt.stepIntoParams
+        | sym! "+" => intoBinOp (.binOp₁ .add) tail stt.stepIntoParams
         | sym! "lambda" =>
           let (argsSymsPtr, bodyPtr) ← unfold2 tail
           let envPtr := stt.env
           let funPtr ← mkFunPtr argsSymsPtr envPtr bodyPtr
           pure ⟨funPtr, envPtr, stt.cont⟩
-        | sym! "if" => stt.intoIf tail
+        | sym! "if" => intoIf tail stt.stepIntoParams
         | sym! "let" =>
           let (bindsPtr, bodyPtr) ← unfold2 tail
-          intoLet stt.env bindsPtr bodyPtr stt.cont
+          intoLet bindsPtr bodyPtr stt.stepIntoParams
         | sym! "letrec" =>
           let (bindsPtr, bodyPtr) ← unfold2 tail
-          intoLetrec stt.env bindsPtr bodyPtr stt.cont
-        | _ => stt.intoApp head tail
-      else stt.intoApp head tail
+          intoLetrec bindsPtr bodyPtr stt.stepIntoParams
+        | _ => intoApp head tail stt.stepIntoParams
+      else intoApp head tail stt.stepIntoParams
     | _ => unreachable! -- trivial cases have already been dealt with
 
 def State.run (stt : State) : EvalM State := do
