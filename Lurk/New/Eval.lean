@@ -149,7 +149,10 @@ def intoLetrec (bindsPtr bodyPtr envPtr₀ : ExprPtr) : StepInto := fun (envPtr,
     ⟨.letrec, hash8 bindsPtr.tag.toF bindsPtr.val bodyPtr.tag.toF bodyPtr.val
       envPtr₀.tag.toF envPtr₀.val contPtr.tag.toF contPtr.val⟩
     (.cont3 bindsPtr bodyPtr envPtr₀ contPtr)
-  let envPtr' ← insert envPtr bindSymPtr bindExprPtr
+  let thunkPtr ← addToExprStore
+    ⟨.thunk, hash4 bindExprPtr.tag.toF bindExprPtr.val contPtr'.tag.toF contPtr'.val⟩
+    (.thunk bindExprPtr contPtr')
+  let envPtr' ← insert envPtr bindSymPtr thunkPtr
   return ⟨bindExprPtr, envPtr', contPtr'⟩
 
 def mkRet (stt : State) : StoreM State := do
@@ -198,7 +201,7 @@ def State.continue (stt : State) : StoreM State := do
             contPtr.tag.toF contPtr.val⟩
           (.cont2 fnPtr argsPtr contPtr)
         return ⟨argPtr, stt.env, contPtr'⟩
-    | _ => throw s!"Error evaluating app function. Head fun expected"
+    | _ => throw s!"Error evaluating app function. Head function expected"
   | .appArg =>
     let (fnPtr, argsPtr, contPtr) ← getCont2 stt.cont
     match ← getExprPtrImg fnPtr with
@@ -210,7 +213,7 @@ def State.continue (stt : State) : StoreM State := do
         ⟨.appFn, hash4 argsPtr.tag.toF argsPtr.val contPtr.tag.toF contPtr.val⟩
         (.cont1 argsPtr contPtr)
       return ⟨funPtr, stt.env, contPtr'⟩
-    | _ => throw "Error evaluating app argument. Head fun expected"
+    | _ => throw "Error applying app argument. Head function expected"
   | .if =>
     let (truePtr, falsePtr, contPtr) ← getCont2 stt.cont
     if ← isNil stt.expr then mkRet ⟨falsePtr, stt.env, contPtr⟩
@@ -251,7 +254,10 @@ def State.step (stt : State) : StoreM State := do
   match ← stt.trivial? with
   | some stt => stt.continue
   | none => match stt.expr.tag with
-    -- | .sym => intoRef stt.expr stt.stepIntoParams
+    | .thunk =>
+      let .thunk expr cont ← getExprPtrImg stt.expr
+        | throw "Expected thunk. Malformed store"
+      State.continue ⟨expr, stt.env, cont⟩
     | .cons =>
       let .cons head tail ← getExprPtrImg stt.expr
         | throw "Expected cons. Malformed store"
@@ -298,12 +304,12 @@ def test (ldon : LDON) : Except String ExprPtr :=
   | .error x => throw x
 
 open LDON.DSL
--- #eval test ⟪
---   (letrec ((count10 (lambda (i) (if (= i 10) i (count10 (+ i 1)))))) (count10 0))
--- ⟫
 #eval test ⟪
-  (let ((a 1) (b a)) b)
+  (letrec ((count10 (lambda (i) (if (= i 10) i (count10 (+ i 1)))))) (count10 0))
 ⟫
+-- #eval test ⟪
+--   (let ((a 1) (b a)) b)
+-- ⟫
 -- #eval test ⟪
 --   ((lambda (x y) (+ x y)) (+ 1 1) 3)
 -- ⟫

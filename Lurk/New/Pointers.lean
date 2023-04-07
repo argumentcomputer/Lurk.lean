@@ -1,7 +1,7 @@
 import Lurk.Field
 
 inductive ExprTag
-  | num | u64 | char | str | comm | «fun» | sym | cons
+  | num | u64 | char | str | comm | «fun» | sym | cons | thunk
   deriving Ord, BEq, Repr
 
 inductive UnOp
@@ -29,14 +29,15 @@ inductive ContTag
 open Lurk (F)
 
 def ExprTag.toF : ExprTag → F
-  | .num  => .ofNat 0
-  | .u64  => .ofNat 1
-  | .char => .ofNat 2
-  | .str  => .ofNat 3
-  | .comm => .ofNat 4
-  | .fun  => .ofNat 5
-  | .sym  => .ofNat 6
-  | .cons => .ofNat 7
+  | .num   => .ofNat 0
+  | .u64   => .ofNat 1
+  | .char  => .ofNat 2
+  | .str   => .ofNat 3
+  | .comm  => .ofNat 4
+  | .fun   => .ofNat 5
+  | .sym   => .ofNat 6
+  | .cons  => .ofNat 7
+  | .thunk => .ofNat 8
 
 def ContTag.toF : ContTag → F
   | .done => .ofNat 16
