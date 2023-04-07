@@ -19,6 +19,7 @@ inductive ContTag
   | «if»
   | «let»
   | letrec
+  | body
   | ret
   | unOp : UnOp → ContTag
   | binOp₁ : BinOp → ContTag
@@ -44,7 +45,8 @@ def ContTag.toF : ContTag → F
   | .if => .ofNat 19
   | .let => .ofNat 20
   | .letrec => .ofNat 21
-  | .ret => .ofNat 22
+  | .body => .ofNat 22
+  | .ret => .ofNat 23
   | .unOp .car => .ofNat 32
   | .binOp₁ .add => .ofNat 64
   | .binOp₁ .numEq => .ofNat 65
