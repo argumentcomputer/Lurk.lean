@@ -128,7 +128,7 @@ def getSym (ptr : ExprPtr) : StoreM Symbol := do
   return ptr != (← putSym .nil)
 
 @[inline] def boolToExprPtr (b : Bool) : StoreM ExprPtr :=
-  if b then putSym .nil else putSym .t
+  if b then putSym .t else putSym .nil
 
 @[inline] def hide (secret : F) (ptr : ExprPtr) : StoreM ExprPtr :=
   addToExprStore ⟨.comm, hash3 secret ptr.tag.toF ptr.val⟩ (.comm secret ptr)

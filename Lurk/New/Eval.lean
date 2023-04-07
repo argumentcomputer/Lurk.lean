@@ -93,12 +93,6 @@ structure State where
 
 abbrev StepInto := ExprPtr × ContPtr → StoreM State
 
--- def intoRef (symPtr : ExprPtr) : StepInto := fun (envPtr, contPtr) => do
---   let contPtr' ← addToContStore
---     ⟨.ref, hash2 contPtr.tag.toF contPtr.val⟩
---     (.cont0 contPtr)
---   return ⟨symPtr, envPtr, contPtr'⟩
-
 def intoUnOp (tag : ContTag) (tailPtr : ExprPtr) : StepInto :=
   fun (envPtr, contPtr) => do
     let contPtr' ← addToContStore
@@ -124,7 +118,7 @@ def intoIf (tailPtr : ExprPtr) : StepInto := fun (envPtr, contPtr) => do
   let (propPtr, tailPtr) ← cadr tailPtr
   let (truePtr, tailPtr) ← cadr tailPtr
   let (falsePtr, tailPtr) ← cadr tailPtr
-  if ← isNotNil tailPtr then throw ""
+  if ← isNotNil tailPtr then throw "To many arguments for `if`"
   let contPtr' ← addToContStore
     ⟨.if, hash6 truePtr.tag.toF truePtr.val falsePtr.tag.toF falsePtr.val
       contPtr.tag.toF contPtr.val⟩
@@ -171,13 +165,6 @@ def State.finishBinOp (stt : State) : BinOp → StoreM State
 def State.continue (stt : State) : StoreM State := do
   match stt.cont.tag with
   | .done => return stt
-  -- | .ref =>
-  --   let symPtr := stt.expr
-  --   let envPtr := stt.env
-  --   let res ← match ← find? envPtr symPtr with
-  --     | some symValPtr => pure symValPtr
-  --     | none => throw s!"{← getSym symPtr} not found"
-  --   return ⟨res, envPtr, ← getCont0 stt.cont⟩
   | .unOp op => stt.finishUnOp op
   | .binOp₁ op =>
     let x := stt.expr
@@ -203,7 +190,7 @@ def State.continue (stt : State) : StoreM State := do
             contPtr.tag.toF contPtr.val⟩
           (.cont2 fnPtr argsPtr contPtr)
         return ⟨argPtr, stt.env, contPtr'⟩
-    | _ => throw ""
+    | _ => throw s!"Error evaluating app function. Head fun expected"
   | .appArg =>
     let (fnPtr, argsPtr, contPtr) ← getCont2 stt.cont
     match ← getExprPtrImg fnPtr with
@@ -215,7 +202,7 @@ def State.continue (stt : State) : StoreM State := do
         ⟨.appFn, hash4 argsPtr.tag.toF argsPtr.val contPtr.tag.toF contPtr.val⟩
         (.cont1 argsPtr contPtr)
       return ⟨funPtr, stt.env, contPtr'⟩
-    | _ => throw ""
+    | _ => throw "Error evaluating app argument. Head fun expected"
   | .if =>
     let (truePtr, falsePtr, contPtr) ← getCont2 stt.cont
     if ← isNil stt.expr then mkRet ⟨falsePtr, stt.env, contPtr⟩
@@ -237,25 +224,16 @@ def State.continue (stt : State) : StoreM State := do
   | .ret => return { stt with cont := ← getCont0 stt.cont }
 
 def State.trivial? (stt : State) : StoreM $ Option State := do
-  let stt ← match stt.expr.tag with
-    | .num | .u64 | .char | .str | .comm | .fun => pure stt
-    | .sym => do
-      let symPtr := stt.expr
-      match ← getSym symPtr with
-      | .nil | .t => pure stt
-      | sym => match ← find? stt.env symPtr with
-        | some symValPtr => pure { stt with expr := symValPtr }
-        | none => throw s!"{sym} not found"
-    | _ => return none
-  mkRet stt
-
--- def State.trivial? (stt : State) : StoreM $ Option State :=
---   match stt.expr.tag with
---   | .num | .u64 | .char | .str | .comm | .fun => return some stt
---   | .sym => do match ← getSym stt.expr with
---     | .nil | .t => return some stt
---     | _ => return none
---   | _ => return none
+  match stt.expr.tag with
+  | .num | .u64 | .char | .str | .comm | .fun => return some stt
+  | .sym => do
+    let symPtr := stt.expr
+    match ← getSym symPtr with
+    | .nil | .t => return some stt
+    | sym => match ← find? stt.env symPtr with
+      | some symValPtr => return some { stt with expr := symValPtr }
+      | none => throw s!"{sym} not found"
+  | _ => return none
 
 @[inline] def State.stepIntoParams (stt : State) : ExprPtr × ContPtr :=
   (stt.env, stt.cont)
@@ -271,6 +249,7 @@ def State.step (stt : State) : StoreM State := do
       if head.tag == .sym then match ← getSym head with
         | .ofString "car" => intoUnOp (.unOp .car) tail stt.stepIntoParams
         | .ofString "+" => intoBinOp (.binOp₁ .add) tail stt.stepIntoParams
+        | .ofString "=" => intoBinOp (.binOp₁ .numEq) tail stt.stepIntoParams
         | .ofString "lambda" =>
           let (argsSymsPtr, bodyPtr) ← unfold2 tail
           let envPtr := stt.env
@@ -304,21 +283,12 @@ def LDON.eval (ldon : LDON) (store : Store := default) :
   | .ok (stt, stts) store => return (stt, stts, store)
   | .error e _ => throw e
 
-def test (ldon : LDON) : Except String (Array State) :=
+def test (ldon : LDON) : Except String ExprPtr :=
   match ldon.eval with
-  | .ok x => return x.2.1
+  | .ok x => dbg_trace x.2.1.size; return x.1.1
   | .error x => throw x
 
 open LDON.DSL
 -- #eval test ⟪
---   (let ((a 1) (b a)) b)
--- ⟫
--- #eval test ⟪
---   nil
--- ⟫
--- #eval test ⟪
---   (let ((a 1)) a)
--- ⟫
--- #eval test ⟪
---   ((lambda (x) b) 1)
+--   (letrec ((count10 (lambda (i) (if (= i 10) i (count10 (+ i 1)))))) (count10 0))
 -- ⟫
