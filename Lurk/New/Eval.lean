@@ -125,7 +125,14 @@ def intoIf (tailPtr : ExprPtr) : StepInto := fun (envPtr, contPtr) => do
     (.cont2 truePtr falsePtr contPtr)
   return ⟨propPtr, envPtr, contPtr'⟩
 
+def intoBody (bodyPtr envPtr₀ : ExprPtr) : StepInto := fun (envPtr, contPtr) => do
+  let contPtr' ← addToContStore
+    ⟨.body, hash4 envPtr₀.tag.toF envPtr₀.val contPtr.tag.toF contPtr.val⟩
+    (.cont1 envPtr₀ contPtr)
+  return ⟨bodyPtr, envPtr, contPtr'⟩
+
 def intoLet (bindsPtr bodyPtr envPtr₀ : ExprPtr) : StepInto := fun (envPtr, contPtr) => do
+  if ← isNil bindsPtr then intoBody bodyPtr envPtr₀ (envPtr, contPtr) else
   let bindPtr ← car bindsPtr
   let (_, bindExprPtr) ← unfold2 bindPtr
   let contPtr' ← addToContStore
@@ -135,6 +142,7 @@ def intoLet (bindsPtr bodyPtr envPtr₀ : ExprPtr) : StepInto := fun (envPtr, co
   return ⟨bindExprPtr, envPtr, contPtr'⟩
 
 def intoLetrec (bindsPtr bodyPtr envPtr₀ : ExprPtr) : StepInto := fun (envPtr, contPtr) => do
+  if ← isNil bindsPtr then intoBody bodyPtr envPtr₀ (envPtr, contPtr) else
   let bindPtr ← car bindsPtr
   let (bindSymPtr, bindExprPtr) ← unfold2 bindPtr
   let contPtr' ← addToContStore
@@ -143,12 +151,6 @@ def intoLetrec (bindsPtr bodyPtr envPtr₀ : ExprPtr) : StepInto := fun (envPtr,
     (.cont3 bindsPtr bodyPtr envPtr₀ contPtr)
   let envPtr' ← insert envPtr bindSymPtr bindExprPtr
   return ⟨bindExprPtr, envPtr', contPtr'⟩
-
-def intoBody (bodyPtr envPtr₀ : ExprPtr) : StepInto := fun (envPtr, contPtr) => do
-  let contPtr' ← addToContStore
-    ⟨.body, hash4 envPtr₀.tag.toF envPtr₀.val contPtr.tag.toF contPtr.val⟩
-    (.cont1 envPtr₀ contPtr)
-  return ⟨bodyPtr, envPtr, contPtr'⟩
 
 def mkRet (stt : State) : StoreM State := do
   let contPtr := stt.cont
@@ -218,15 +220,13 @@ def State.continue (stt : State) : StoreM State := do
     let (bindPtr, bindsPtr') ← uncons bindsPtr
     let (bindSymPtr, _) ← unfold2 bindPtr
     let envPtr ← insert stt.env bindSymPtr stt.expr
-    if ← isNil bindsPtr' then intoBody bodyPtr envPtr₀ (envPtr, contPtr)
-    else intoLet bindsPtr' bodyPtr envPtr₀ (envPtr, contPtr)
+    intoLet bindsPtr' bodyPtr envPtr₀ (envPtr, contPtr)
   | .letrec =>
     let (bindsPtr, bodyPtr, envPtr₀, contPtr) ← getCont3 stt.cont
     let (bindPtr, bindsPtr') ← uncons bindsPtr
     let (bindSymPtr, _) ← unfold2 bindPtr
     let envPtr ← insert stt.env bindSymPtr stt.expr
-    if ← isNil bindsPtr' then intoBody bodyPtr envPtr₀ (envPtr, contPtr)
-    else intoLetrec bindsPtr' bodyPtr envPtr₀ (envPtr, contPtr)
+    intoLetrec bindsPtr' bodyPtr envPtr₀ (envPtr, contPtr)
   | .body =>
     let (envPtr₀, contPtr) ← getCont1 stt.cont
     return ⟨stt.expr, envPtr₀, contPtr⟩
@@ -301,9 +301,9 @@ open LDON.DSL
 -- #eval test ⟪
 --   (letrec ((count10 (lambda (i) (if (= i 10) i (count10 (+ i 1)))))) (count10 0))
 -- ⟫
--- #eval test ⟪
---   (+ (let ((a 1)) a) 1)
--- ⟫
+#eval test ⟪
+  (let ((a 1) (b a)) b)
+⟫
 -- #eval test ⟪
 --   ((lambda (x y) (+ x y)) (+ 1 1) 3)
 -- ⟫
