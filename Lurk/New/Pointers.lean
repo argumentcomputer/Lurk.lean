@@ -19,6 +19,7 @@ inductive ContTag
   | «if»
   | «let»
   | letrec
+  | ret
   | unOp : UnOp → ContTag
   | binOp₁ : BinOp → ContTag
   | binOp₂ : BinOp → ContTag
@@ -43,6 +44,7 @@ def ContTag.toF : ContTag → F
   | .if => .ofNat 19
   | .let => .ofNat 20
   | .letrec => .ofNat 21
+  | .ret => .ofNat 22
   | .unOp .car => .ofNat 32
   | .binOp₁ .add => .ofNat 64
   | .binOp₁ .numEq => .ofNat 65
@@ -64,4 +66,4 @@ structure ExprPtr where
 structure ContPtr where
   tag : ContTag
   val : F
-  deriving Ord, BEq
+  deriving Ord, BEq, Repr

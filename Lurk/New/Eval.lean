@@ -89,27 +89,22 @@ structure State where
   expr : ExprPtr
   env  : ExprPtr
   cont : ContPtr
-  deriving BEq
-
-def State.finishUnOp (stt : State) : UnOp → StoreM State
-  | .car => return ⟨← car stt.expr, stt.env, ← getCont0 stt.cont⟩
-
-def State.finishBinOp (stt : State) : BinOp → StoreM State
-  | .add => do
-    let (x, contPtr) ← getCont1 stt.cont
-    return ⟨← x.add stt.expr, stt.env, contPtr⟩
-  | .numEq => do
-    let (x, contPtr) ← getCont1 stt.cont
-    return ⟨← boolToExprPtr $ ← x.numEq stt.expr, stt.env, contPtr⟩
+  deriving BEq, Repr
 
 abbrev StepInto := ExprPtr × ContPtr → StoreM State
 
+-- def intoRef (symPtr : ExprPtr) : StepInto := fun (envPtr, contPtr) => do
+--   let contPtr' ← addToContStore
+--     ⟨.ref, hash2 contPtr.tag.toF contPtr.val⟩
+--     (.cont0 contPtr)
+--   return ⟨symPtr, envPtr, contPtr'⟩
+
 def intoUnOp (tag : ContTag) (tailPtr : ExprPtr) : StepInto :=
   fun (envPtr, contPtr) => do
-    let contPtr ← addToContStore
+    let contPtr' ← addToContStore
       ⟨tag, hash2 contPtr.tag.toF contPtr.val⟩
       (.cont0 contPtr)
-    return ⟨← unfold1 tailPtr, envPtr, contPtr⟩
+    return ⟨← unfold1 tailPtr, envPtr, contPtr'⟩
 
 def intoBinOp (tag : ContTag) (tailPtr : ExprPtr) : StepInto :=
   fun (envPtr, contPtr) => do
@@ -129,7 +124,7 @@ def intoIf (tailPtr : ExprPtr) : StepInto := fun (envPtr, contPtr) => do
   let (propPtr, tailPtr) ← cadr tailPtr
   let (truePtr, tailPtr) ← cadr tailPtr
   let (falsePtr, tailPtr) ← cadr tailPtr
-  if !(← isNil tailPtr) then throw ""
+  if ← isNotNil tailPtr then throw ""
   let contPtr' ← addToContStore
     ⟨.if, hash6 truePtr.tag.toF truePtr.val falsePtr.tag.toF falsePtr.val
       contPtr.tag.toF contPtr.val⟩
@@ -137,7 +132,6 @@ def intoIf (tailPtr : ExprPtr) : StepInto := fun (envPtr, contPtr) => do
   return ⟨propPtr, envPtr, contPtr'⟩
 
 def intoLet (bindsPtr bodyPtr : ExprPtr) : StepInto := fun (envPtr, contPtr) => do
-  if ← isNil bindsPtr then return ⟨bodyPtr, envPtr, contPtr⟩
   let bindPtr ← car bindsPtr
   let (_, bindExprPtr) ← unfold2 bindPtr
   let contPtr' ← addToContStore
@@ -147,7 +141,6 @@ def intoLet (bindsPtr bodyPtr : ExprPtr) : StepInto := fun (envPtr, contPtr) => 
   return ⟨bindExprPtr, envPtr, contPtr'⟩
 
 def intoLetrec (bindsPtr bodyPtr : ExprPtr) : StepInto := fun (envPtr, contPtr) => do
-  if ← isNil bindsPtr then return ⟨bodyPtr, envPtr, contPtr⟩
   let bindPtr ← car bindsPtr
   let (bindSymPtr, bindExprPtr) ← unfold2 bindPtr
   let contPtr' ← addToContStore
@@ -157,9 +150,34 @@ def intoLetrec (bindsPtr bodyPtr : ExprPtr) : StepInto := fun (envPtr, contPtr) 
   let envPtr' ← insert envPtr bindSymPtr bindExprPtr
   return ⟨bindExprPtr, envPtr', contPtr'⟩
 
+def mkRet (stt : State) : StoreM State := do
+  let contPtr := stt.cont
+  let contPtr ← addToContStore
+    ⟨.ret, hash2 contPtr.tag.toF contPtr.val⟩
+    (.cont0 contPtr)
+  return { stt with cont := contPtr }
+
+def State.finishUnOp (stt : State) : UnOp → StoreM State
+  | .car => return ⟨← car stt.expr, stt.env, ← getCont0 stt.cont⟩
+
+def State.finishBinOp (stt : State) : BinOp → StoreM State
+  | .add => do
+    let (x, contPtr) ← getCont1 stt.cont
+    mkRet ⟨← x.add stt.expr, stt.env, contPtr⟩
+  | .numEq => do
+    let (x, contPtr) ← getCont1 stt.cont
+    mkRet ⟨← boolToExprPtr $ ← x.numEq stt.expr, stt.env, contPtr⟩
+
 def State.continue (stt : State) : StoreM State := do
   match stt.cont.tag with
   | .done => return stt
+  -- | .ref =>
+  --   let symPtr := stt.expr
+  --   let envPtr := stt.env
+  --   let res ← match ← find? envPtr symPtr with
+  --     | some symValPtr => pure symValPtr
+  --     | none => throw s!"{← getSym symPtr} not found"
+  --   return ⟨res, envPtr, ← getCont0 stt.cont⟩
   | .unOp op => stt.finishUnOp op
   | .binOp₁ op =>
     let x := stt.expr
@@ -175,8 +193,8 @@ def State.continue (stt : State) : StoreM State := do
     match ← getExprPtrImg fnPtr with
     | .fun argsSymsPtr funEnvPtr bodyPtr =>
       match ← isNil argsSymsPtr, ← isNil argsPtr with
-      | true,  true  => return ⟨bodyPtr, funEnvPtr, contPtr⟩ -- fulfilled
-      | false, true  => return ⟨fnPtr, stt.env, contPtr⟩ -- still missing args
+      | true,  true  => mkRet ⟨bodyPtr, funEnvPtr, contPtr⟩ -- fulfilled
+      | false, true  => mkRet ⟨fnPtr, stt.env, contPtr⟩ -- still missing args
       | true,  false => throw "Too many arguments"
       | false, false => -- currying
         let (argPtr, argsPtr) ← uncons argsPtr
@@ -200,32 +218,44 @@ def State.continue (stt : State) : StoreM State := do
     | _ => throw ""
   | .if =>
     let (truePtr, falsePtr, contPtr) ← getCont2 stt.cont
-    if ← isNil stt.expr then return ⟨falsePtr, stt.env, contPtr⟩
-    else return ⟨truePtr, stt.env, contPtr⟩
+    if ← isNil stt.expr then mkRet ⟨falsePtr, stt.env, contPtr⟩
+    else mkRet ⟨truePtr, stt.env, contPtr⟩
   | .let =>
     let (bindsPtr, bodyPtr, contPtr) ← getCont2 stt.cont
     let (bindPtr, bindsPtr') ← uncons bindsPtr
     let (bindSymPtr, _) ← unfold2 bindPtr
     let envPtr ← insert stt.env bindSymPtr stt.expr
-    intoLet bindsPtr' bodyPtr (envPtr, contPtr)
+    if ← isNil bindsPtr' then mkRet ⟨bodyPtr, envPtr, contPtr⟩
+    else intoLet bindsPtr' bodyPtr (envPtr, contPtr)
   | .letrec =>
     let (bindsPtr, bodyPtr, contPtr) ← getCont2 stt.cont
     let (bindPtr, bindsPtr') ← uncons bindsPtr
     let (bindSymPtr, _) ← unfold2 bindPtr
     let envPtr ← insert stt.env bindSymPtr stt.expr
-    intoLetrec bindsPtr' bodyPtr (envPtr, contPtr)
+    if ← isNil bindsPtr' then mkRet ⟨bodyPtr, envPtr, contPtr⟩
+    else intoLetrec bindsPtr' bodyPtr (envPtr, contPtr)
+  | .ret => return { stt with cont := ← getCont0 stt.cont }
 
-def State.trivial? (stt : State) : StoreM $ Option State :=
-  match stt.expr.tag with
-  | .num | .u64 | .char | .str | .comm | .fun => return some stt
-  | .sym => do
-    let symPtr := stt.expr
-    match ← getSym symPtr with
-    | .nil | .t => return some stt
-    | sym => match ← find? stt.env symPtr with
-      | some symValPtr => return some { stt with expr := symValPtr }
-      | none => throw s!"{sym} not found"
-  | _ => return none
+def State.trivial? (stt : State) : StoreM $ Option State := do
+  let stt ← match stt.expr.tag with
+    | .num | .u64 | .char | .str | .comm | .fun => pure stt
+    | .sym => do
+      let symPtr := stt.expr
+      match ← getSym symPtr with
+      | .nil | .t => pure stt
+      | sym => match ← find? stt.env symPtr with
+        | some symValPtr => pure { stt with expr := symValPtr }
+        | none => throw s!"{sym} not found"
+    | _ => return none
+  mkRet stt
+
+-- def State.trivial? (stt : State) : StoreM $ Option State :=
+--   match stt.expr.tag with
+--   | .num | .u64 | .char | .str | .comm | .fun => return some stt
+--   | .sym => do match ← getSym stt.expr with
+--     | .nil | .t => return some stt
+--     | _ => return none
+--   | _ => return none
 
 @[inline] def State.stepIntoParams (stt : State) : ExprPtr × ContPtr :=
   (stt.env, stt.cont)
@@ -234,6 +264,7 @@ def State.step (stt : State) : StoreM State := do
   match ← stt.trivial? with
   | some stt => stt.continue
   | none => match stt.expr.tag with
+    -- | .sym => intoRef stt.expr stt.stepIntoParams
     | .cons =>
       let .cons head tail ← getExprPtrImg stt.expr
         | throw "Expected cons. Malformed store"
@@ -244,7 +275,7 @@ def State.step (stt : State) : StoreM State := do
           let (argsSymsPtr, bodyPtr) ← unfold2 tail
           let envPtr := stt.env
           let funPtr ← mkFunPtr argsSymsPtr envPtr bodyPtr
-          pure ⟨funPtr, envPtr, stt.cont⟩
+          return ⟨funPtr, envPtr, stt.cont⟩
         | .ofString "if" => intoIf tail stt.stepIntoParams
         | .ofString "let" =>
           let (bindsPtr, bodyPtr) ← unfold2 tail
@@ -273,15 +304,21 @@ def LDON.eval (ldon : LDON) (store : Store := default) :
   | .ok (stt, stts) store => return (stt, stts, store)
   | .error e _ => throw e
 
-def test (ldon : LDON) : Except String ExprPtr :=
+def test (ldon : LDON) : Except String (Array State) :=
   match ldon.eval with
-  | .ok x => dbg_trace x.2.1.size; return x.1.expr
+  | .ok x => return x.2.1
   | .error x => throw x
 
 open LDON.DSL
-#eval test ⟪
-  (let ((a 1) (b a)) b)
-⟫
-#eval test ⟪
-  ((lambda (x) b) 1)
-⟫
+-- #eval test ⟪
+--   (let ((a 1) (b a)) b)
+-- ⟫
+-- #eval test ⟪
+--   nil
+-- ⟫
+-- #eval test ⟪
+--   (let ((a 1)) a)
+-- ⟫
+-- #eval test ⟪
+--   ((lambda (x) b) 1)
+-- ⟫
