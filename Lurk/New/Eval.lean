@@ -2,77 +2,51 @@ import Std.Data.RBMap
 import Lurk.New.Store
 
 open Std (RBMap)
+open Store
 
-abbrev EvalM := EStateM String Store
-
-def getStr (exprPtr : ExprPtr) : EvalM String := do
-  match (← get).getStr exprPtr with
-  | .ok s => pure s
-  | .error e => throw e
-
-def getSym (exprPtr : ExprPtr) : EvalM Symbol := do
-  match (← get).getSym exprPtr with
-  | .ok s => pure s
-  | .error e => throw e
-
-def putStr (str : String) : EvalM ExprPtr :=
-  modifyGet fun store => store.putStr str
-
-def putSym (sym : Symbol) : EvalM ExprPtr :=
-  modifyGet fun store => store.putSym sym
-
-def ExprPtr.isNil (ptr : ExprPtr) : EvalM Bool :=
-  return ptr == (← putSym .nil)
-
-def ExprPtr.add : ExprPtr → ExprPtr → EvalM ExprPtr
+def ExprPtr.add : ExprPtr → ExprPtr → StoreM ExprPtr
   | ⟨.num, x⟩, ⟨.num, y⟩
   | ⟨.u64, x⟩, ⟨.num, y⟩
   | ⟨.num, x⟩, ⟨.u64, y⟩ => return ⟨.num, x + y⟩
   | ⟨.u64, x⟩, ⟨.u64, y⟩ => return ⟨.u64, .ofNat $ (x + y).val.toUInt64.toNat⟩
   | _, _ => throw ""
 
-def ExprPtr.numEq : ExprPtr → ExprPtr → EvalM ExprPtr
+def ExprPtr.numEq : ExprPtr → ExprPtr → StoreM ExprPtr
   | ⟨.num, x⟩, ⟨.num, y⟩
   | ⟨.u64, x⟩, ⟨.num, y⟩
   | ⟨.num, x⟩, ⟨.u64, y⟩
   | ⟨.u64, x⟩, ⟨.u64, y⟩ => if x == y then putSym .t else putSym .nil
   | _, _ => throw ""
 
-def getExprPtrImg (ptr : ExprPtr) : EvalM ExprPtrImg := do
+def getExprPtrImg (ptr : ExprPtr) : StoreM ExprPtrImg := do
   match (← get).exprData.find? ptr with
   | some img => pure img
   | none => throw ""
 
-def cadr (exprPtr : ExprPtr) : EvalM (ExprPtr × ExprPtr) := do
+def cadr (exprPtr : ExprPtr) : StoreM (ExprPtr × ExprPtr) := do
   match ← getExprPtrImg exprPtr with
   | .cons a b => pure (a, b)
   | _ => throw ""
 
-def unfold1 (exprPtr : ExprPtr) : EvalM ExprPtr := do
+def unfold1 (exprPtr : ExprPtr) : StoreM ExprPtr := do
   let (car, cdr) ← cadr exprPtr
   if ← cdr.isNil then return car
   throw ""
 
-def unfold2 (exprPtr : ExprPtr) : EvalM (ExprPtr × ExprPtr) := do
+def unfold2 (exprPtr : ExprPtr) : StoreM (ExprPtr × ExprPtr) := do
   let (car₁, cdr) ← cadr exprPtr
   let (car₂, cdr) ← cadr cdr
   if ← cdr.isNil then return (car₁, car₂)
   throw ""
 
-def unfold3 (exprPtr : ExprPtr) : EvalM (ExprPtr × ExprPtr × ExprPtr) := do
+def unfold3 (exprPtr : ExprPtr) : StoreM (ExprPtr × ExprPtr × ExprPtr) := do
   let (car₁, cdr) ← cadr exprPtr
   let (car₂, cdr) ← cadr cdr
   let (car₃, cdr) ← cadr cdr
   if ← cdr.isNil then return (car₁, car₂, car₃)
   throw ""
 
-@[inline] def addToExprStore (ptr : ExprPtr) (img : ExprPtrImg) : EvalM ExprPtr :=
-  modifyGet fun c => (ptr, { c with exprData := c.exprData.insert ptr img })
-
-@[inline] def addToContStore (ptr : ContPtr) (img : ContPtrImg) : EvalM ContPtr :=
-  modifyGet fun c => (ptr, { c with contData := c.contData.insert ptr img })
-
-def insert (envPtr symPtr valPtr : ExprPtr) : EvalM ExprPtr := do
+def insert (envPtr symPtr valPtr : ExprPtr) : StoreM ExprPtr := do
   let pair ← addToExprStore
     ⟨.cons, hash4 symPtr.tag.toF symPtr.val valPtr.tag.toF valPtr.val⟩
     (.cons symPtr valPtr)
@@ -81,34 +55,34 @@ def insert (envPtr symPtr valPtr : ExprPtr) : EvalM ExprPtr := do
     (.cons pair envPtr)
 
 -- eliminate this linear cost
-partial def find? (envPtr symPtr : ExprPtr) : EvalM (Option ExprPtr) := do
+partial def find? (envPtr symPtr : ExprPtr) : StoreM (Option ExprPtr) := do
   if ← envPtr.isNil then return none
   let (head, tail) ← cadr envPtr
   let (symPtr', valPtr) ← unfold2 head
   if symPtr' == symPtr then return some valPtr
   find? tail symPtr
 
-def getCont0 (contPtr : ContPtr) : EvalM ContPtr := do
+def getCont0 (contPtr : ContPtr) : StoreM ContPtr := do
   match (← get).contData.find? contPtr with
   | some $ .cont0 a => return a
   | _ => throw ""
 
-def getCont1 (contPtr : ContPtr) : EvalM (ExprPtr × ContPtr) := do
+def getCont1 (contPtr : ContPtr) : StoreM (ExprPtr × ContPtr) := do
   match (← get).contData.find? contPtr with
   | some $ .cont1 a b => return (a, b)
   | _ => throw ""
 
-def getCont2 (contPtr : ContPtr) : EvalM (ExprPtr × ExprPtr × ContPtr) := do
+def getCont2 (contPtr : ContPtr) : StoreM (ExprPtr × ExprPtr × ContPtr) := do
   match (← get).contData.find? contPtr with
   | some $ .cont2 a b c => return (a, b, c)
   | _ => throw ""
 
-def getCont3 (contPtr : ContPtr) : EvalM (ExprPtr × ExprPtr × ExprPtr × ContPtr) := do
+def getCont3 (contPtr : ContPtr) : StoreM (ExprPtr × ExprPtr × ExprPtr × ContPtr) := do
   match (← get).contData.find? contPtr with
   | some $ .cont3 a b c d => return (a, b, c, d)
   | _ => throw ""
 
-@[inline] def mkFunPtr (argsSymsPtr funEnvPtr bodyPtr : ExprPtr) : EvalM ExprPtr :=
+@[inline] def mkFunPtr (argsSymsPtr funEnvPtr bodyPtr : ExprPtr) : StoreM ExprPtr :=
   addToExprStore
     ⟨.fun, hash6 argsSymsPtr.tag.toF argsSymsPtr.val funEnvPtr.tag.toF funEnvPtr.val
       bodyPtr.tag.toF bodyPtr.val⟩
@@ -119,7 +93,7 @@ structure State where
   env  : ExprPtr
   cont : ContPtr
 
-def State.finishUnOp (stt : State) : UnOp → EvalM State
+def State.finishUnOp (stt : State) : UnOp → StoreM State
   | .car => do
     let res := stt.expr
     let res ← match ← getExprPtrImg res with
@@ -127,7 +101,7 @@ def State.finishUnOp (stt : State) : UnOp → EvalM State
       | _ => if ← res.isNil then pure res else throw ""
     return ⟨res, stt.env, ← getCont0 stt.cont⟩
 
-def State.finishBinOp (stt : State) : BinOp → EvalM State
+def State.finishBinOp (stt : State) : BinOp → StoreM State
   | .add => do
     let (x, contPtr) ← getCont1 stt.cont
     return ⟨← x.add stt.expr, stt.env, contPtr⟩
@@ -135,7 +109,7 @@ def State.finishBinOp (stt : State) : BinOp → EvalM State
     let (x, contPtr) ← getCont1 stt.cont
     return ⟨← x.numEq stt.expr, stt.env, contPtr⟩
 
-abbrev StepInto := ExprPtr × ContPtr → EvalM State
+abbrev StepInto := ExprPtr × ContPtr → StoreM State
 
 def intoUnOp (tag : ContTag) (tailPtr : ExprPtr) : StepInto :=
   fun (envPtr, contPtr) => do
@@ -187,7 +161,7 @@ def intoLetrec (bindsPtr bodyPtr : ExprPtr) : StepInto := fun (envPtr, contPtr) 
   let envPtr' ← insert envPtr bindSymPtr bindExprPtr
   return ⟨bindExprPtr, envPtr', contPtr'⟩
 
-def State.continue (stt : State) : EvalM State := do
+def State.continue (stt : State) : StoreM State := do
   match stt.cont.tag with
   | .done => return stt
   | .unOp op => stt.finishUnOp op
@@ -241,7 +215,7 @@ def State.continue (stt : State) : EvalM State := do
     let envPtr ← insert stt.env bindSymPtr stt.expr
     intoLetrec bindsPtr bodyPtr (envPtr, contPtr)
 
-def State.trivial? (stt : State) : EvalM $ Option State :=
+def State.trivial? (stt : State) : StoreM $ Option State :=
   match stt.expr.tag with
   | .num | .u64 | .char | .str | .comm | .fun => return some stt
   | .sym => do
@@ -259,7 +233,7 @@ def State.trivial? (stt : State) : EvalM $ Option State :=
 @[match_pattern, inline] def sym! (s : String) : Symbol :=
   .cons s .root
 
-def State.step (stt : State) : EvalM State := do
+def State.step (stt : State) : StoreM State := do
   match ← stt.trivial? with
   | some stt => stt.continue
   | none => match stt.expr.tag with
@@ -285,7 +259,7 @@ def State.step (stt : State) : EvalM State := do
       else intoApp head tail stt.stepIntoParams
     | _ => unreachable! -- trivial cases have already been dealt with
 
-def State.run (stt : State) : EvalM State := do
+def State.run (stt : State) : StoreM State := do
   let mut stt' := stt
   while stt'.cont.tag != .done do
     stt' ← stt'.step
