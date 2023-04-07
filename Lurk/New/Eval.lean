@@ -55,7 +55,7 @@ def insert (envPtr symPtr valPtr : ExprPtr) : StoreM ExprPtr := do
 partial def find? (envPtr symPtr : ExprPtr) : StoreM (Option ExprPtr) := do
   if ← isNil envPtr then return none
   let (head, tail) ← uncons envPtr
-  let (symPtr', valPtr) ← unfold2 head
+  let (symPtr', valPtr) ← cadr head
   if symPtr' == symPtr then return some valPtr
   find? tail symPtr
 
@@ -89,6 +89,7 @@ structure State where
   expr : ExprPtr
   env  : ExprPtr
   cont : ContPtr
+  deriving BEq
 
 def State.finishUnOp (stt : State) : UnOp → StoreM State
   | .car => return ⟨← car stt.expr, stt.env, ← getCont0 stt.cont⟩
@@ -137,22 +138,22 @@ def intoIf (tailPtr : ExprPtr) : StepInto := fun (envPtr, contPtr) => do
 
 def intoLet (bindsPtr bodyPtr : ExprPtr) : StepInto := fun (envPtr, contPtr) => do
   if ← isNil bindsPtr then return ⟨bodyPtr, envPtr, contPtr⟩
-  let (bindPtr, bindsPtr) ← uncons bindsPtr
-  let (bindSymPtr, bindExprPtr) ← unfold2 bindPtr
+  let bindPtr ← car bindsPtr
+  let (_, bindExprPtr) ← unfold2 bindPtr
   let contPtr' ← addToContStore
-    ⟨.let, hash8 bindSymPtr.tag.toF bindSymPtr.val bindsPtr.tag.toF bindsPtr.val
-      bodyPtr.tag.toF bodyPtr.val contPtr.tag.toF contPtr.val⟩
-    (.cont3 bindSymPtr bindsPtr bodyPtr contPtr)
+    ⟨.let, hash6 bindsPtr.tag.toF bindsPtr.val bodyPtr.tag.toF bodyPtr.val
+      contPtr.tag.toF contPtr.val⟩
+    (.cont2 bindsPtr bodyPtr contPtr)
   return ⟨bindExprPtr, envPtr, contPtr'⟩
 
 def intoLetrec (bindsPtr bodyPtr : ExprPtr) : StepInto := fun (envPtr, contPtr) => do
   if ← isNil bindsPtr then return ⟨bodyPtr, envPtr, contPtr⟩
-  let (bindPtr, bindsPtr) ← uncons bindsPtr
+  let bindPtr ← car bindsPtr
   let (bindSymPtr, bindExprPtr) ← unfold2 bindPtr
   let contPtr' ← addToContStore
-    ⟨.letrec, hash8 bindSymPtr.tag.toF bindSymPtr.val bindsPtr.tag.toF bindsPtr.val
-      bodyPtr.tag.toF bodyPtr.val contPtr.tag.toF contPtr.val⟩
-    (.cont3 bindSymPtr bindsPtr bodyPtr contPtr)
+    ⟨.letrec, hash6 bindsPtr.tag.toF bindsPtr.val bodyPtr.tag.toF bodyPtr.val
+      contPtr.tag.toF contPtr.val⟩
+    (.cont2 bindsPtr bodyPtr contPtr)
   let envPtr' ← insert envPtr bindSymPtr bindExprPtr
   return ⟨bindExprPtr, envPtr', contPtr'⟩
 
@@ -202,13 +203,17 @@ def State.continue (stt : State) : StoreM State := do
     if ← isNil stt.expr then return ⟨falsePtr, stt.env, contPtr⟩
     else return ⟨truePtr, stt.env, contPtr⟩
   | .let =>
-    let (bindSymPtr, bindsPtr, bodyPtr, contPtr) ← getCont3 stt.cont
+    let (bindsPtr, bodyPtr, contPtr) ← getCont2 stt.cont
+    let (bindPtr, bindsPtr') ← uncons bindsPtr
+    let (bindSymPtr, _) ← unfold2 bindPtr
     let envPtr ← insert stt.env bindSymPtr stt.expr
-    intoLet bindsPtr bodyPtr (envPtr, contPtr)
+    intoLet bindsPtr' bodyPtr (envPtr, contPtr)
   | .letrec =>
-    let (bindSymPtr, bindsPtr, bodyPtr, contPtr) ← getCont3 stt.cont
+    let (bindsPtr, bodyPtr, contPtr) ← getCont2 stt.cont
+    let (bindPtr, bindsPtr') ← uncons bindsPtr
+    let (bindSymPtr, _) ← unfold2 bindPtr
     let envPtr ← insert stt.env bindSymPtr stt.expr
-    intoLetrec bindsPtr bodyPtr (envPtr, contPtr)
+    intoLetrec bindsPtr' bodyPtr (envPtr, contPtr)
 
 def State.trivial? (stt : State) : StoreM $ Option State :=
   match stt.expr.tag with
@@ -253,7 +258,6 @@ def State.step (stt : State) : StoreM State := do
 
 def State.eval (stt : State) : StoreM $ State × Array State := do
   let mut stt' ← stt.step
-  if stt'.cont.tag == .done then return (stt, #[stt])
   let mut stts := #[stt, stt']
   while stt'.cont.tag != .done do
     stt' ← stt'.step
@@ -271,10 +275,13 @@ def LDON.eval (ldon : LDON) (store : Store := default) :
 
 def test (ldon : LDON) : Except String ExprPtr :=
   match ldon.eval with
-  | .ok x => dbg_trace x.2.1.size; return x.1.1
+  | .ok x => dbg_trace x.2.1.size; return x.1.expr
   | .error x => throw x
 
 open LDON.DSL
 #eval test ⟪
   (let ((a 1) (b a)) b)
+⟫
+#eval test ⟪
+  ((lambda (x) b) 1)
 ⟫

@@ -64,4 +64,4 @@ structure ExprPtr where
 structure ContPtr where
   tag : ContTag
   val : F
-  deriving Ord
+  deriving Ord, BEq
