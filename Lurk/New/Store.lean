@@ -47,30 +47,6 @@ inductive ContPtrImg
 
 open Std (RBMap)
 
-inductive Symbol
-  | root
-  | cons : String → Symbol → Symbol
-  deriving Ord
-
-namespace Symbol
-
-def telescope (acc : List String := []) : Symbol → List String
-  | root => acc
-  | cons str sym => sym.telescope $ str :: acc
-
-def toString (sym : Symbol) : String :=
-  ".".intercalate sym.telescope
-
-instance : ToString Symbol := ⟨Symbol.toString⟩
-
-@[inline] def nil : Symbol :=
-  .cons "nil" .root
-
-@[inline] def t : Symbol :=
-  .cons "t" .root
-
-end Symbol
-
 structure Store where
   exprData : RBMap ExprPtr ExprPtrImg compare
 
@@ -145,8 +121,8 @@ def hashLDON : LDON → StoreM ExprPtr
   | .num n => pure ⟨.num, n⟩
   | .u64 n => pure ⟨.u64, .ofNat n.val⟩
   | .char n => pure ⟨.char, .ofNat n.toNat⟩
-  | .str s => putChars s.data
-  | .sym s => putStrings [s, "LURK"]
+  | .str s => putStr s
+  | .sym s => putSym s
   | .cons car cdr => do
     let car ← hashLDON car
     let cdr ← hashLDON cdr
