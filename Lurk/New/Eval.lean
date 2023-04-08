@@ -89,7 +89,10 @@ structure State where
   expr : ExprPtr
   env  : ExprPtr
   cont : ContPtr
-  deriving BEq, Repr
+  deriving BEq
+
+instance : ToString State where
+  toString x := s!"⟨{x.expr}, {x.env}, {x.cont}⟩"
 
 abbrev StepInto := ExprPtr × ContPtr → StoreM State
 
@@ -157,21 +160,19 @@ def intoLetrec (bindsPtr bodyPtr envPtr₀ : ExprPtr) : StepInto := fun (envPtr,
 
 def mkRet (stt : State) : StoreM State := do
   let contPtr := stt.cont
-  let contPtr ← addToContStore
+  let contPtr' ← addToContStore
     ⟨.ret, hash2 contPtr.tag.toF contPtr.val⟩
     (.cont0 contPtr)
-  return { stt with cont := contPtr }
+  return { stt with cont := contPtr' }
 
 def State.finishUnOp (stt : State) : UnOp → StoreM State
   | .car => return ⟨← car stt.expr, stt.env, ← getCont0 stt.cont⟩
 
-def State.finishBinOp (stt : State) : BinOp → StoreM State
-  | .add => do
-    let (x, contPtr) ← getCont1 stt.cont
-    return ⟨← x.add stt.expr, stt.env, contPtr⟩
-  | .numEq => do
-    let (x, contPtr) ← getCont1 stt.cont
-    return ⟨← boolToExprPtr $ ← x.numEq stt.expr, stt.env, contPtr⟩
+def State.finishBinOp (stt : State) (op : BinOp) : StoreM State := do
+  let ((x, contPtr), y) := (← getCont1 stt.cont, stt.expr)
+  match op with
+  | .add => return ⟨← x.add y, stt.env, contPtr⟩
+  | .numEq => return ⟨← boolToExprPtr $ ← x.numEq y, stt.env, contPtr⟩
 
 def State.continue (stt : State) : StoreM State := do
   match stt.cont.tag with
@@ -279,8 +280,11 @@ def State.step (stt : State) : StoreM State := do
 def State.eval (stt : State) : StoreM $ State × Array State := do
   let mut stt' ← stt.step
   let mut stts := #[stt, stt']
+  dbg_trace stt
+  dbg_trace stt'
   while stt'.cont.tag != .done do
     stt' ← stt'.step
+    dbg_trace stt'
     stts := stts.push stt'
   return (stt', stts)
 
@@ -293,18 +297,19 @@ def LDON.eval (ldon : LDON) (store : Store := default) :
   | .ok (stt, stts) store => return (stt, stts, store)
   | .error e _ => throw e
 
-def test (ldon : LDON) : Except String ExprPtr :=
+def test (ldon : LDON) : Except String Nat :=
   match ldon.eval with
-  | .ok x => dbg_trace x.2.1.size; return x.1.1
+  | .ok x => return x.2.1.size.pred
   | .error x => throw x
 
+-- (letrec ((count10 (lambda (i) (if (= i 10) i (count10 (+ i 1)))))) (count10 0))
+-- (let ((a 1) (b a)) b)
+-- (if nil 1 (+ 1 2))
+-- ((lambda (x y) (+ x y)) (+ 1 1) 3)
 open LDON.DSL
--- #eval test ⟪
---   (letrec ((count10 (lambda (i) (if (= i 10) i (count10 (+ i 1)))))) (count10 0))
--- ⟫
--- #eval test ⟪
---   (let ((a 1) (b a)) b)
--- ⟫
--- #eval test ⟪
---   ((lambda (x y) (+ x y)) (+ 1 1) 3)
--- ⟫
+def main : IO Unit :=
+  let code := ⟪
+    (letrec ((count10 (lambda (i) (if (= i 10) i (count10 (+ i 1)))))) (count10 0))
+  ⟫
+  match test code with
+  | .ok e | .error e => IO.println e

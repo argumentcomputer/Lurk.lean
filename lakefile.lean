@@ -9,6 +9,9 @@ lean_lib Lurk
 lean_exe lurk where
   root := `Main
 
+lean_exe lurkln where
+  root := `Lurk.New.Eval
+
 require Poseidon from git
   "https://github.com/lurk-lab/Poseidon.lean" @ "4180a316a7822b924e05cda1729d8612fcc81ee7"
 

@@ -110,7 +110,7 @@ def putSym (sym : Symbol) : StoreM ExprPtr := do
 def getExprPtrImg (ptr : ExprPtr) : StoreM ExprPtrImg := do
   match (← get).exprData.find? ptr with
   | some img => pure img
-  | none => throw s!"Img not found for pointer {repr ptr}"
+  | none => throw s!"Img not found for pointer {ptr}"
 
 def getStr (ptr : ExprPtr) : StoreM String := do
   match (← get).ptrToStr.find? ptr with
