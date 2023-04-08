@@ -248,8 +248,9 @@ def State.step (stt : State) : StoreM State := do
     | .nil | .t => stt.continue
     | sym => match ← find? stt.env symPtr with
       | some valPtr =>
-        if valPtr.tag != .thunk then State.continue { stt with expr := valPtr }
-        else return ⟨valPtr, stt.env, stt.cont⟩
+        let stt := { stt with expr := valPtr }
+        if valPtr.tag != .thunk then stt.continue
+        else return stt
       | none => throw s!"{sym} not found"
   | .thunk =>
     let .thunk sym expr env ← getExprPtrImg stt.expr
@@ -303,13 +304,14 @@ def test (ldon : LDON) : Except String Nat :=
   | .ok x => return x.2.1.size.pred
   | .error x => throw x
 
--- (letrec ((count10 (lambda (i) (if (= i 10) i (count10 (+ i 1)))))) (count10 0))
--- (let ((a 1) (b a)) b)
--- (if nil 1 (+ 1 2))
--- ((lambda (x y) (+ x y)) (+ 1 1) 3)
 open LDON.DSL
 def main : IO Unit :=
   let code := ⟪
+    -- (letrec ((count10 (lambda (i) (if (= i 10) i (count10 (+ i 1)))))) (count10 0))
+    -- (let ((a 1) (b a)) b)
+    -- (if nil 1 (+ 1 2))
+    -- ((lambda (x y) (+ x y)) (+ 1 1) 3)
+    -- (let ((count10 (lambda (i) (if (= i 10) i (+ i 1))))) (count10 0))
     (letrec ((count10 (lambda (i) (if (= i 10) i (count10 (+ i 1)))))) (count10 0))
   ⟫
   match test code with
