@@ -150,8 +150,8 @@ def intoLetrec (bindsPtr bodyPtr envPtr₀ : ExprPtr) : StepInto := fun (envPtr,
       envPtr₀.tag.toF envPtr₀.val contPtr.tag.toF contPtr.val⟩
     (.cont3 bindsPtr bodyPtr envPtr₀ contPtr)
   let thunkPtr ← addToExprStore
-    ⟨.thunk, hash4 bindExprPtr.tag.toF bindExprPtr.val contPtr'.tag.toF contPtr'.val⟩
-    (.thunk bindExprPtr contPtr')
+    ⟨.thunk, hash2 bindExprPtr.tag.toF bindExprPtr.val⟩
+    (.thunk bindExprPtr)
   let envPtr' ← insert envPtr bindSymPtr thunkPtr
   return ⟨bindExprPtr, envPtr', contPtr'⟩
 
@@ -235,51 +235,46 @@ def State.continue (stt : State) : StoreM State := do
     return ⟨stt.expr, envPtr₀, contPtr⟩
   | .ret => return { stt with cont := ← getCont0 stt.cont }
 
-def State.trivial? (stt : State) : StoreM $ Option State := do
-  match stt.expr.tag with
-  | .num | .u64 | .char | .str | .comm | .fun => return some stt
-  | .sym => do
-    let symPtr := stt.expr
-    match ← getSym symPtr with
-    | .nil | .t => return some stt
-    | sym => match ← find? stt.env symPtr with
-      | some symValPtr => return some { stt with expr := symValPtr }
-      | none => throw s!"{sym} not found"
-  | _ => return none
-
 @[inline] def State.stepIntoParams (stt : State) : ExprPtr × ContPtr :=
   (stt.env, stt.cont)
 
 def State.step (stt : State) : StoreM State := do
-  match ← stt.trivial? with
-  | some stt => stt.continue
-  | none => match stt.expr.tag with
-    | .thunk =>
-      let .thunk expr cont ← getExprPtrImg stt.expr
-        | throw "Expected thunk. Malformed store"
-      State.continue ⟨expr, stt.env, cont⟩
-    | .cons =>
-      let .cons head tail ← getExprPtrImg stt.expr
-        | throw "Expected cons. Malformed store"
-      if head.tag == .sym then match ← getSym head with
-        | .ofString "car" => intoUnOp (.unOp .car) tail stt.stepIntoParams
-        | .ofString "+" => intoBinOp (.binOp₁ .add) tail stt.stepIntoParams
-        | .ofString "=" => intoBinOp (.binOp₁ .numEq) tail stt.stepIntoParams
-        | .ofString "lambda" =>
-          let (argsSymsPtr, bodyPtr) ← unfold2 tail
-          let envPtr := stt.env
-          let funPtr ← mkFunPtr argsSymsPtr envPtr bodyPtr
-          return ⟨funPtr, envPtr, stt.cont⟩
-        | .ofString "if" => intoIf tail stt.stepIntoParams
-        | .ofString "let" =>
-          let (bindsPtr, bodyPtr) ← unfold2 tail
-          intoLet bindsPtr bodyPtr stt.env stt.stepIntoParams
-        | .ofString "letrec" =>
-          let (bindsPtr, bodyPtr) ← unfold2 tail
-          intoLetrec bindsPtr bodyPtr stt.env stt.stepIntoParams
-        | _ => intoApp head tail stt.stepIntoParams
-      else intoApp head tail stt.stepIntoParams
-    | _ => unreachable! -- trivial cases have already been dealt with
+  match stt.expr.tag with
+  | .num | .u64 | .char | .str | .comm | .fun => stt.continue
+  | .sym =>
+    let symPtr := stt.expr
+    match ← getSym symPtr with
+    | .nil | .t => stt.continue
+    | sym => match ← find? stt.env symPtr with
+      | some valPtr =>
+        if valPtr.tag != .thunk then State.continue { stt with expr := valPtr }
+        else return stt
+      | none => throw s!"{sym} not found"
+  | .thunk =>
+    let .thunk expr ← getExprPtrImg stt.expr
+      | throw "Expected thunk. Malformed store"
+    return ⟨expr, stt.env, stt.cont⟩
+  | .cons =>
+    let .cons head tail ← getExprPtrImg stt.expr
+      | throw "Expected cons. Malformed store"
+    if head.tag == .sym then match ← getSym head with
+      | .ofString "car" => intoUnOp (.unOp .car) tail stt.stepIntoParams
+      | .ofString "+" => intoBinOp (.binOp₁ .add) tail stt.stepIntoParams
+      | .ofString "=" => intoBinOp (.binOp₁ .numEq) tail stt.stepIntoParams
+      | .ofString "lambda" =>
+        let (argsSymsPtr, bodyPtr) ← unfold2 tail
+        let envPtr := stt.env
+        let funPtr ← mkFunPtr argsSymsPtr envPtr bodyPtr
+        return ⟨funPtr, envPtr, stt.cont⟩
+      | .ofString "if" => intoIf tail stt.stepIntoParams
+      | .ofString "let" =>
+        let (bindsPtr, bodyPtr) ← unfold2 tail
+        intoLet bindsPtr bodyPtr stt.env stt.stepIntoParams
+      | .ofString "letrec" =>
+        let (bindsPtr, bodyPtr) ← unfold2 tail
+        intoLetrec bindsPtr bodyPtr stt.env stt.stepIntoParams
+      | _ => intoApp head tail stt.stepIntoParams
+    else intoApp head tail stt.stepIntoParams
 
 def State.eval (stt : State) : StoreM $ State × Array State := do
   let mut stt' ← stt.step
@@ -304,9 +299,9 @@ def test (ldon : LDON) : Except String ExprPtr :=
   | .error x => throw x
 
 open LDON.DSL
-#eval test ⟪
-  (letrec ((count10 (lambda (i) (if (= i 10) i (count10 (+ i 1)))))) (count10 0))
-⟫
+-- #eval test ⟪
+--   (letrec ((count10 (lambda (i) (if (= i 10) i (count10 (+ i 1)))))) (count10 0))
+-- ⟫
 -- #eval test ⟪
 --   (let ((a 1) (b a)) b)
 -- ⟫
