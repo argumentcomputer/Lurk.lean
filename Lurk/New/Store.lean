@@ -24,7 +24,8 @@ inductive ExprPtrImg
   | cons : ExprPtr → ExprPtr → ExprPtrImg
   | «fun» : ExprPtr → ExprPtr → ExprPtr → ExprPtrImg
   | comm : F → ExprPtr → ExprPtrImg
-  | thunk : ExprPtr → ExprPtrImg
+  -- thunk takes its own symbol, body and environment
+  | thunk : ExprPtr → ExprPtr → ExprPtr → ExprPtrImg
 
 inductive ContPtrImg
   | cont0 : ContPtr → ContPtrImg
