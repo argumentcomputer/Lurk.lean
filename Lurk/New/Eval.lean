@@ -279,8 +279,8 @@ def State.eval (stt : State) : StoreM $ ExprPtr × Array State := do
     let stt := stt'
     stt' ← stt.step
     if stt' == stt then break
-    dbg_trace stt'
     stts := stts.push stt'
+    dbg_trace stt'
   return (stt'.expr, stts)
 
 def LDON.evalM (ldon : LDON) : StoreM $ ExprPtr × Array State := do
@@ -289,7 +289,8 @@ def LDON.evalM (ldon : LDON) : StoreM $ ExprPtr × Array State := do
 def LDON.eval (ldon : LDON) (store : Store := default) :
     Except String $ ExprPtr × (Array State) × Store :=
   match EStateM.run ldon.evalM store with
-  | .ok (expr, stts) store => return (expr, stts, store)
+  | .ok (expr, stts) store =>
+    return (expr, if stts.size == 2 then stts else stts.pop, store)
   | .error err _ => throw err
 
 def test (ldon : LDON) : Except String Nat :=
@@ -300,13 +301,14 @@ def test (ldon : LDON) : Except String Nat :=
 open LDON.DSL
 def main : IO Unit :=
   let code := ⟪
-    -- (letrec ((count10 (lambda (i) (if (= i 10) i (count10 (+ i 1)))))) (count10 0))
+    (letrec ((count10 (lambda (i) (if (= i 10) i (count10 (+ i 1)))))) (count10 0))
     -- (let ((a 1) (b a)) (+ b 1))
     -- ((lambda (i) (if (= i 10) i (+ i 1))) 0)
     -- (+ (+ 1 1) (+ 1 1))
     -- (+ ((lambda (x) x) 1) 2)
     -- (if nil 1 (+ 1 2))
-    ((lambda (x y) (+ x y)) (+ 1 1) 3)
+    -- (let () 2)
+    -- ((lambda (x y) (+ x y)) (+ 1 1) 3)
     -- (let ((count10 (lambda (i) (if (= i 10) i (+ i 1))))) (count10 0))
   ⟫
   match test code with
