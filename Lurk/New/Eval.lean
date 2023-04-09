@@ -1,4 +1,3 @@
-import Std.Data.RBMap
 import Lurk.New.ExprPtrArith
 import Lurk.New.Store
 
@@ -89,6 +88,7 @@ structure State where
   expr : ExprPtr
   env  : ExprPtr
   cont : ContPtr
+  deriving BEq
 
 instance : ToString State where
   toString x := s!"⟨{x.expr}, {x.cont}⟩"
@@ -127,14 +127,6 @@ def intoIf (tailPtr : ExprPtr) : StepInto := fun (envPtr, contPtr) => do
     (.cont2 truePtr falsePtr contPtr)
   return ⟨propPtr, envPtr, contPtr'⟩
 
-def mkTail (stt : State) : StoreM State := do
-  let contPtr := stt.cont
-  if contPtr.tag != .done then return stt
-  let contPtr' ← addToContStore
-    ⟨.tail, hash2 contPtr.tag.toF contPtr.val⟩
-    (.cont0 contPtr)
-  return { stt with cont := contPtr' }
-
 def intoLet (bindsPtr bodyPtr: ExprPtr) : StepInto := fun (envPtr, contPtr) => do
   let bindPtr ← car bindsPtr
   let (_, bindExprPtr) ← unfold2 bindPtr
@@ -158,7 +150,7 @@ def intoLetrec (bindsPtr bodyPtr : ExprPtr) : StepInto := fun (envPtr, contPtr) 
 
 def intoNextAppArg (fnPtr argsSymsPtr argsPtr bodyPtr : ExprPtr) : StepInto :=
   fun (envPtr, contPtr) => do match ← isNil argsSymsPtr, ← isNil argsPtr with
-    | true,  true  => mkTail ⟨bodyPtr, envPtr, contPtr⟩ -- fulfilled
+    | true,  true  => return ⟨bodyPtr, envPtr, contPtr⟩ -- fulfilled
     | false, true  => return ⟨fnPtr, envPtr, contPtr⟩ -- still missing args
     | true,  false => throw "Too many arguments"
     | false, false => -- currying
@@ -180,7 +172,7 @@ def State.finishBinOp (stt : State) (op : BinOp) : StoreM State := do
 
 def State.continue (stt : State) : StoreM State := do
   match stt.cont.tag with
-  | .done => return stt
+  | .neutral => return stt
   | .unOp op => stt.finishUnOp op
   | .binOp₁ op =>
     let x := stt.expr
@@ -208,26 +200,25 @@ def State.continue (stt : State) : StoreM State := do
     | _ => throw "Error applying app argument. Head function expected"
   | .if =>
     let (truePtr, falsePtr, contPtr) ← getCont2 stt.cont
-    if ← isNil stt.expr then mkTail ⟨falsePtr, stt.env, contPtr⟩
-    else mkTail ⟨truePtr, stt.env, contPtr⟩
+    if ← isNil stt.expr then return ⟨falsePtr, stt.env, contPtr⟩
+    else return ⟨truePtr, stt.env, contPtr⟩
   | .let =>
     let (bindsPtr, bodyPtr, contPtr) ← getCont2 stt.cont
     let (bindPtr, bindsPtr') ← uncons bindsPtr
     let (bindSymPtr, _) ← unfold2 bindPtr
     let envPtr ← insert stt.env bindSymPtr stt.expr
-    if ← isNil bindsPtr' then mkTail ⟨bodyPtr, envPtr, contPtr⟩ else
+    if ← isNil bindsPtr' then return ⟨bodyPtr, envPtr, contPtr⟩ else
     intoLet bindsPtr' bodyPtr (envPtr, contPtr)
   | .letrec =>
     let (bindsPtr, bodyPtr, contPtr) ← getCont2 stt.cont
     let (bindPtr, bindsPtr') ← uncons bindsPtr
     let (bindSymPtr, _) ← unfold2 bindPtr
     let envPtr ← insert stt.env bindSymPtr stt.expr
-    if ← isNil bindsPtr' then mkTail ⟨bodyPtr, envPtr, contPtr⟩ else
+    if ← isNil bindsPtr' then return ⟨bodyPtr, envPtr, contPtr⟩ else
     intoLetrec bindsPtr' bodyPtr (envPtr, contPtr)
   | .env =>
     let (envPtr₀, contPtr) ← getCont1 stt.cont
     return ⟨stt.expr, envPtr₀, contPtr⟩
-  | .tail => return { stt with cont := ← getCont0 stt.cont }
 
 @[inline] def State.stepIntoParams (stt : State) : ExprPtr × ContPtr :=
   (stt.env, stt.cont)
@@ -281,18 +272,19 @@ def State.step (stt : State) : StoreM State := do
     else let stt ← stt.saveEnv; intoApp head tail stt.stepIntoParams
 
 def State.eval (stt : State) : StoreM $ ExprPtr × Array State := do
-  let mut stt' ← stt.step
-  let mut stts := #[stt, stt']
-  dbg_trace stt
+  let mut stt' := stt
   dbg_trace stt'
-  while stt'.cont.tag != .done do
-    stt' ← stt'.step
+  let mut stts := #[stt]
+  while true do
+    let stt := stt'
+    stt' ← stt.step
+    if stt' == stt then break
     dbg_trace stt'
     stts := stts.push stt'
   return (stt'.expr, stts)
 
 def LDON.evalM (ldon : LDON) : StoreM $ ExprPtr × Array State := do
-  State.eval ⟨← putLDON ldon, ← putSym .nil, ⟨.done, .zero⟩⟩
+  State.eval ⟨← putLDON ldon, ← putSym .nil, ⟨.neutral, .zero⟩⟩
 
 def LDON.eval (ldon : LDON) (store : Store := default) :
     Except String $ ExprPtr × (Array State) × Store :=
