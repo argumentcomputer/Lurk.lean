@@ -89,10 +89,9 @@ structure State where
   expr : ExprPtr
   env  : ExprPtr
   cont : ContPtr
-  deriving BEq
 
 instance : ToString State where
-  toString x := s!"⟨{x.expr}, {x.env}, {x.cont}⟩"
+  toString x := s!"⟨{x.expr}, {x.cont}⟩"
 
 abbrev StepInto := ExprPtr × ContPtr → StoreM State
 
@@ -121,7 +120,7 @@ def intoIf (tailPtr : ExprPtr) : StepInto := fun (envPtr, contPtr) => do
   let (propPtr, tailPtr) ← cadr tailPtr
   let (truePtr, tailPtr) ← cadr tailPtr
   let (falsePtr, tailPtr) ← cadr tailPtr
-  if ← isNotNil tailPtr then throw "To many arguments for `if`"
+  if ← isNotNil tailPtr then throw "To many if arguments"
   let contPtr' ← addToContStore
     ⟨.if, hash6 truePtr.tag.toF truePtr.val falsePtr.tag.toF falsePtr.val
       contPtr.tag.toF contPtr.val⟩
@@ -133,6 +132,13 @@ def intoBody (bodyPtr envPtr₀ : ExprPtr) : StepInto := fun (envPtr, contPtr) =
     ⟨.body, hash4 envPtr₀.tag.toF envPtr₀.val contPtr.tag.toF contPtr.val⟩
     (.cont1 envPtr₀ contPtr)
   return ⟨bodyPtr, envPtr, contPtr'⟩
+
+def State.saveEnv (stt : State) : StoreM State := do
+  let (envPtr, contPtr) := (stt.env, stt.cont)
+  let contPtr' ← addToContStore
+    ⟨.body, hash4 envPtr.tag.toF envPtr.val contPtr.tag.toF contPtr.val⟩
+    (.cont1 envPtr contPtr)
+  return { stt with cont := contPtr' }
 
 def intoLet (bindsPtr bodyPtr envPtr₀ : ExprPtr) : StepInto := fun (envPtr, contPtr) => do
   if ← isNil bindsPtr then intoBody bodyPtr envPtr₀ (envPtr, contPtr) else
@@ -155,15 +161,28 @@ def intoLetrec (bindsPtr bodyPtr envPtr₀ : ExprPtr) : StepInto := fun (envPtr,
   let thunkPtr ← addToExprStore
     ⟨.thunk, hash2 bindExprPtr.tag.toF bindExprPtr.val⟩
     (.thunk bindExprPtr)
-  let envPtr' ← insert envPtr bindSymPtr thunkPtr
-  return ⟨bindExprPtr, envPtr', contPtr'⟩
+  return ⟨bindExprPtr, ← insert envPtr bindSymPtr thunkPtr, contPtr'⟩
 
-def mkRet (stt : State) : StoreM State := do
+def mkTail (stt : State) : StoreM State := do
   let contPtr := stt.cont
+  if contPtr.tag != .done then return stt
   let contPtr' ← addToContStore
-    ⟨.ret, hash2 contPtr.tag.toF contPtr.val⟩
+    ⟨.tail, hash2 contPtr.tag.toF contPtr.val⟩
     (.cont0 contPtr)
   return { stt with cont := contPtr' }
+
+def intoNextAppArg (fnPtr argsSymsPtr argsPtr bodyPtr envPtr₀ : ExprPtr) : StepInto :=
+  fun (envPtr, contPtr) => do match ← isNil argsSymsPtr, ← isNil argsPtr with
+    | true,  true  => intoBody bodyPtr envPtr₀ (envPtr, contPtr) -- fulfilled
+    | false, true  => return ⟨fnPtr, envPtr₀, contPtr⟩ -- still missing args
+    | true,  false => throw "Too many arguments"
+    | false, false => -- currying
+      let (argPtr, argsPtr) ← uncons argsPtr
+      let contPtr' ← addToContStore
+        ⟨.appArg, hash6 fnPtr.tag.toF fnPtr.val argsPtr.tag.toF argsPtr.val
+          contPtr.tag.toF contPtr.val⟩
+        (.cont2 fnPtr argsPtr contPtr)
+      return ⟨argPtr, envPtr₀, contPtr'⟩
 
 def State.finishUnOp (stt : State) : UnOp → StoreM State
   | .car => return ⟨← car stt.expr, stt.env, ← getCont0 stt.cont⟩
@@ -191,17 +210,7 @@ def State.continue (stt : State) : StoreM State := do
     let (argsPtr, contPtr) ← getCont1 stt.cont
     match ← getExprPtrImg fnPtr with
     | .fun argsSymsPtr funEnvPtr bodyPtr =>
-      match ← isNil argsSymsPtr, ← isNil argsPtr with
-      | true,  true  => intoBody bodyPtr stt.env (funEnvPtr, contPtr) -- fulfilled
-      | false, true  => return ⟨fnPtr, stt.env, contPtr⟩ -- still missing args
-      | true,  false => throw "Too many arguments"
-      | false, false => -- currying
-        let (argPtr, argsPtr) ← uncons argsPtr
-        let contPtr' ← addToContStore
-          ⟨.appArg, hash6 fnPtr.tag.toF fnPtr.val argsPtr.tag.toF argsPtr.val
-            contPtr.tag.toF contPtr.val⟩
-          (.cont2 fnPtr argsPtr contPtr)
-        return ⟨argPtr, stt.env, contPtr'⟩
+      intoNextAppArg fnPtr argsSymsPtr argsPtr bodyPtr stt.env (funEnvPtr, contPtr)
     | _ => throw s!"Error evaluating app function. Head function expected"
   | .appArg =>
     let (fnPtr, argsPtr, contPtr) ← getCont2 stt.cont
@@ -209,16 +218,13 @@ def State.continue (stt : State) : StoreM State := do
     | .fun argsSymsPtr funEnvPtr bodyPtr =>
       let (argSymPtr, argsSymsPtr) ← uncons argsSymsPtr
       let funEnvPtr ← insert funEnvPtr argSymPtr stt.expr
-      let funPtr ← mkFunPtr argsSymsPtr funEnvPtr bodyPtr
-      let contPtr' ← addToContStore
-        ⟨.appFn, hash4 argsPtr.tag.toF argsPtr.val contPtr.tag.toF contPtr.val⟩
-        (.cont1 argsPtr contPtr)
-      return ⟨funPtr, stt.env, contPtr'⟩
+      let fnPtr' ← mkFunPtr argsSymsPtr funEnvPtr bodyPtr
+      intoNextAppArg fnPtr' argsSymsPtr argsPtr bodyPtr stt.env (funEnvPtr, contPtr)
     | _ => throw "Error applying app argument. Head function expected"
   | .if =>
     let (truePtr, falsePtr, contPtr) ← getCont2 stt.cont
-    if ← isNil stt.expr then mkRet ⟨falsePtr, stt.env, contPtr⟩
-    else mkRet ⟨truePtr, stt.env, contPtr⟩
+    if ← isNil stt.expr then mkTail ⟨falsePtr, stt.env, contPtr⟩
+    else mkTail ⟨truePtr, stt.env, contPtr⟩
   | .let =>
     let (bindsPtr, bodyPtr, envPtr₀, contPtr) ← getCont3 stt.cont
     let (bindPtr, bindsPtr') ← uncons bindsPtr
@@ -234,7 +240,7 @@ def State.continue (stt : State) : StoreM State := do
   | .body =>
     let (envPtr₀, contPtr) ← getCont1 stt.cont
     return ⟨stt.expr, envPtr₀, contPtr⟩
-  | .ret => return { stt with cont := ← getCont0 stt.cont }
+  | .tail => return { stt with cont := ← getCont0 stt.cont }
 
 @[inline] def State.stepIntoParams (stt : State) : ExprPtr × ContPtr :=
   (stt.env, stt.cont)
@@ -276,7 +282,7 @@ def State.step (stt : State) : StoreM State := do
       | _ => intoApp head tail stt.stepIntoParams
     else intoApp head tail stt.stepIntoParams
 
-def State.eval (stt : State) : StoreM $ State × Array State := do
+def State.eval (stt : State) : StoreM $ ExprPtr × Array State := do
   let mut stt' ← stt.step
   let mut stts := #[stt, stt']
   dbg_trace stt
@@ -285,16 +291,16 @@ def State.eval (stt : State) : StoreM $ State × Array State := do
     stt' ← stt'.step
     dbg_trace stt'
     stts := stts.push stt'
-  return (stt', stts)
+  return (stt'.expr, stts)
 
-def LDON.evalM (ldon : LDON) : StoreM $ State × Array State := do
+def LDON.evalM (ldon : LDON) : StoreM $ ExprPtr × Array State := do
   State.eval ⟨← putLDON ldon, ← putSym .nil, ⟨.done, .zero⟩⟩
 
 def LDON.eval (ldon : LDON) (store : Store := default) :
-    Except String $ State × (Array State) × Store :=
+    Except String $ ExprPtr × (Array State) × Store :=
   match EStateM.run ldon.evalM store with
-  | .ok (stt, stts) store => return (stt, stts, store)
-  | .error e _ => throw e
+  | .ok (expr, stts) store => return (expr, stts, store)
+  | .error err _ => throw err
 
 def test (ldon : LDON) : Except String Nat :=
   match ldon.eval with
@@ -305,11 +311,12 @@ open LDON.DSL
 def main : IO Unit :=
   let code := ⟪
     -- (letrec ((count10 (lambda (i) (if (= i 10) i (count10 (+ i 1)))))) (count10 0))
-    -- (let ((a 1) (b a)) b)
+    -- (let ((a 1) (b a)) (+ b 1))
+    -- ((lambda (i) (if (= i 10) i (+ i 1))) 0)
+    -- (+ (+ 1 1) (+ 1 1))
     -- (if nil 1 (+ 1 2))
-    -- ((lambda (x y) (+ x y)) (+ 1 1) 3)
+    ((lambda (x y) (+ x y)) (+ 1 1) 3)
     -- (let ((count10 (lambda (i) (if (= i 10) i (+ i 1))))) (count10 0))
-    (letrec ((count10 (lambda (i) (if (= i 10) i (count10 (+ i 1)))))) (count10 0))
   ⟫
   match test code with
   | .ok e | .error e => IO.println e
