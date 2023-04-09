@@ -153,8 +153,8 @@ def intoLetrec (bindsPtr bodyPtr envPtr₀ : ExprPtr) : StepInto := fun (envPtr,
       envPtr₀.tag.toF envPtr₀.val contPtr.tag.toF contPtr.val⟩
     (.cont3 bindsPtr bodyPtr envPtr₀ contPtr)
   let thunkPtr ← addToExprStore
-    ⟨.thunk, hash6 bindSymPtr.tag.toF bindSymPtr.val bindExprPtr.tag.toF bindExprPtr.val envPtr.tag.toF envPtr.val⟩
-    (.thunk bindSymPtr bindExprPtr envPtr)
+    ⟨.thunk, hash2 bindExprPtr.tag.toF bindExprPtr.val⟩
+    (.thunk bindExprPtr)
   let envPtr' ← insert envPtr bindSymPtr thunkPtr
   return ⟨bindExprPtr, envPtr', contPtr'⟩
 
@@ -248,15 +248,12 @@ def State.step (stt : State) : StoreM State := do
     | .nil | .t => stt.continue
     | sym => match ← find? stt.env symPtr with
       | some valPtr =>
-        let stt := { stt with expr := valPtr }
-        if valPtr.tag != .thunk then stt.continue
-        else return stt
+        if valPtr.tag != .thunk then State.continue { stt with expr := valPtr }
+        else return ⟨valPtr, ← insert stt.env symPtr valPtr, stt.cont⟩
       | none => throw s!"{sym} not found"
   | .thunk =>
-    let .thunk sym expr env ← getExprPtrImg stt.expr
-      | throw "Expected thunk. Malformed store"
-    let env' ← insert env sym stt.expr
-    return ⟨expr, env', stt.cont⟩
+    let .thunk expr ← getExprPtrImg stt.expr | throw "Expected thunk. Malformed store"
+    return { stt with expr }
   | .cons =>
     let .cons head tail ← getExprPtrImg stt.expr
       | throw "Expected cons. Malformed store"
