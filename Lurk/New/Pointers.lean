@@ -43,7 +43,7 @@ inductive ContTag
   | «if»
   | «let»
   | letrec
-  | body
+  | env
   | tail
   | unOp : UnOp → ContTag
   | binOp₁ : BinOp → ContTag
@@ -57,7 +57,7 @@ def ContTag.toString : ContTag → String
   | .if => "if"
   | .let => "let"
   | letrec => "letrec"
-  | body => "body"
+  | env => "env"
   | tail => "tail"
   | unOp op => s!"unOp[{op}]"
   | binOp₁ op => s!"binOp₁[{op}]"
@@ -85,7 +85,7 @@ def ContTag.toF : ContTag → F
   | .if => .ofNat 19
   | .let => .ofNat 20
   | .letrec => .ofNat 21
-  | .body => .ofNat 22
+  | .env => .ofNat 22
   | .tail => .ofNat 23
   | .unOp .car => .ofNat 32
   | .binOp₁ .add => .ofNat 64

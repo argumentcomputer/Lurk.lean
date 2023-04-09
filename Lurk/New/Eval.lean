@@ -127,42 +127,6 @@ def intoIf (tailPtr : ExprPtr) : StepInto := fun (envPtr, contPtr) => do
     (.cont2 truePtr falsePtr contPtr)
   return ⟨propPtr, envPtr, contPtr'⟩
 
-def intoBody (bodyPtr envPtr₀ : ExprPtr) : StepInto := fun (envPtr, contPtr) => do
-  let contPtr' ← addToContStore
-    ⟨.body, hash4 envPtr₀.tag.toF envPtr₀.val contPtr.tag.toF contPtr.val⟩
-    (.cont1 envPtr₀ contPtr)
-  return ⟨bodyPtr, envPtr, contPtr'⟩
-
-def State.saveEnv (stt : State) : StoreM State := do
-  let (envPtr, contPtr) := (stt.env, stt.cont)
-  let contPtr' ← addToContStore
-    ⟨.body, hash4 envPtr.tag.toF envPtr.val contPtr.tag.toF contPtr.val⟩
-    (.cont1 envPtr contPtr)
-  return { stt with cont := contPtr' }
-
-def intoLet (bindsPtr bodyPtr envPtr₀ : ExprPtr) : StepInto := fun (envPtr, contPtr) => do
-  if ← isNil bindsPtr then intoBody bodyPtr envPtr₀ (envPtr, contPtr) else
-  let bindPtr ← car bindsPtr
-  let (_, bindExprPtr) ← unfold2 bindPtr
-  let contPtr' ← addToContStore
-    ⟨.let, hash8 bindsPtr.tag.toF bindsPtr.val bodyPtr.tag.toF bodyPtr.val
-      envPtr₀.tag.toF envPtr₀.val contPtr.tag.toF contPtr.val⟩
-    (.cont3 bindsPtr bodyPtr envPtr₀ contPtr)
-  return ⟨bindExprPtr, envPtr, contPtr'⟩
-
-def intoLetrec (bindsPtr bodyPtr envPtr₀ : ExprPtr) : StepInto := fun (envPtr, contPtr) => do
-  if ← isNil bindsPtr then intoBody bodyPtr envPtr₀ (envPtr, contPtr) else
-  let bindPtr ← car bindsPtr
-  let (bindSymPtr, bindExprPtr) ← unfold2 bindPtr
-  let contPtr' ← addToContStore
-    ⟨.letrec, hash8 bindsPtr.tag.toF bindsPtr.val bodyPtr.tag.toF bodyPtr.val
-      envPtr₀.tag.toF envPtr₀.val contPtr.tag.toF contPtr.val⟩
-    (.cont3 bindsPtr bodyPtr envPtr₀ contPtr)
-  let thunkPtr ← addToExprStore
-    ⟨.thunk, hash2 bindExprPtr.tag.toF bindExprPtr.val⟩
-    (.thunk bindExprPtr)
-  return ⟨bindExprPtr, ← insert envPtr bindSymPtr thunkPtr, contPtr'⟩
-
 def mkTail (stt : State) : StoreM State := do
   let contPtr := stt.cont
   if contPtr.tag != .done then return stt
@@ -171,10 +135,31 @@ def mkTail (stt : State) : StoreM State := do
     (.cont0 contPtr)
   return { stt with cont := contPtr' }
 
-def intoNextAppArg (fnPtr argsSymsPtr argsPtr bodyPtr envPtr₀ : ExprPtr) : StepInto :=
+def intoLet (bindsPtr bodyPtr: ExprPtr) : StepInto := fun (envPtr, contPtr) => do
+  let bindPtr ← car bindsPtr
+  let (_, bindExprPtr) ← unfold2 bindPtr
+  let contPtr' ← addToContStore
+    ⟨.let, hash6 bindsPtr.tag.toF bindsPtr.val bodyPtr.tag.toF bodyPtr.val
+      contPtr.tag.toF contPtr.val⟩
+    (.cont2 bindsPtr bodyPtr contPtr)
+  return ⟨bindExprPtr, envPtr, contPtr'⟩
+
+def intoLetrec (bindsPtr bodyPtr : ExprPtr) : StepInto := fun (envPtr, contPtr) => do
+  let bindPtr ← car bindsPtr
+  let (bindSymPtr, bindExprPtr) ← unfold2 bindPtr
+  let contPtr' ← addToContStore
+    ⟨.letrec, hash6 bindsPtr.tag.toF bindsPtr.val bodyPtr.tag.toF bodyPtr.val
+      contPtr.tag.toF contPtr.val⟩
+    (.cont2 bindsPtr bodyPtr contPtr)
+  let thunkPtr ← addToExprStore
+    ⟨.thunk, hash2 bindExprPtr.tag.toF bindExprPtr.val⟩
+    (.thunk bindExprPtr)
+  return ⟨bindExprPtr, ← insert envPtr bindSymPtr thunkPtr, contPtr'⟩
+
+def intoNextAppArg (fnPtr argsSymsPtr argsPtr bodyPtr : ExprPtr) : StepInto :=
   fun (envPtr, contPtr) => do match ← isNil argsSymsPtr, ← isNil argsPtr with
-    | true,  true  => intoBody bodyPtr envPtr₀ (envPtr, contPtr) -- fulfilled
-    | false, true  => return ⟨fnPtr, envPtr₀, contPtr⟩ -- still missing args
+    | true,  true  => mkTail ⟨bodyPtr, envPtr, contPtr⟩ -- fulfilled
+    | false, true  => return ⟨fnPtr, envPtr, contPtr⟩ -- still missing args
     | true,  false => throw "Too many arguments"
     | false, false => -- currying
       let (argPtr, argsPtr) ← uncons argsPtr
@@ -182,7 +167,7 @@ def intoNextAppArg (fnPtr argsSymsPtr argsPtr bodyPtr envPtr₀ : ExprPtr) : Ste
         ⟨.appArg, hash6 fnPtr.tag.toF fnPtr.val argsPtr.tag.toF argsPtr.val
           contPtr.tag.toF contPtr.val⟩
         (.cont2 fnPtr argsPtr contPtr)
-      return ⟨argPtr, envPtr₀, contPtr'⟩
+      return ⟨argPtr, envPtr, contPtr'⟩
 
 def State.finishUnOp (stt : State) : UnOp → StoreM State
   | .car => return ⟨← car stt.expr, stt.env, ← getCont0 stt.cont⟩
@@ -210,7 +195,7 @@ def State.continue (stt : State) : StoreM State := do
     let (argsPtr, contPtr) ← getCont1 stt.cont
     match ← getExprPtrImg fnPtr with
     | .fun argsSymsPtr funEnvPtr bodyPtr =>
-      intoNextAppArg fnPtr argsSymsPtr argsPtr bodyPtr stt.env (funEnvPtr, contPtr)
+      intoNextAppArg fnPtr argsSymsPtr argsPtr bodyPtr (funEnvPtr, contPtr)
     | _ => throw s!"Error evaluating app function. Head function expected"
   | .appArg =>
     let (fnPtr, argsPtr, contPtr) ← getCont2 stt.cont
@@ -219,31 +204,40 @@ def State.continue (stt : State) : StoreM State := do
       let (argSymPtr, argsSymsPtr) ← uncons argsSymsPtr
       let funEnvPtr ← insert funEnvPtr argSymPtr stt.expr
       let fnPtr' ← mkFunPtr argsSymsPtr funEnvPtr bodyPtr
-      intoNextAppArg fnPtr' argsSymsPtr argsPtr bodyPtr stt.env (funEnvPtr, contPtr)
+      intoNextAppArg fnPtr' argsSymsPtr argsPtr bodyPtr (funEnvPtr, contPtr)
     | _ => throw "Error applying app argument. Head function expected"
   | .if =>
     let (truePtr, falsePtr, contPtr) ← getCont2 stt.cont
     if ← isNil stt.expr then mkTail ⟨falsePtr, stt.env, contPtr⟩
     else mkTail ⟨truePtr, stt.env, contPtr⟩
   | .let =>
-    let (bindsPtr, bodyPtr, envPtr₀, contPtr) ← getCont3 stt.cont
+    let (bindsPtr, bodyPtr, contPtr) ← getCont2 stt.cont
     let (bindPtr, bindsPtr') ← uncons bindsPtr
     let (bindSymPtr, _) ← unfold2 bindPtr
     let envPtr ← insert stt.env bindSymPtr stt.expr
-    intoLet bindsPtr' bodyPtr envPtr₀ (envPtr, contPtr)
+    if ← isNil bindsPtr' then mkTail ⟨bodyPtr, envPtr, contPtr⟩ else
+    intoLet bindsPtr' bodyPtr (envPtr, contPtr)
   | .letrec =>
-    let (bindsPtr, bodyPtr, envPtr₀, contPtr) ← getCont3 stt.cont
+    let (bindsPtr, bodyPtr, contPtr) ← getCont2 stt.cont
     let (bindPtr, bindsPtr') ← uncons bindsPtr
     let (bindSymPtr, _) ← unfold2 bindPtr
     let envPtr ← insert stt.env bindSymPtr stt.expr
-    intoLetrec bindsPtr' bodyPtr envPtr₀ (envPtr, contPtr)
-  | .body =>
+    if ← isNil bindsPtr' then mkTail ⟨bodyPtr, envPtr, contPtr⟩ else
+    intoLetrec bindsPtr' bodyPtr (envPtr, contPtr)
+  | .env =>
     let (envPtr₀, contPtr) ← getCont1 stt.cont
     return ⟨stt.expr, envPtr₀, contPtr⟩
   | .tail => return { stt with cont := ← getCont0 stt.cont }
 
 @[inline] def State.stepIntoParams (stt : State) : ExprPtr × ContPtr :=
   (stt.env, stt.cont)
+
+def State.saveEnv (stt : State) : StoreM State := do
+  let (envPtr, contPtr) := (stt.env, stt.cont)
+  let contPtr' ← addToContStore
+    ⟨.env, hash4 envPtr.tag.toF envPtr.val contPtr.tag.toF contPtr.val⟩
+    (.cont1 envPtr contPtr)
+  return { stt with cont := contPtr' }
 
 def State.step (stt : State) : StoreM State := do
   match stt.expr.tag with
@@ -275,12 +269,16 @@ def State.step (stt : State) : StoreM State := do
       | .ofString "if" => intoIf tail stt.stepIntoParams
       | .ofString "let" =>
         let (bindsPtr, bodyPtr) ← unfold2 tail
-        intoLet bindsPtr bodyPtr stt.env stt.stepIntoParams
+        if ← isNil bindsPtr then return { stt with expr := bodyPtr }
+        let stt ← stt.saveEnv
+        intoLet bindsPtr bodyPtr stt.stepIntoParams
       | .ofString "letrec" =>
         let (bindsPtr, bodyPtr) ← unfold2 tail
-        intoLetrec bindsPtr bodyPtr stt.env stt.stepIntoParams
-      | _ => intoApp head tail stt.stepIntoParams
-    else intoApp head tail stt.stepIntoParams
+        if ← isNil bindsPtr then return { stt with expr := bodyPtr }
+        let stt ← stt.saveEnv
+        intoLetrec bindsPtr bodyPtr stt.stepIntoParams
+      | _ => let stt ← stt.saveEnv; intoApp head tail stt.stepIntoParams
+    else let stt ← stt.saveEnv; intoApp head tail stt.stepIntoParams
 
 def State.eval (stt : State) : StoreM $ ExprPtr × Array State := do
   let mut stt' ← stt.step
@@ -314,6 +312,7 @@ def main : IO Unit :=
     -- (let ((a 1) (b a)) (+ b 1))
     -- ((lambda (i) (if (= i 10) i (+ i 1))) 0)
     -- (+ (+ 1 1) (+ 1 1))
+    -- (+ ((lambda (x) x) 1) 2)
     -- (if nil 1 (+ 1 2))
     ((lambda (x y) (+ x y)) (+ 1 1) 3)
     -- (let ((count10 (lambda (i) (if (= i 10) i (+ i 1))))) (count10 0))
