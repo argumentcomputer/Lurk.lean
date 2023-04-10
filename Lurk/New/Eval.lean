@@ -206,7 +206,7 @@ def intoNextAppArg (fnPtr argsSymsPtr argsPtr bodyPtr : ExprPtr) : StepInto :=
 
 def Frame.continue (frm : Frame) : StoreM Frame := do
   match frm.cont.tag with
-  | .entry => return { frm with cont := ← getCont0 frm.cont }
+  | .entry => pure { frm with cont := ← getCont0 frm.cont }
   | .halt => throw "Can't continue upon halt continuation"
   | .unOp op => intoUnOpHandle frm.expr op (frm.env, ← getCont0 frm.cont)
   | .binOp₁ op =>
@@ -239,18 +239,18 @@ def Frame.continue (frm : Frame) : StoreM Frame := do
     let (bindPtr, bindsPtr') ← uncons bindsPtr
     let (bindSymPtr, _) ← unfold2 bindPtr
     let envPtr ← insert frm.env bindSymPtr frm.expr
-    if ← isNil bindsPtr' then return ⟨bodyPtr, envPtr, contPtr⟩ else
-    intoLet bindsPtr' bodyPtr (envPtr, contPtr)
+    if ← isNil bindsPtr' then pure ⟨bodyPtr, envPtr, contPtr⟩
+    else intoLet bindsPtr' bodyPtr (envPtr, contPtr)
   | .letrec =>
     let (bindsPtr, bodyPtr, contPtr) ← getCont2 frm.cont
     let (bindPtr, bindsPtr') ← uncons bindsPtr
     let (bindSymPtr, _) ← unfold2 bindPtr
     let envPtr ← insert frm.env bindSymPtr frm.expr
-    if ← isNil bindsPtr' then return ⟨bodyPtr, envPtr, contPtr⟩ else
-    intoLetrec bindsPtr' bodyPtr (envPtr, contPtr)
+    if ← isNil bindsPtr' then pure ⟨bodyPtr, envPtr, contPtr⟩
+    else intoLetrec bindsPtr' bodyPtr (envPtr, contPtr)
   | .env =>
     let (envPtr₀, contPtr) ← getCont1 frm.cont
-    return ⟨frm.expr, envPtr₀, contPtr⟩
+    pure ⟨frm.expr, envPtr₀, contPtr⟩
 
 @[inline] def Frame.stepIntoParams (frm : Frame) : ExprPtr × ContPtr :=
   (frm.env, frm.cont)
@@ -264,45 +264,46 @@ def Frame.saveEnv (frm : Frame) : StoreM Frame := do
   return { frm with cont := contPtr' }
 
 def Frame.step (frm : Frame) : StoreM Frame := do
-  match frm.expr.tag with
-  | .num | .u64 | .char | .str | .comm | .fun => frm.continue
-  | .sym =>
-    let symPtr := frm.expr
-    match ← getSym symPtr with
-    | .nil | .t => frm.continue
-    | sym => match ← find? frm.env symPtr with
-      | some valPtr =>
-        if valPtr.tag != .thunk then Frame.continue { frm with expr := valPtr }
-        else return ⟨valPtr, ← insert frm.env symPtr valPtr, frm.cont⟩
-      | none => throw s!"{sym} not found"
-  | .thunk =>
-    let .thunk expr ← getExprPtrImg frm.expr | throw "Expected thunk. Malformed store"
-    return { frm with expr }
-  | .cons =>
-    let .cons head tail ← getExprPtrImg frm.expr
-      | throw "Expected cons. Malformed store"
-    if head.tag == .sym then match ← getSym head with
-      | .ofString "car" => intoUnOp (.unOp .car) tail frm.stepIntoParams
-      | .ofString "+" => intoBinOp (.binOp₁ .add) tail frm.stepIntoParams
-      | .ofString "=" => intoBinOp (.binOp₁ .numEq) tail frm.stepIntoParams
-      | .ofString "lambda" =>
-        let (argsSymsPtr, bodyPtr) ← unfold2 tail
-        let envPtr := frm.env
-        let funPtr ← mkFunPtr argsSymsPtr envPtr bodyPtr
-        return ⟨funPtr, envPtr, frm.cont⟩
-      | .ofString "if" => intoIf tail frm.stepIntoParams
-      | .ofString "let" =>
-        let (bindsPtr, bodyPtr) ← unfold2 tail
-        if ← isNil bindsPtr then return { frm with expr := bodyPtr }
-        let frm ← frm.saveEnv
-        intoLet bindsPtr bodyPtr frm.stepIntoParams
-      | .ofString "letrec" =>
-        let (bindsPtr, bodyPtr) ← unfold2 tail
-        if ← isNil bindsPtr then return { frm with expr := bodyPtr }
-        let frm ← frm.saveEnv
-        intoLetrec bindsPtr bodyPtr frm.stepIntoParams
-      | _ => let frm ← frm.saveEnv; intoApp head tail frm.stepIntoParams
-    else let frm ← frm.saveEnv; intoApp head tail frm.stepIntoParams
+  let frm' ← match frm.expr.tag with
+    | .num | .u64 | .char | .str | .comm | .fun => frm.continue
+    | .sym =>
+      let symPtr := frm.expr
+      match ← getSym symPtr with
+      | .nil | .t => frm.continue
+      | sym => match ← find? frm.env symPtr with
+        | some valPtr =>
+          if valPtr.tag != .thunk then Frame.continue { frm with expr := valPtr }
+          else pure ⟨valPtr, ← insert frm.env symPtr valPtr, frm.cont⟩
+        | none => throw s!"{sym} not found"
+    | .thunk =>
+      let .thunk expr ← getExprPtrImg frm.expr | throw "Expected thunk. Malformed store"
+      pure { frm with expr }
+    | .cons =>
+      let .cons head tail ← getExprPtrImg frm.expr
+        | throw "Expected cons. Malformed store"
+      if head.tag == .sym then match ← getSym head with
+        | .ofString "car" => intoUnOp (.unOp .car) tail frm.stepIntoParams
+        | .ofString "+" => intoBinOp (.binOp₁ .add) tail frm.stepIntoParams
+        | .ofString "=" => intoBinOp (.binOp₁ .numEq) tail frm.stepIntoParams
+        | .ofString "lambda" =>
+          let (argsSymsPtr, bodyPtr) ← unfold2 tail
+          let envPtr := frm.env
+          let funPtr ← mkFunPtr argsSymsPtr envPtr bodyPtr
+          pure ⟨funPtr, envPtr, frm.cont⟩
+        | .ofString "if" => intoIf tail frm.stepIntoParams
+        | .ofString "let" =>
+          let (bindsPtr, bodyPtr) ← unfold2 tail
+          if ← isNil bindsPtr then pure { frm with expr := bodyPtr }
+          else let frm ← frm.saveEnv; intoLet bindsPtr bodyPtr frm.stepIntoParams
+        | .ofString "letrec" =>
+          let (bindsPtr, bodyPtr) ← unfold2 tail
+          if ← isNil bindsPtr then pure { frm with expr := bodyPtr }
+          else let frm ← frm.saveEnv; intoLetrec bindsPtr bodyPtr frm.stepIntoParams
+        | _ => let frm ← frm.saveEnv; intoApp head tail frm.stepIntoParams
+      else let frm ← frm.saveEnv; intoApp head tail frm.stepIntoParams
+  if (← isTrivial frm'.expr) && frm'.cont.tag == .entry then
+    return { frm' with cont := ← getCont0 frm'.cont }
+  else return frm'
 
 def Frame.eval (frm : Frame) : StoreM $ ExprPtr × Array Frame := do
   let mut frm' := frm
@@ -341,8 +342,8 @@ def main : IO Unit :=
     -- ((lambda (i) (if (= i 10) i (+ i 1))) 0)
     -- ((lambda (a b c) nil) 1 2 3)
     -- (+ (+ 1 1) (+ 1 1))
-    1
-    -- (+ 1 1)
+    -- 1
+    (+ 1 1)
     -- (car nil)
     -- (if nil 1 (+ 1 2))
     -- (let () 2)
