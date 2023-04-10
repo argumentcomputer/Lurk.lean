@@ -38,7 +38,7 @@ def BinOp.toString : BinOp → String
 instance : ToString BinOp := ⟨BinOp.toString⟩
 
 inductive ContTag
-  | neutral
+  | entry | halt
   | appFn | appArg
   | «if»
   | «let»
@@ -50,7 +50,8 @@ inductive ContTag
   deriving Ord, BEq
 
 def ContTag.toString : ContTag → String
-  | neutral => "neutral"
+  | entry => "entry"
+  | halt => "halt"
   | appFn => "appFn"
   | appArg => "appArg"
   | .if => "if"
@@ -77,13 +78,14 @@ def ExprTag.toF : ExprTag → F
   | .thunk => .ofNat 8
 
 def ContTag.toF : ContTag → F
-  | .neutral => .ofNat 16
-  | .appFn => .ofNat 17
-  | .appArg => .ofNat 18
-  | .if => .ofNat 19
-  | .let => .ofNat 20
-  | .letrec => .ofNat 21
-  | .env => .ofNat 22
+  | .entry => .ofNat 16
+  | .halt => .ofNat 17
+  | .appFn => .ofNat 18
+  | .appArg => .ofNat 19
+  | .if => .ofNat 20
+  | .let => .ofNat 21
+  | .letrec => .ofNat 22
+  | .env => .ofNat 23
   | .unOp .car => .ofNat 32
   | .binOp₁ .add => .ofNat 64
   | .binOp₁ .numEq => .ofNat 65
