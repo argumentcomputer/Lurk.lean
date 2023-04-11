@@ -132,6 +132,25 @@ def intoApp (fnPtr argsPtr : ExprPtr) : StepInto := fun (envPtr, contPtr) => do
     (.cont1 argsPtr contPtr)
   return ⟨fnPtr, envPtr, contPtr'⟩
 
+def saveEnv (envPtr : ExprPtr) (contPtr : ContPtr) : StoreM ContPtr :=
+  if contPtr.tag == .env then pure contPtr else
+  addToContStore
+    ⟨.env, hash4 envPtr.tag.toF envPtr.val contPtr.tag.toF contPtr.val⟩
+    (.cont1 envPtr contPtr)
+
+def intoNextAppArg (fnPtr argsSymsPtr argsPtr bodyPtr funEnvPtr : ExprPtr) : StepInto :=
+  fun (envPtr, contPtr) => do match ← isNil argsSymsPtr, ← isNil argsPtr with
+    | true,  true  => return ⟨bodyPtr, funEnvPtr, ← saveEnv envPtr contPtr⟩ -- fulfilled
+    | false, true  => return ⟨fnPtr, envPtr, contPtr⟩ -- still missing args
+    | true,  false => throw "Too many arguments"
+    | false, false => -- currying
+      let (argPtr, argsPtr) ← uncons argsPtr
+      let contPtr' ← addToContStore
+        ⟨.appArg, hash6 fnPtr.tag.toF fnPtr.val argsPtr.tag.toF argsPtr.val
+          contPtr.tag.toF contPtr.val⟩
+        (.cont2 fnPtr argsPtr contPtr)
+      return ⟨argPtr, envPtr, contPtr'⟩
+
 def intoIf (tailPtr : ExprPtr) : StepInto := fun (envPtr, contPtr) => do
   let (propPtr, tailPtr) ← cadr tailPtr
   let (truePtr, tailPtr) ← cadr tailPtr
@@ -164,30 +183,13 @@ def intoLetrec (bindsPtr bodyPtr : ExprPtr) : StepInto := fun (envPtr, contPtr) 
     (.thunk bindExprPtr)
   return ⟨bindExprPtr, ← insert envPtr bindSymPtr thunkPtr, contPtr'⟩
 
-def saveEnv (envPtr : ExprPtr) (contPtr : ContPtr) : StoreM ContPtr :=
-  if contPtr.tag == .env then pure contPtr else
-  addToContStore
-    ⟨.env, hash4 envPtr.tag.toF envPtr.val contPtr.tag.toF contPtr.val⟩
-    (.cont1 envPtr contPtr)
-
-def intoNextAppArg (fnPtr argsSymsPtr argsPtr bodyPtr envPtr : ExprPtr) : StepInto :=
-  fun (envPtr₀, contPtr) => do match ← isNil argsSymsPtr, ← isNil argsPtr with
-    | true,  true  => return ⟨bodyPtr, envPtr, ← saveEnv envPtr₀ contPtr⟩ -- fulfilled
-    | false, true  => return ⟨fnPtr, envPtr, contPtr⟩ -- still missing args
-    | true,  false => throw "Too many arguments"
-    | false, false => -- currying
-      let (argPtr, argsPtr) ← uncons argsPtr
-      let contPtr' ← addToContStore
-        ⟨.appArg, hash8 fnPtr.tag.toF fnPtr.val argsPtr.tag.toF argsPtr.val
-          envPtr₀.tag.toF envPtr₀.val contPtr.tag.toF contPtr.val⟩
-        (.cont3 fnPtr argsPtr envPtr₀ contPtr)
-      return ⟨argPtr, envPtr, contPtr'⟩
-
 def intoLookup (symPtr envPtr : ExprPtr) : StepInto := fun (envPtr₀, contPtr) => do
   if ← isNil envPtr then throw s!"{← getSym symPtr} not found"
   let (headPtr, tailPtr) ← uncons envPtr
   let (symPtr', valPtr) ← cadr headPtr
-  if symPtr' == symPtr then return ⟨valPtr, envPtr₀, contPtr⟩
+  if symPtr' == symPtr then
+    if valPtr.tag != .thunk then return ⟨valPtr, envPtr₀, contPtr⟩
+    else return ⟨valPtr, ← insert envPtr₀ symPtr valPtr, contPtr⟩
   let contPtr' ← addToContStore
     ⟨.lookup, hash4 tailPtr.tag.toF tailPtr.val contPtr.tag.toF contPtr.val⟩
     (.cont1 tailPtr contPtr)
@@ -218,13 +220,13 @@ def Frame.continue (frm : Frame) : StoreM Frame := do
       intoNextAppArg fnPtr argsSymsPtr argsPtr bodyPtr funEnvPtr (frm.env, contPtr)
     | _ => throw s!"Error evaluating app function. Head function expected"
   | .appArg =>
-    let (fnPtr, argsPtr, envPtr₀, contPtr) ← getCont3 frm.cont
+    let (fnPtr, argsPtr, contPtr) ← getCont2 frm.cont
     match ← getExprPtrImg fnPtr with
     | .fun argsSymsPtr funEnvPtr bodyPtr =>
       let (argSymPtr, argsSymsPtr) ← uncons argsSymsPtr
-      let funEnvPtr ← insert funEnvPtr argSymPtr frm.expr
-      let fnPtr' ← mkFunPtr argsSymsPtr funEnvPtr bodyPtr
-      intoNextAppArg fnPtr' argsSymsPtr argsPtr bodyPtr funEnvPtr (frm.env, contPtr)
+      let funEnvPtr' ← insert funEnvPtr argSymPtr frm.expr
+      let fnPtr' ← mkFunPtr argsSymsPtr funEnvPtr' bodyPtr
+      intoNextAppArg fnPtr' argsSymsPtr argsPtr bodyPtr funEnvPtr' (frm.env, contPtr)
     | _ => throw "Error applying app argument. Head function expected"
   | .if =>
     let (truePtr, falsePtr, contPtr) ← getCont2 frm.cont
@@ -247,7 +249,9 @@ def Frame.continue (frm : Frame) : StoreM Frame := do
   | .env =>
     let (envPtr₀, contPtr) ← getCont1 frm.cont
     return ⟨frm.expr, envPtr₀, contPtr⟩
-  | .lookup => sorry
+  | .lookup =>
+    let (envPtr, contPtr) ← getCont1 frm.cont
+    intoLookup frm.expr envPtr (frm.env, contPtr)
 
 @[inline] def Frame.stepIntoParams (frm : Frame) : ExprPtr × ContPtr :=
   (frm.env, frm.cont)
@@ -262,11 +266,9 @@ def Frame.step (frm : Frame) : StoreM Frame := do
       let symPtr := frm.expr
       match ← getSym symPtr with
       | .nil | .t => frm.continue
-      | sym => match ← find? frm.env symPtr with
-        | some valPtr =>
-          if valPtr.tag != .thunk then Frame.continue { frm with expr := valPtr }
-          else pure ⟨valPtr, ← insert frm.env symPtr valPtr, frm.cont⟩
-        | none => throw s!"{sym} not found"
+      | _ =>
+        let frm' ← intoLookup symPtr frm.env (frm.env, frm.cont)
+        frm'.continue
     | .thunk =>
       let .thunk expr ← getExprPtrImg frm.expr | throw "Expected thunk. Malformed store"
       pure { frm with expr }
@@ -329,7 +331,7 @@ def test (ldon : LDON) : Except String Nat :=
 open LDON.DSL
 def main : IO Unit :=
   let code := ⟪
-    (letrec ((count10 (lambda (i) (if (= i 10) i (count10 (+ i 1)))))) (count10 0))
+    -- (letrec ((count10 (lambda (i) (if (= i 10) i (count10 (+ i 1)))))) (count10 0))
     -- (let ((a 1) (b a)) (+ b 1))
     -- ((lambda (i) (if (= i 10) i (+ i 1))) 0)
     -- ((lambda (a b c) nil) 1 2 3)
@@ -343,6 +345,7 @@ def main : IO Unit :=
     -- ((lambda (x y) (+ x y)) (+ 1 1) 3)
     -- (((lambda (x y) (+ x y)) (+ 1 1)) 3)
     -- (let ((count10 (lambda (i) (if (= i 10) i (+ i 1))))) (count10 0))
+    (let ((a 1) (b 2) (c 3)) a)
     -- (+ ((lambda (x) x) 1) x)
     -- (+ (let ((a 1)) a) a)
   ⟫
