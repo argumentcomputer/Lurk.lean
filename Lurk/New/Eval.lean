@@ -101,50 +101,30 @@ def isTrivial (exprPtr : ExprPtr) : StoreM Bool :=
     | _ => return false
   | _ => return false
 
-def extractUnOp : ContTag → StoreM UnOp
-  | .unOp op => return op
-  | x => throw s!"Can't extract unary operator from {x}"
-
-def extractBinOp : ContTag → StoreM BinOp
-  | .binOp₁ op | .binOp₂ op => return op
-  | x => throw s!"Can't extract binary operator from {x}"
-
 abbrev StepInto := ExprPtr × ContPtr → StoreM Frame
 
-def intoUnOpHandle (resPtr : ExprPtr) (op : UnOp) : StepInto := fun (envPtr, contPtr) =>
+def finishUnOp (resPtr : ExprPtr) (op : UnOp) : StepInto := fun (envPtr, contPtr) =>
   match op with
   | .car => return ⟨← car resPtr, envPtr, contPtr⟩
 
-def intoUnOp (tag : ContTag) (tailPtr : ExprPtr) : StepInto := fun (envPtr, contPtr) => do
-  let x ← unfold1 tailPtr
-  if ← isTrivial x then intoUnOpHandle x (← extractUnOp tag) (envPtr, contPtr)
-  else
-    let contPtr' ← addToContStore
-      ⟨tag, hash2 contPtr.tag.toF contPtr.val⟩
-      (.cont0 contPtr)
-    return ⟨x, envPtr, contPtr'⟩
-
-def intoBinOp₂Handle (lPtr rPtr : ExprPtr) (op : BinOp) : StepInto := fun (envPtr, contPtr) =>
+def finishBinOp (lPtr rPtr : ExprPtr) (op : BinOp) : StepInto := fun (envPtr, contPtr) =>
   match op with
   | .add => return ⟨← lPtr.add rPtr, envPtr, contPtr⟩
   | .numEq => return ⟨← boolToExprPtr $ ← lPtr.numEq rPtr, envPtr, contPtr⟩
 
-def intoBinOp₁Handle (lPtr rPtr : ExprPtr) (op : BinOp) : StepInto := fun (envPtr, contPtr) => do
-  if ← isTrivial rPtr then intoBinOp₂Handle lPtr rPtr op (envPtr, contPtr)
-  else
-    let contPtr' ← addToContStore
-      ⟨.binOp₂ op, hash4 lPtr.tag.toF lPtr.val contPtr.tag.toF contPtr.val⟩
-      (.cont1 lPtr contPtr)
-    return ⟨rPtr, envPtr, contPtr'⟩
+def intoUnOp (tag : ContTag) (tailPtr : ExprPtr) : StepInto := fun (envPtr, contPtr) => do
+  let x ← unfold1 tailPtr
+  let contPtr' ← addToContStore
+    ⟨tag, hash2 contPtr.tag.toF contPtr.val⟩
+    (.cont0 contPtr)
+  return ⟨x, envPtr, contPtr'⟩
 
 def intoBinOp (tag : ContTag) (tailPtr : ExprPtr) : StepInto := fun (envPtr, contPtr) => do
   let (x, y) ← unfold2 tailPtr
-  if ← isTrivial x then intoBinOp₁Handle x y (← extractBinOp tag) (envPtr, contPtr)
-  else
-    let contPtr' ← addToContStore
-      ⟨tag, hash4 y.tag.toF y.val contPtr.tag.toF contPtr.val⟩
-      (.cont1 y contPtr)
-    return ⟨x, envPtr, contPtr'⟩
+  let contPtr' ← addToContStore
+    ⟨tag, hash4 y.tag.toF y.val contPtr.tag.toF contPtr.val⟩
+    (.cont1 y contPtr)
+  return ⟨x, envPtr, contPtr'⟩
 
 def intoApp (fnPtr argsPtr : ExprPtr) : StepInto := fun (envPtr, contPtr) => do
   let contPtr' ← addToContStore
@@ -152,23 +132,16 @@ def intoApp (fnPtr argsPtr : ExprPtr) : StepInto := fun (envPtr, contPtr) => do
     (.cont1 argsPtr contPtr)
   return ⟨fnPtr, envPtr, contPtr'⟩
 
-def indoIfHandle (resPtr truePtr falsePtr : ExprPtr) : StepInto :=
-  fun (envPtr, contPtr) => do
-    if ← isNil resPtr then return ⟨falsePtr, envPtr, contPtr⟩
-    else return ⟨truePtr, envPtr, contPtr⟩
-
 def intoIf (tailPtr : ExprPtr) : StepInto := fun (envPtr, contPtr) => do
   let (propPtr, tailPtr) ← cadr tailPtr
   let (truePtr, tailPtr) ← cadr tailPtr
   let (falsePtr, tailPtr) ← cadr tailPtr
   if ← isNotNil tailPtr then throw "To many if arguments"
-  if ← isTrivial propPtr then indoIfHandle propPtr truePtr falsePtr (envPtr, contPtr)
-  else
-    let contPtr' ← addToContStore
-      ⟨.if, hash6 truePtr.tag.toF truePtr.val falsePtr.tag.toF falsePtr.val
-        contPtr.tag.toF contPtr.val⟩
-      (.cont2 truePtr falsePtr contPtr)
-    return ⟨propPtr, envPtr, contPtr'⟩
+  let contPtr' ← addToContStore
+    ⟨.if, hash6 truePtr.tag.toF truePtr.val falsePtr.tag.toF falsePtr.val
+      contPtr.tag.toF contPtr.val⟩
+    (.cont2 truePtr falsePtr contPtr)
+  return ⟨propPtr, envPtr, contPtr'⟩
 
 def intoLet (bindsPtr bodyPtr: ExprPtr) : StepInto := fun (envPtr, contPtr) => do
   let bindPtr ← car bindsPtr
@@ -191,77 +164,96 @@ def intoLetrec (bindsPtr bodyPtr : ExprPtr) : StepInto := fun (envPtr, contPtr) 
     (.thunk bindExprPtr)
   return ⟨bindExprPtr, ← insert envPtr bindSymPtr thunkPtr, contPtr'⟩
 
-def intoNextAppArg (fnPtr argsSymsPtr argsPtr bodyPtr : ExprPtr) : StepInto :=
-  fun (envPtr, contPtr) => do match ← isNil argsSymsPtr, ← isNil argsPtr with
-    | true,  true  => return ⟨bodyPtr, envPtr, contPtr⟩ -- fulfilled
+def saveEnv (envPtr : ExprPtr) (contPtr : ContPtr) : StoreM ContPtr :=
+  if contPtr.tag == .env then pure contPtr else
+  addToContStore
+    ⟨.env, hash4 envPtr.tag.toF envPtr.val contPtr.tag.toF contPtr.val⟩
+    (.cont1 envPtr contPtr)
+
+def intoNextAppArg (fnPtr argsSymsPtr argsPtr bodyPtr envPtr : ExprPtr) : StepInto :=
+  fun (envPtr₀, contPtr) => do match ← isNil argsSymsPtr, ← isNil argsPtr with
+    | true,  true  => return ⟨bodyPtr, envPtr, ← saveEnv envPtr₀ contPtr⟩ -- fulfilled
     | false, true  => return ⟨fnPtr, envPtr, contPtr⟩ -- still missing args
     | true,  false => throw "Too many arguments"
     | false, false => -- currying
       let (argPtr, argsPtr) ← uncons argsPtr
       let contPtr' ← addToContStore
-        ⟨.appArg, hash6 fnPtr.tag.toF fnPtr.val argsPtr.tag.toF argsPtr.val
-          contPtr.tag.toF contPtr.val⟩
-        (.cont2 fnPtr argsPtr contPtr)
+        ⟨.appArg, hash8 fnPtr.tag.toF fnPtr.val argsPtr.tag.toF argsPtr.val
+          envPtr₀.tag.toF envPtr₀.val contPtr.tag.toF contPtr.val⟩
+        (.cont3 fnPtr argsPtr envPtr₀ contPtr)
       return ⟨argPtr, envPtr, contPtr'⟩
+
+def intoLookup (symPtr envPtr : ExprPtr) : StepInto := fun (envPtr₀, contPtr) => do
+  if ← isNil envPtr then throw s!"{← getSym symPtr} not found"
+  let (headPtr, tailPtr) ← uncons envPtr
+  let (symPtr', valPtr) ← cadr headPtr
+  if symPtr' == symPtr then return ⟨valPtr, envPtr₀, contPtr⟩
+  let contPtr' ← addToContStore
+    ⟨.lookup, hash4 tailPtr.tag.toF tailPtr.val contPtr.tag.toF contPtr.val⟩
+    (.cont1 tailPtr contPtr)
+  return ⟨symPtr, envPtr₀, contPtr'⟩
 
 def Frame.continue (frm : Frame) : StoreM Frame := do
   match frm.cont.tag with
   | .entry => pure { frm with cont := ← getCont0 frm.cont }
   | .halt => throw "Can't continue upon halt continuation"
-  | .unOp op => intoUnOpHandle frm.expr op (frm.env, ← getCont0 frm.cont)
+  | .unOp op => finishUnOp frm.expr op (frm.env, ← getCont0 frm.cont)
   | .binOp₁ op =>
     let (y, contPtr) ← getCont1 frm.cont
-    intoBinOp₁Handle frm.expr y op (frm.env, contPtr)
+    let x := frm.expr
+    let envPtr := frm.env
+    if ← isTrivial y then finishBinOp x y op (envPtr, contPtr) else
+    let contPtr' ← addToContStore
+      ⟨.binOp₂ op, hash4 x.tag.toF x.val contPtr.tag.toF contPtr.val⟩
+      (.cont1 x contPtr)
+    return ⟨y, envPtr, contPtr'⟩
   | .binOp₂ op =>
     let (x, contPtr) ← getCont1 frm.cont
-    intoBinOp₂Handle x frm.expr op (frm.env, contPtr)
+    finishBinOp x frm.expr op (frm.env, contPtr)
   | .appFn =>
     let fnPtr := frm.expr
     let (argsPtr, contPtr) ← getCont1 frm.cont
     match ← getExprPtrImg fnPtr with
     | .fun argsSymsPtr funEnvPtr bodyPtr =>
-      intoNextAppArg fnPtr argsSymsPtr argsPtr bodyPtr (funEnvPtr, contPtr)
+      intoNextAppArg fnPtr argsSymsPtr argsPtr bodyPtr funEnvPtr (frm.env, contPtr)
     | _ => throw s!"Error evaluating app function. Head function expected"
   | .appArg =>
-    let (fnPtr, argsPtr, contPtr) ← getCont2 frm.cont
+    let (fnPtr, argsPtr, envPtr₀, contPtr) ← getCont3 frm.cont
     match ← getExprPtrImg fnPtr with
     | .fun argsSymsPtr funEnvPtr bodyPtr =>
       let (argSymPtr, argsSymsPtr) ← uncons argsSymsPtr
       let funEnvPtr ← insert funEnvPtr argSymPtr frm.expr
       let fnPtr' ← mkFunPtr argsSymsPtr funEnvPtr bodyPtr
-      intoNextAppArg fnPtr' argsSymsPtr argsPtr bodyPtr (funEnvPtr, contPtr)
+      intoNextAppArg fnPtr' argsSymsPtr argsPtr bodyPtr funEnvPtr (frm.env, contPtr)
     | _ => throw "Error applying app argument. Head function expected"
   | .if =>
     let (truePtr, falsePtr, contPtr) ← getCont2 frm.cont
-    indoIfHandle frm.expr truePtr falsePtr (frm.env, contPtr)
+    if ← isNil frm.expr then return ⟨falsePtr, frm.env, contPtr⟩
+    else return ⟨truePtr, frm.env, contPtr⟩
   | .let =>
     let (bindsPtr, bodyPtr, contPtr) ← getCont2 frm.cont
     let (bindPtr, bindsPtr') ← uncons bindsPtr
     let (bindSymPtr, _) ← unfold2 bindPtr
     let envPtr ← insert frm.env bindSymPtr frm.expr
-    if ← isNil bindsPtr' then pure ⟨bodyPtr, envPtr, contPtr⟩
-    else intoLet bindsPtr' bodyPtr (envPtr, contPtr)
+    if ← isNil bindsPtr' then return ⟨bodyPtr, envPtr, contPtr⟩
+    intoLet bindsPtr' bodyPtr (envPtr, contPtr)
   | .letrec =>
     let (bindsPtr, bodyPtr, contPtr) ← getCont2 frm.cont
     let (bindPtr, bindsPtr') ← uncons bindsPtr
     let (bindSymPtr, _) ← unfold2 bindPtr
     let envPtr ← insert frm.env bindSymPtr frm.expr
-    if ← isNil bindsPtr' then pure ⟨bodyPtr, envPtr, contPtr⟩
-    else intoLetrec bindsPtr' bodyPtr (envPtr, contPtr)
+    if ← isNil bindsPtr' then return ⟨bodyPtr, envPtr, contPtr⟩
+    intoLetrec bindsPtr' bodyPtr (envPtr, contPtr)
   | .env =>
     let (envPtr₀, contPtr) ← getCont1 frm.cont
-    pure ⟨frm.expr, envPtr₀, contPtr⟩
+    return ⟨frm.expr, envPtr₀, contPtr⟩
+  | .lookup => sorry
 
 @[inline] def Frame.stepIntoParams (frm : Frame) : ExprPtr × ContPtr :=
   (frm.env, frm.cont)
 
-def Frame.saveEnv (frm : Frame) : StoreM Frame := do
-  if frm.cont.tag == .env then return frm
-  let (envPtr, contPtr) := (frm.env, frm.cont)
-  let contPtr' ← addToContStore
-    ⟨.env, hash4 envPtr.tag.toF envPtr.val contPtr.tag.toF contPtr.val⟩
-    (.cont1 envPtr contPtr)
-  return { frm with cont := contPtr' }
+@[inline] def Frame.withSavedEnv (frm : Frame) : StoreM Frame :=
+  return { frm with cont := ← saveEnv frm.env frm.cont }
 
 def Frame.step (frm : Frame) : StoreM Frame := do
   let frm' ← match frm.expr.tag with
@@ -293,28 +285,28 @@ def Frame.step (frm : Frame) : StoreM Frame := do
         | .ofString "if" => intoIf tail frm.stepIntoParams
         | .ofString "let" =>
           let (bindsPtr, bodyPtr) ← unfold2 tail
-          if ← isNil bindsPtr then pure { frm with expr := bodyPtr }
-          else let frm ← frm.saveEnv; intoLet bindsPtr bodyPtr frm.stepIntoParams
+          if ← isNil bindsPtr then pure { frm with expr := bodyPtr } else
+          let frm ← frm.withSavedEnv; intoLet bindsPtr bodyPtr frm.stepIntoParams
         | .ofString "letrec" =>
           let (bindsPtr, bodyPtr) ← unfold2 tail
-          if ← isNil bindsPtr then pure { frm with expr := bodyPtr }
-          else let frm ← frm.saveEnv; intoLetrec bindsPtr bodyPtr frm.stepIntoParams
-        | _ => let frm ← frm.saveEnv; intoApp head tail frm.stepIntoParams
-      else let frm ← frm.saveEnv; intoApp head tail frm.stepIntoParams
+          if ← isNil bindsPtr then pure { frm with expr := bodyPtr } else
+          let frm ← frm.withSavedEnv; intoLetrec bindsPtr bodyPtr frm.stepIntoParams
+        | _ => intoApp head tail frm.stepIntoParams
+      else intoApp head tail frm.stepIntoParams
   if (← isTrivial frm'.expr) && frm'.cont.tag == .entry then
     return { frm' with cont := ← getCont0 frm'.cont }
   else return frm'
 
 def Frame.eval (frm : Frame) : StoreM $ ExprPtr × Array Frame := do
-  let mut frm' := frm
+  let mut frm := frm
   let mut frms := #[frm]
-  dbg_trace frm'
+  dbg_trace frm
   while true do
-    frm' ← frm'.step
-    frms := frms.push frm'
-    dbg_trace frm'
-    if frm'.cont.tag == .halt then break
-  return (frm'.expr, frms)
+    frm ← frm.step
+    frms := frms.push frm
+    dbg_trace frm
+    if frm.cont.tag == .halt then break
+  return (frm.expr, frms)
 
 def LDON.evalM (ldon : LDON) : StoreM $ ExprPtr × Array Frame := do
   let haltPtr := ContPtr.mk .halt .zero
@@ -337,13 +329,14 @@ def test (ldon : LDON) : Except String Nat :=
 open LDON.DSL
 def main : IO Unit :=
   let code := ⟪
-    -- (letrec ((count10 (lambda (i) (if (= i 10) i (count10 (+ i 1)))))) (count10 0))
+    (letrec ((count10 (lambda (i) (if (= i 10) i (count10 (+ i 1)))))) (count10 0))
     -- (let ((a 1) (b a)) (+ b 1))
     -- ((lambda (i) (if (= i 10) i (+ i 1))) 0)
     -- ((lambda (a b c) nil) 1 2 3)
+    -- ((((lambda (a b c) nil) 1) 2) 3)
     -- (+ (+ 1 1) (+ 1 1))
     -- 1
-    (+ 1 1)
+    -- (+ 1 1)
     -- (car nil)
     -- (if nil 1 (+ 1 2))
     -- (let () 2)

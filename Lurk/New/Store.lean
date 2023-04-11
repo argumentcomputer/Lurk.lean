@@ -6,7 +6,7 @@ import Lurk.New.LDON
 open Lurk (F)
 
 def hash2 : F → F → F := -- FIX
-  fun a b => .ofNat $ (Poseidon.Lurk.hash3 a 8192 b).norm
+  fun a b => .ofNat $ (Poseidon.Lurk.hash3 a 256 b).norm
 
 def hash3 : F → F → F → F :=
   fun a b c => .ofNat $ (Poseidon.Lurk.hash3 a b c).norm
