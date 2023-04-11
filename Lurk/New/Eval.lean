@@ -183,21 +183,21 @@ def intoLetrec (bindsPtr bodyPtr : ExprPtr) : StepInto := fun (envPtr, contPtr) 
     (.thunk bindExprPtr)
   return ⟨bindExprPtr, ← insert envPtr bindSymPtr thunkPtr, contPtr'⟩
 
-def intoLookup (symPtr envPtr : ExprPtr) : StepInto := fun (envPtr₀, contPtr) => do
-  if ← isNil envPtr then throw s!"{← getSym symPtr} not found"
-  let (headPtr, tailPtr) ← uncons envPtr
+def intoLookup (symPtr envTailPtr : ExprPtr) : StepInto := fun (envPtr, contPtr) => do
+  if ← isNil envTailPtr then throw s!"{← getSym symPtr} not found"
+  let (headPtr, envTailPtr') ← uncons envTailPtr
   let (symPtr', valPtr) ← cadr headPtr
   if symPtr' == symPtr then
-    if valPtr.tag != .thunk then return ⟨valPtr, envPtr₀, contPtr⟩
-    else return ⟨valPtr, ← insert envPtr₀ symPtr valPtr, contPtr⟩
+    if valPtr.tag != .thunk then return ⟨valPtr, envPtr, contPtr⟩
+    else return ⟨valPtr, ← insert envPtr symPtr valPtr, contPtr⟩
   let contPtr' ← addToContStore
-    ⟨.lookup, hash4 tailPtr.tag.toF tailPtr.val contPtr.tag.toF contPtr.val⟩
-    (.cont1 tailPtr contPtr)
-  return ⟨symPtr, envPtr₀, contPtr'⟩
+    ⟨.lookup, hash4 envTailPtr'.tag.toF envTailPtr'.val contPtr.tag.toF contPtr.val⟩
+    (.cont1 envTailPtr' contPtr)
+  return ⟨symPtr, envPtr, contPtr'⟩
 
 def Frame.continue (frm : Frame) : StoreM Frame := do
   match frm.cont.tag with
-  | .entry => pure { frm with cont := ← getCont0 frm.cont }
+  | .entry => return { frm with cont := ← getCont0 frm.cont }
   | .halt => throw "Can't continue upon halt continuation"
   | .unOp op => finishUnOp frm.expr op (frm.env, ← getCont0 frm.cont)
   | .binOp₁ op =>
@@ -250,8 +250,8 @@ def Frame.continue (frm : Frame) : StoreM Frame := do
     let (envPtr₀, contPtr) ← getCont1 frm.cont
     return ⟨frm.expr, envPtr₀, contPtr⟩
   | .lookup =>
-    let (envPtr, contPtr) ← getCont1 frm.cont
-    intoLookup frm.expr envPtr (frm.env, contPtr)
+    let (envTailPtr, contPtr) ← getCont1 frm.cont
+    intoLookup frm.expr envTailPtr (frm.env, contPtr)
 
 @[inline] def Frame.stepIntoParams (frm : Frame) : ExprPtr × ContPtr :=
   (frm.env, frm.cont)
@@ -267,8 +267,8 @@ def Frame.step (frm : Frame) : StoreM Frame := do
       match ← getSym symPtr with
       | .nil | .t => frm.continue
       | _ =>
-        let frm' ← intoLookup symPtr frm.env (frm.env, frm.cont)
-        frm'.continue
+        if frm.cont.tag == .lookup then frm.continue
+        else intoLookup symPtr frm.env frm.stepIntoParams >>= Frame.continue
     | .thunk =>
       let .thunk expr ← getExprPtrImg frm.expr | throw "Expected thunk. Malformed store"
       pure { frm with expr }
