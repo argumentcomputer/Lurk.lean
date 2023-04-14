@@ -43,20 +43,13 @@ def unfold3 (exprPtr : ExprPtr) : StoreM (ExprPtr × ExprPtr × ExprPtr) := do
   throw "unfold3 failed"
 
 def insert (envPtr symPtr valPtr : ExprPtr) : StoreM ExprPtr := do
+  if symPtr.tag != .sym then throw "Can't bind data to non-symbolic pointers"
   let pair ← addToExprStore
     ⟨.cons, hash4 symPtr.tag.toF symPtr.val valPtr.tag.toF valPtr.val⟩
     (.cons symPtr valPtr)
   addToExprStore
     ⟨.cons, hash4 pair.tag.toF pair.val envPtr.tag.toF envPtr.val⟩
     (.cons pair envPtr)
-
--- eliminate this linear cost
-partial def find? (envPtr symPtr : ExprPtr) : StoreM (Option ExprPtr) := do
-  if ← isNil envPtr then return none
-  let (head, tail) ← uncons envPtr
-  let (symPtr', valPtr) ← cadr head
-  if symPtr' == symPtr then return some valPtr
-  find? tail symPtr
 
 def getCont0 (contPtr : ContPtr) : StoreM ContPtr := do
   match (← get).contData.find? contPtr with
@@ -89,9 +82,6 @@ structure Frame where
   env  : ExprPtr
   cont : ContPtr
   deriving BEq
-
-instance : ToString Frame where
-  toString x := s!"⟨{x.expr}, {x.cont}⟩"
 
 def isTrivial (exprPtr : ExprPtr) : StoreM Bool :=
   match exprPtr.tag with
@@ -130,15 +120,9 @@ def intoApp (fnPtr argsPtr : ExprPtr) : StepInto := fun (envPtr, contPtr) => do
     (.cont1 argsPtr contPtr)
   return ⟨fnPtr, envPtr, contPtr'⟩
 
-def saveEnv (envPtr : ExprPtr) (contPtr : ContPtr) : StoreM ContPtr :=
-  if contPtr.tag == .env then pure contPtr else
-  addToContStore
-    ⟨.env, hash4 envPtr.tag.toF envPtr.val contPtr.tag.toF contPtr.val⟩
-    (.cont1 envPtr contPtr)
-
 def intoNextAppArg (fnPtr argsSymsPtr argsPtr bodyPtr funEnvPtr : ExprPtr) : StepInto :=
   fun (envPtr, contPtr) => do match ← isNil argsSymsPtr, ← isNil argsPtr with
-    | true,  true  => return ⟨bodyPtr, funEnvPtr, ← saveEnv envPtr contPtr⟩ -- fulfilled
+    | true,  true  => return ⟨bodyPtr, funEnvPtr, contPtr⟩ -- fulfilled
     | false, true  => return ⟨fnPtr, envPtr, contPtr⟩ -- still missing args
     | true,  false => throw "Too many arguments"
     | false, false => -- currying
@@ -237,6 +221,12 @@ def Frame.continue (frm : Frame) : StoreM Frame := do
     return ⟨frm.expr, envPtr₀, contPtr⟩
   | .lookup => unreachable!
 
+def saveEnv (envPtr : ExprPtr) (contPtr : ContPtr) : StoreM ContPtr :=
+  if contPtr.tag == .env then pure contPtr else
+  addToContStore
+    ⟨.env, hash4 envPtr.tag.toF envPtr.val contPtr.tag.toF contPtr.val⟩
+    (.cont1 envPtr contPtr)
+
 @[inline] def Frame.stepIntoParams (frm : Frame) : ExprPtr × ContPtr :=
   (frm.env, frm.cont)
 
@@ -254,7 +244,7 @@ def Frame.evalCons (frm : Frame) : StoreM Frame := do
       let (argsSymsPtr, bodyPtr) ← unfold2 tail
       let envPtr := frm.env
       let funPtr ← mkFunPtr argsSymsPtr envPtr bodyPtr
-      pure ⟨funPtr, envPtr, frm.cont⟩
+      pure ⟨funPtr, envPtr, frm.cont⟩ >>= Frame.continue
     | .ofString "if" => intoIf tail frm.stepIntoParams
     | .ofString "let" =>
       let (bindsPtr, bodyPtr) ← unfold2 tail
@@ -312,14 +302,20 @@ def Frame.step (frm : Frame) : StoreM Frame := do
     return { frm' with cont := ← getCont0 frm'.cont }
   else return frm'
 
+def printFrame (frm : Frame) : StoreM String := do
+  let expr ← printExpr frm.expr
+  let env ← printExpr frm.env
+  let cont := ToString.toString frm.cont
+  return s!"\nExpr: {expr}\nEnv:  {env}\nCont: {cont}"
+
 def Frame.eval (frm : Frame) : StoreM $ ExprPtr × Array Frame := do
   let mut frm := frm
   let mut frms := #[frm]
-  dbg_trace frm
+  dbg_trace ← printFrame frm
   while true do
     frm ← frm.step
     frms := frms.push frm
-    dbg_trace frm
+    dbg_trace ← printFrame frm
     if frm.cont.tag == .halt then break
   return (frm.expr, frms)
 
@@ -344,8 +340,9 @@ def test (ldon : LDON) : Except String Nat :=
 open LDON.DSL
 def main : IO Unit :=
   let code := ⟪
-    (letrec ((rec (lambda (x) (if x t (rec t))))) (rec nil))
+    -- (letrec ((rec (lambda (x) (if x t (rec t))))) (rec nil))
     -- (letrec ((count10 (lambda (i) (if (= i 10) i (count10 (+ i 1)))))) (count10 0))
+    (letrec ((countX (lambda (i) (if (= i 3) i (countX (+ i 1)))))) (countX 0))
     -- (let ((a 1) (b a)) (+ b 1))
     -- (let ((a 1) (a 2)) a)
     -- ((lambda (i) (if (= i 10) i (+ i 1))) 0)
@@ -361,6 +358,7 @@ def main : IO Unit :=
     -- (((lambda (x y) (+ x y)) (+ 1 1)) 3)
     -- (let ((count10 (lambda (i) (if (= i 10) i (+ i 1))))) (count10 0))
     -- (let ((a 1) (b 2) (c 3)) a)
+    -- (letrec ((a (+ 1 1))) a)
     -- (+ ((lambda (x) x) 1) x)
     -- (+ (let ((a 1)) a) a)
   ⟫

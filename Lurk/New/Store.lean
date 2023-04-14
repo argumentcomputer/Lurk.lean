@@ -147,4 +147,38 @@ def putLDON : LDON → StoreM ExprPtr
       ⟨.cons, hash4 car.tag.toF car.val cdr.tag.toF cdr.val⟩
       (.cons car cdr)
 
+partial def telescopeCons (exprPtr : ExprPtr) (acc : Array ExprPtr := #[]) :
+    StoreM $ Array ExprPtr × ExprPtr :=
+  match exprPtr.tag with
+  | .cons => do
+    let .cons x y ← getExprPtrImg exprPtr
+      | throw "Expected cons. Malformed store"
+    telescopeCons y (acc.push x)
+  | _ => return (acc, exprPtr)
+
+partial def printExpr (exprPtr : ExprPtr) : StoreM String :=
+  match exprPtr.tag with
+  | .num => return exprPtr.val.asHex
+  | .u64 => return s!"{exprPtr.val.val}u64"
+  | .char => return s!"\'{Char.ofNat exprPtr.val}\'"
+  | .str => return s!"\"{← getStr exprPtr}\""
+  | .sym => return ToString.toString $ ← getSym exprPtr
+  | .cons => do
+    let (es, e) ← telescopeCons exprPtr
+    let esStr ← es.data.mapM printExpr
+    let esStr := " ".intercalate esStr
+    if ← isNil e then return s!"({esStr})" else return s!"({esStr} . {← printExpr e})"
+  | .comm => do
+    let .comm f e ← getExprPtrImg exprPtr
+      | throw "Expected comm. Malformed store"
+    return s!"<comm {f.asHex} {← printExpr e}>"
+  | .thunk => do
+    let .thunk e ← getExprPtrImg exprPtr
+      | throw "Expected thunk. Malformed store"
+    return s!"<{← printExpr e}>"
+  | .fun => do
+    let .fun args _ body ← getExprPtrImg exprPtr
+      | throw "Expected function. Malformed Store"
+    return s!"<fun {← printExpr args} {← printExpr body}>"
+
 end Store
