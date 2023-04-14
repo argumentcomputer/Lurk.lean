@@ -114,6 +114,12 @@ def intoBinOp (tag : ContTag) (tailPtr : ExprPtr) : StepInto := fun (envPtr, con
     (.cont1 y contPtr)
   return ⟨x, envPtr, contPtr'⟩
 
+def saveEnv (envPtr : ExprPtr) (contPtr : ContPtr) : StoreM ContPtr :=
+  if contPtr.tag == .env then pure contPtr else
+  addToContStore
+    ⟨.env, hash4 envPtr.tag.toF envPtr.val contPtr.tag.toF contPtr.val⟩
+    (.cont1 envPtr contPtr)
+
 def intoApp (fnPtr argsPtr : ExprPtr) : StepInto := fun (envPtr, contPtr) => do
   let contPtr' ← addToContStore
     ⟨.appFn, hash4 argsPtr.tag.toF argsPtr.val contPtr.tag.toF contPtr.val⟩
@@ -122,7 +128,7 @@ def intoApp (fnPtr argsPtr : ExprPtr) : StepInto := fun (envPtr, contPtr) => do
 
 def intoNextAppArg (fnPtr argsSymsPtr argsPtr bodyPtr funEnvPtr : ExprPtr) : StepInto :=
   fun (envPtr, contPtr) => do match ← isNil argsSymsPtr, ← isNil argsPtr with
-    | true,  true  => return ⟨bodyPtr, funEnvPtr, contPtr⟩ -- fulfilled
+    | true,  true  => return ⟨bodyPtr, funEnvPtr, ← saveEnv envPtr contPtr⟩ -- fulfilled
     | false, true  => return ⟨fnPtr, envPtr, contPtr⟩ -- still missing args
     | true,  false => throw "Too many arguments"
     | false, false => -- currying
@@ -221,12 +227,6 @@ def Frame.continue (frm : Frame) : StoreM Frame := do
     return ⟨frm.expr, envPtr₀, contPtr⟩
   | .lookup => unreachable!
 
-def saveEnv (envPtr : ExprPtr) (contPtr : ContPtr) : StoreM ContPtr :=
-  if contPtr.tag == .env then pure contPtr else
-  addToContStore
-    ⟨.env, hash4 envPtr.tag.toF envPtr.val contPtr.tag.toF contPtr.val⟩
-    (.cont1 envPtr contPtr)
-
 @[inline] def Frame.stepIntoParams (frm : Frame) : ExprPtr × ContPtr :=
   (frm.env, frm.cont)
 
@@ -289,13 +289,13 @@ def Frame.step (frm : Frame) : StoreM Frame := do
               (.cont1 envPtr contPtr)
             pure ⟨symPtr, envTailPtr, contPtr'⟩
         else -- we got a match, but we need to check if we're on a lookup continuation
-          let frm ← if contPtr.tag == .lookup then
+          let (frm : Frame) ← if contPtr.tag == .lookup then
               let (envPtr₀, contPtr₀) ← getCont1 contPtr
               pure ⟨valPtr, envPtr₀, contPtr₀⟩
             else
               pure ⟨valPtr, envPtr, contPtr⟩
           if valPtr.tag != .thunk then frm.continue -- already reduced
-          else Frame.evalThunk frm
+          else frm.evalThunk
     | .thunk => frm.evalThunk
     | .cons => frm.evalCons
   if (← isTrivial frm'.expr) && frm'.cont.tag == .entry then
@@ -340,9 +340,10 @@ def test (ldon : LDON) : Except String Nat :=
 open LDON.DSL
 def main : IO Unit :=
   let code := ⟪
-    -- (letrec ((rec (lambda (x) (if x t (rec t))))) (rec nil))
+    (letrec ((rec (lambda (x) (if x t (rec t))))) (rec nil))
     -- (letrec ((count10 (lambda (i) (if (= i 10) i (count10 (+ i 1)))))) (count10 0))
-    (letrec ((countX (lambda (i) (if (= i 3) i (countX (+ i 1)))))) (countX 0))
+    -- (letrec ((countX (lambda (i) (if (= i 3) i (countX (+ i 1)))))) (countX 0))
+    -- (letrec ((countX (lambda (i j) (if (= i 5) i (countX (+ i 1) j))))) (countX 0 nil))
     -- (let ((a 1) (b a)) (+ b 1))
     -- (let ((a 1) (a 2)) a)
     -- ((lambda (i) (if (= i 10) i (+ i 1))) 0)
