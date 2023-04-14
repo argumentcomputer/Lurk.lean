@@ -24,7 +24,6 @@ inductive ExprPtrImg
   | cons : ExprPtr → ExprPtr → ExprPtrImg
   | «fun» : ExprPtr → ExprPtr → ExprPtr → ExprPtrImg
   | comm : F → ExprPtr → ExprPtrImg
-  | thunk : ExprPtr → ExprPtrImg
 
 inductive ContPtrImg
   | cont0 : ContPtr → ContPtrImg
@@ -172,10 +171,6 @@ partial def printExpr (exprPtr : ExprPtr) : StoreM String :=
     let .comm f e ← getExprPtrImg exprPtr
       | throw "Expected comm. Malformed store"
     return s!"<comm {f.asHex} {← printExpr e}>"
-  | .thunk => do
-    let .thunk e ← getExprPtrImg exprPtr
-      | throw "Expected thunk. Malformed store"
-    return s!"<{← printExpr e}>"
   | .fun => do
     let .fun args _ body ← getExprPtrImg exprPtr
       | throw "Expected function. Malformed Store"

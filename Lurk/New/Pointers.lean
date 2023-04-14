@@ -1,7 +1,7 @@
 import Lurk.Field
 
 inductive ExprTag
-  | num | u64 | char | str | comm | «fun» | sym | cons | thunk
+  | num | u64 | char | str | comm | «fun» | sym | cons
   deriving Ord, BEq
 
 def ExprTag.toString : ExprTag → String
@@ -13,7 +13,6 @@ def ExprTag.toString : ExprTag → String
   | .fun => "fun"
   | sym => "sym"
   | cons => "cons"
-  | thunk => "thunk"
 
 instance : ToString ExprTag := ⟨ExprTag.toString⟩
 
@@ -75,7 +74,6 @@ def ExprTag.toF : ExprTag → F
   | .fun   => .ofNat 5
   | .sym   => .ofNat 6
   | .cons  => .ofNat 7
-  | .thunk => .ofNat 8
 
 def ContTag.toF : ContTag → F
   | .entry => .ofNat 16
