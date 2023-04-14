@@ -96,9 +96,7 @@ instance : ToString Frame where
 def isTrivial (exprPtr : ExprPtr) : StoreM Bool :=
   match exprPtr.tag with
   | .num | .u64 | .char | .str | .comm | .fun => return true
-  | .sym => do match ← getSym exprPtr with
-    | .nil | .t => return false
-    | _ => return false
+  | .sym => return ((← getSym exprPtr) matches .nil | .t)
   | _ => return false
 
 abbrev StepInto := ExprPtr × ContPtr → StoreM Frame
@@ -183,18 +181,6 @@ def intoLetrec (bindsPtr bodyPtr : ExprPtr) : StepInto := fun (envPtr, contPtr) 
     (.thunk bindExprPtr)
   return ⟨bindExprPtr, ← insert envPtr bindSymPtr thunkPtr, contPtr'⟩
 
-def intoLookup (symPtr envTailPtr : ExprPtr) : StepInto := fun (envPtr, contPtr) => do
-  if ← isNil envTailPtr then throw s!"{← getSym symPtr} not found"
-  let (headPtr, envTailPtr') ← uncons envTailPtr
-  let (symPtr', valPtr) ← cadr headPtr
-  if symPtr' == symPtr then
-    if valPtr.tag != .thunk then return ⟨valPtr, envPtr, contPtr⟩
-    else return ⟨valPtr, ← insert envPtr symPtr valPtr, contPtr⟩
-  let contPtr' ← addToContStore
-    ⟨.lookup, hash4 envTailPtr'.tag.toF envTailPtr'.val contPtr.tag.toF contPtr.val⟩
-    (.cont1 envTailPtr' contPtr)
-  return ⟨symPtr, envPtr, contPtr'⟩
-
 def Frame.continue (frm : Frame) : StoreM Frame := do
   match frm.cont.tag with
   | .entry => return { frm with cont := ← getCont0 frm.cont }
@@ -249,15 +235,45 @@ def Frame.continue (frm : Frame) : StoreM Frame := do
   | .env =>
     let (envPtr₀, contPtr) ← getCont1 frm.cont
     return ⟨frm.expr, envPtr₀, contPtr⟩
-  | .lookup =>
-    let (envTailPtr, contPtr) ← getCont1 frm.cont
-    intoLookup frm.expr envTailPtr (frm.env, contPtr)
+  | .lookup => unreachable!
 
 @[inline] def Frame.stepIntoParams (frm : Frame) : ExprPtr × ContPtr :=
   (frm.env, frm.cont)
 
 @[inline] def Frame.withSavedEnv (frm : Frame) : StoreM Frame :=
   return { frm with cont := ← saveEnv frm.env frm.cont }
+
+def Frame.evalCons (frm : Frame) : StoreM Frame := do
+  let .cons head tail ← getExprPtrImg frm.expr
+    | throw "Expected cons. Malformed store"
+  if head.tag == .sym then match ← getSym head with
+    | .ofString "car" => intoUnOp (.unOp .car) tail frm.stepIntoParams
+    | .ofString "+" => intoBinOp (.binOp₁ .add) tail frm.stepIntoParams
+    | .ofString "=" => intoBinOp (.binOp₁ .numEq) tail frm.stepIntoParams
+    | .ofString "lambda" =>
+      let (argsSymsPtr, bodyPtr) ← unfold2 tail
+      let envPtr := frm.env
+      let funPtr ← mkFunPtr argsSymsPtr envPtr bodyPtr
+      pure ⟨funPtr, envPtr, frm.cont⟩
+    | .ofString "if" => intoIf tail frm.stepIntoParams
+    | .ofString "let" =>
+      let (bindsPtr, bodyPtr) ← unfold2 tail
+      if ← isNil bindsPtr then pure { frm with expr := bodyPtr } else
+      let frm ← frm.withSavedEnv; intoLet bindsPtr bodyPtr frm.stepIntoParams
+    | .ofString "letrec" =>
+      let (bindsPtr, bodyPtr) ← unfold2 tail
+      if ← isNil bindsPtr then pure { frm with expr := bodyPtr } else
+      let frm ← frm.withSavedEnv; intoLetrec bindsPtr bodyPtr frm.stepIntoParams
+    | _ => intoApp head tail frm.stepIntoParams
+  else intoApp head tail frm.stepIntoParams
+
+@[inline] def Frame.evalThunk (frm : Frame) : StoreM Frame := do
+  let .thunk expr ← getExprPtrImg frm.expr | throw "Expected thunk. Malformed store"
+  let frm := { frm with expr }
+  if ← isTrivial expr then frm.continue
+  else
+    if expr.tag == .cons then frm.evalCons
+    else pure frm
 
 def Frame.step (frm : Frame) : StoreM Frame := do
   let frm' ← match frm.expr.tag with
@@ -266,35 +282,32 @@ def Frame.step (frm : Frame) : StoreM Frame := do
       let symPtr := frm.expr
       match ← getSym symPtr with
       | .nil | .t => frm.continue
-      | _ =>
-        if frm.cont.tag == .lookup then frm.continue
-        else intoLookup symPtr frm.env frm.stepIntoParams >>= Frame.continue
-    | .thunk =>
-      let .thunk expr ← getExprPtrImg frm.expr | throw "Expected thunk. Malformed store"
-      pure { frm with expr }
-    | .cons =>
-      let .cons head tail ← getExprPtrImg frm.expr
-        | throw "Expected cons. Malformed store"
-      if head.tag == .sym then match ← getSym head with
-        | .ofString "car" => intoUnOp (.unOp .car) tail frm.stepIntoParams
-        | .ofString "+" => intoBinOp (.binOp₁ .add) tail frm.stepIntoParams
-        | .ofString "=" => intoBinOp (.binOp₁ .numEq) tail frm.stepIntoParams
-        | .ofString "lambda" =>
-          let (argsSymsPtr, bodyPtr) ← unfold2 tail
-          let envPtr := frm.env
-          let funPtr ← mkFunPtr argsSymsPtr envPtr bodyPtr
-          pure ⟨funPtr, envPtr, frm.cont⟩
-        | .ofString "if" => intoIf tail frm.stepIntoParams
-        | .ofString "let" =>
-          let (bindsPtr, bodyPtr) ← unfold2 tail
-          if ← isNil bindsPtr then pure { frm with expr := bodyPtr } else
-          let frm ← frm.withSavedEnv; intoLet bindsPtr bodyPtr frm.stepIntoParams
-        | .ofString "letrec" =>
-          let (bindsPtr, bodyPtr) ← unfold2 tail
-          if ← isNil bindsPtr then pure { frm with expr := bodyPtr } else
-          let frm ← frm.withSavedEnv; intoLetrec bindsPtr bodyPtr frm.stepIntoParams
-        | _ => intoApp head tail frm.stepIntoParams
-      else intoApp head tail frm.stepIntoParams
+      | sym =>
+        -- make sure the env is not empty
+        let envPtr := frm.env
+        if ← isNil envPtr then throw s!"{sym} not found"
+        -- unfold the head
+        let contPtr := frm.cont
+        let (headPtr, envTailPtr) ← uncons envPtr
+        let (symPtr', valPtr) ← cadr headPtr
+        if symPtr' != symPtr then
+          if contPtr.tag == .lookup then -- don't stack lookup continuations
+            pure ⟨symPtr, envTailPtr, contPtr⟩
+          else -- push a lookup continuation to save the original env
+            let contPtr' ← addToContStore
+              ⟨.lookup, hash4 envPtr.tag.toF envPtr.val contPtr.tag.toF contPtr.val⟩
+              (.cont1 envPtr contPtr)
+            pure ⟨symPtr, envTailPtr, contPtr'⟩
+        else -- we got a match, but we need to check if we're on a lookup continuation
+          let frm ← if contPtr.tag == .lookup then
+              let (envPtr₀, contPtr₀) ← getCont1 contPtr
+              pure ⟨valPtr, envPtr₀, contPtr₀⟩
+            else
+              pure ⟨valPtr, envPtr, contPtr⟩
+          if valPtr.tag != .thunk then frm.continue -- already reduced
+          else Frame.evalThunk frm
+    | .thunk => frm.evalThunk
+    | .cons => frm.evalCons
   if (← isTrivial frm'.expr) && frm'.cont.tag == .entry then
     return { frm' with cont := ← getCont0 frm'.cont }
   else return frm'
@@ -331,8 +344,10 @@ def test (ldon : LDON) : Except String Nat :=
 open LDON.DSL
 def main : IO Unit :=
   let code := ⟪
+    (letrec ((rec (lambda (x) (if x t (rec t))))) (rec nil))
     -- (letrec ((count10 (lambda (i) (if (= i 10) i (count10 (+ i 1)))))) (count10 0))
     -- (let ((a 1) (b a)) (+ b 1))
+    -- (let ((a 1) (a 2)) a)
     -- ((lambda (i) (if (= i 10) i (+ i 1))) 0)
     -- ((lambda (a b c) nil) 1 2 3)
     -- ((((lambda (a b c) nil) 1) 2) 3)
@@ -345,7 +360,7 @@ def main : IO Unit :=
     -- ((lambda (x y) (+ x y)) (+ 1 1) 3)
     -- (((lambda (x y) (+ x y)) (+ 1 1)) 3)
     -- (let ((count10 (lambda (i) (if (= i 10) i (+ i 1))))) (count10 0))
-    (let ((a 1) (b 2) (c 3)) a)
+    -- (let ((a 1) (b 2) (c 3)) a)
     -- (+ ((lambda (x) x) 1) x)
     -- (+ (let ((a 1)) a) a)
   ⟫
