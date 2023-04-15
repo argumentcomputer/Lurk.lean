@@ -170,12 +170,12 @@ def intoLet (bindsPtr bodyPtr: ExprPtr) : StepInto := fun (envPtr, contPtr) => d
 
 def intoLetrec (bindsPtr bodyPtr : ExprPtr) : StepInto := fun (envPtr, contPtr) => do
   let bindPtr ← car bindsPtr
-  let (bindSymPtr, bindExprPtr) ← unfold2 bindPtr
+  let (_, bindExprPtr) ← unfold2 bindPtr
   let contPtr' ← addToContStore
     ⟨.letrec, hash6 bindsPtr.tag.toF bindsPtr.val bodyPtr.tag.toF bodyPtr.val
       contPtr.tag.toF contPtr.val⟩
     (.cont2 bindsPtr bodyPtr contPtr)
-  return ⟨bindExprPtr, ← insert envPtr bindSymPtr bindExprPtr true, contPtr'⟩
+  return ⟨bindExprPtr, envPtr, contPtr'⟩
 
 def Frame.continue (frm : Frame) : StoreM Frame := do
   match frm.cont.tag with
@@ -312,10 +312,11 @@ def Frame.step (frm : Frame) : StoreM Frame := do
                 pure ⟨valPtr, envPtr₀, contPtr₀⟩
               else
                 pure ⟨valPtr, envPtr, contPtr⟩
-            if valPtr.tag == ExprTag.cons then
-              let frm ← frm.evalCons
-              dbg_trace (← printExpr frm.expr)
-              pure frm
+            if valPtr.tag == ExprTag.fun then
+              let .fun argsSymsPtr funEnvPtr bodyPtr ← getExprPtrImg valPtr
+                | throw "Expected function. Malformed store"
+              let fnPtr ← mkFunPtr argsSymsPtr (← insert funEnvPtr symPtr valPtr true) bodyPtr
+              pure { frm with expr := fnPtr }
             else pure frm
         | _ => throw "Malformed env"
     | .cons => frm.evalCons
@@ -362,8 +363,8 @@ open LDON.DSL
 def main : IO Unit :=
   let code := ⟪
     -- (letrec ((rec (lambda (x) (if x t (rec t))))) (rec nil))
-    -- (letrec ((count10 (lambda (i) (if (= i 10) i (count10 (+ i 1)))))) (count10 0))
-    (letrec ((countX (lambda (i) (if (= i 3) i (countX (+ i 1)))))) (countX 0))
+    (letrec ((count10 (lambda (i) (if (= i 10) i (count10 (+ i 1)))))) (count10 0))
+    -- (letrec ((countX (lambda (i) (if (= i 3) i (countX (+ i 1)))))) (countX 0))
     -- (letrec ((countX (lambda (i j) (if (= i 5) i (countX (+ i 1) j))))) (countX 0 nil))
     -- (let ((a 1) (b a)) (+ b 1))
     -- (let ((a 1) (a 2)) a)
