@@ -42,23 +42,18 @@ def unfold3 (exprPtr : ExprPtr) : StoreM (ExprPtr × ExprPtr × ExprPtr) := do
   if ← isNil cdr then return (car₁, car₂, car₃)
   throw "unfold3 failed"
 
+@[inline] def cons (headPtr tailPtr : ExprPtr) : StoreM ExprPtr := do
+  addToExprStore
+    ⟨.cons, hash4 headPtr.tag.toF headPtr.val tailPtr.tag.toF tailPtr.val⟩
+    (.cons headPtr tailPtr)
+
 def insert (envPtr symPtr valPtr : ExprPtr) (recr : Bool := false) : StoreM ExprPtr := do
   if symPtr.tag != .sym then throw "Can't bind data to non-symbolic pointers"
-  let pair ← addToExprStore
-    ⟨.cons, hash4 symPtr.tag.toF symPtr.val valPtr.tag.toF valPtr.val⟩
-    (.cons symPtr valPtr)
+  let entry ← cons symPtr valPtr
   if recr then
-    let nilPtr ← putSym (.ofString "nil")
-    let entry ← addToExprStore
-      ⟨.cons, hash4 pair.tag.toF pair.val nilPtr.tag.toF nilPtr.val⟩
-      (.cons pair nilPtr)
-    addToExprStore
-      ⟨.cons, hash4 entry.tag.toF entry.val envPtr.tag.toF envPtr.val⟩
-      (.cons entry envPtr)
-  else
-    addToExprStore
-      ⟨.cons, hash4 pair.tag.toF pair.val envPtr.tag.toF envPtr.val⟩
-      (.cons pair envPtr)
+    let entry' ← cons entry (← putSym (.ofString "nil"))
+    cons entry' envPtr
+  else cons entry envPtr
 
 def getCont0 (contPtr : ContPtr) : StoreM ContPtr := do
   match (← get).contData.find? contPtr with
@@ -177,6 +172,21 @@ def intoLetrec (bindsPtr bodyPtr : ExprPtr) : StepInto := fun (envPtr, contPtr) 
     (.cont2 bindsPtr bodyPtr contPtr)
   return ⟨bindExprPtr, envPtr, contPtr'⟩
 
+def intoLookup (symPtr envTailPtr : ExprPtr) : StepInto := fun (envPtr, contPtr) => do
+  if contPtr.tag == .lookup then -- don't stack lookup continuations
+    pure ⟨symPtr, envTailPtr, contPtr⟩
+  else -- push a lookup continuation to save the original env
+    let contPtr' ← addToContStore
+      ⟨.lookup, hash4 envPtr.tag.toF envPtr.val contPtr.tag.toF contPtr.val⟩
+      (.cont1 envPtr contPtr)
+    pure ⟨symPtr, envTailPtr, contPtr'⟩
+
+def outOfLookup (valPtr : ExprPtr) : StepInto := fun (envPtr, contPtr) => do
+  if contPtr.tag == .lookup then
+    let (envPtr₀, contPtr₀) ← getCont1 contPtr
+    pure ⟨valPtr, envPtr₀, contPtr₀⟩
+  else pure ⟨valPtr, envPtr, contPtr⟩
+
 def Frame.continue (frm : Frame) : StoreM Frame := do
   match frm.cont.tag with
   | .entry => return { frm with cont := ← getCont0 frm.cont }
@@ -231,7 +241,7 @@ def Frame.continue (frm : Frame) : StoreM Frame := do
   | .env =>
     let (envPtr₀, contPtr) ← getCont1 frm.cont
     return ⟨frm.expr, envPtr₀, contPtr⟩
-  | .lookup => unreachable!
+  | .lookup => unreachable! -- this is all dealt with in the step function
 
 @[inline] def Frame.stepIntoParams (frm : Frame) : ExprPtr × ContPtr :=
   (frm.env, frm.cont)
@@ -277,47 +287,25 @@ def Frame.step (frm : Frame) : StoreM Frame := do
         -- unfold the head
         let contPtr := frm.cont
         let (headPtr, envTailPtr) ← uncons envPtr
-        let (symPtr', valPtr) ← cadr headPtr
-        match symPtr'.tag with
+        let (symOrEnvPtr, valPtr) ← uncons headPtr
+        match symOrEnvPtr.tag with
         | .sym =>
-          if symPtr' != symPtr then
-            if contPtr.tag == .lookup then -- don't stack lookup continuations
-              pure ⟨symPtr, envTailPtr, contPtr⟩
-            else -- push a lookup continuation to save the original env
-              let contPtr' ← addToContStore
-                ⟨.lookup, hash4 envPtr.tag.toF envPtr.val contPtr.tag.toF contPtr.val⟩
-                (.cont1 envPtr contPtr)
-              pure ⟨symPtr, envTailPtr, contPtr'⟩
+          if symPtr != symOrEnvPtr then intoLookup symPtr envTailPtr (envPtr, contPtr)
           else -- we got a match, but we need to check if we're on a lookup continuation
-            let (frm : Frame) ← if contPtr.tag == .lookup then
-                let (envPtr₀, contPtr₀) ← getCont1 contPtr
-                pure ⟨valPtr, envPtr₀, contPtr₀⟩
-              else
-                pure ⟨valPtr, envPtr, contPtr⟩
-            frm.continue -- already reduced
+            let frm ← outOfLookup valPtr (envPtr, contPtr)
+            frm.continue
         | .cons => -- recursive env
           if ← isNotNil valPtr then throw "Invalid recursive env"
-          let (symPtr', valPtr) ← cadr symPtr'
-          if symPtr' != symPtr then
-            if contPtr.tag == .lookup then -- don't stack lookup continuations
-              pure ⟨symPtr, envTailPtr, contPtr⟩
-            else -- push a lookup continuation to save the original env
-              let contPtr' ← addToContStore
-                ⟨.lookup, hash4 envPtr.tag.toF envPtr.val contPtr.tag.toF contPtr.val⟩
-                (.cont1 envPtr contPtr)
-              pure ⟨symPtr, envTailPtr, contPtr'⟩
+          let (symPtr', valPtr) ← uncons symOrEnvPtr
+          if symPtr != symPtr' then intoLookup symPtr envTailPtr (envPtr, contPtr)
           else -- we got a match, but we need to check if we're on a lookup continuation
-            let (frm : Frame) ← if contPtr.tag == .lookup then
-                let (envPtr₀, contPtr₀) ← getCont1 contPtr
-                pure ⟨valPtr, envPtr₀, contPtr₀⟩
-              else
-                pure ⟨valPtr, envPtr, contPtr⟩
+            let frm ← outOfLookup valPtr (envPtr, contPtr)
             if valPtr.tag == ExprTag.fun then
               let .fun argsSymsPtr funEnvPtr bodyPtr ← getExprPtrImg valPtr
                 | throw "Expected function. Malformed store"
-              let fnPtr ← mkFunPtr argsSymsPtr (← insert funEnvPtr symPtr valPtr true) bodyPtr
-              pure { frm with expr := fnPtr }
-            else pure frm
+              let fnPtr ← mkFunPtr argsSymsPtr (← cons headPtr funEnvPtr) bodyPtr
+              Frame.continue { frm with expr := fnPtr }
+            else frm.continue
         | _ => throw "Malformed env"
     | .cons => frm.evalCons
   if (← isTrivial frm'.expr) && frm'.cont.tag == .entry then
