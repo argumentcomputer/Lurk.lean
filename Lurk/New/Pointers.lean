@@ -18,10 +18,16 @@ instance : ToString ExprTag := ⟨ExprTag.toString⟩
 
 inductive UnOp
   | car
+  | emit
+  | commit
+  | open
   deriving Ord, BEq
 
 def UnOp.toString : UnOp → String
   | car => "car"
+  | emit => "emit"
+  | commit => "commit"
+  | .open => "open"
 
 instance : ToString UnOp := ⟨UnOp.toString⟩
 
@@ -86,6 +92,9 @@ def ContTag.toF : ContTag → F
   | .env => .ofNat 23
   | .lookup => .ofNat 24
   | .unOp .car => .ofNat 32
+  | .unOp .emit => .ofNat 33
+  | .unOp .commit => .ofNat 34
+  | .unOp .open => .ofNat 35
   | .binOp₁ .add => .ofNat 64
   | .binOp₁ .numEq => .ofNat 65
   | .binOp₂ .add => .ofNat 128

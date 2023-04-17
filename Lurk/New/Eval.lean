@@ -4,131 +4,42 @@ import Lurk.New.Store
 open Std (RBMap)
 open Store
 
-def car (exprPtr : ExprPtr) : StoreM ExprPtr := do
-  match ← getExprPtrImg exprPtr with
-  | .cons x _ => pure x
-  | _ => if ← isNil exprPtr then pure exprPtr else throw "car failed"
-
-def cdr (exprPtr : ExprPtr) : StoreM ExprPtr := do
-  match ← getExprPtrImg exprPtr with
-  | .cons _ x => pure x
-  | _ => if ← isNil exprPtr then pure exprPtr else throw "cdr failed"
-
-def cadr (exprPtr : ExprPtr) : StoreM $ ExprPtr × ExprPtr := do
-  match ← getExprPtrImg exprPtr with
-  | .cons x y => pure (x, y)
-  | _ => if ← isNil exprPtr then pure (exprPtr, exprPtr) else throw "cadr failed"
-
-def uncons (exprPtr : ExprPtr) : StoreM (ExprPtr × ExprPtr) := do
-  match ← getExprPtrImg exprPtr with
-  | .cons a b => pure (a, b)
-  | _ => throw "uncons failed"
-
-def unfold1 (exprPtr : ExprPtr) : StoreM ExprPtr := do
-  let (car, cdr) ← uncons exprPtr
-  if ← isNil cdr then return car
-  throw "unfold1 failed"
-
-def unfold2 (exprPtr : ExprPtr) : StoreM (ExprPtr × ExprPtr) := do
-  let (car₁, cdr) ← uncons exprPtr
-  let (car₂, cdr) ← uncons cdr
-  if ← isNil cdr then return (car₁, car₂)
-  throw "unfold2 failed"
-
-def unfold3 (exprPtr : ExprPtr) : StoreM (ExprPtr × ExprPtr × ExprPtr) := do
-  let (car₁, cdr) ← uncons exprPtr
-  let (car₂, cdr) ← uncons cdr
-  let (car₃, cdr) ← uncons cdr
-  if ← isNil cdr then return (car₁, car₂, car₃)
-  throw "unfold3 failed"
-
-@[inline] def cons (headPtr tailPtr : ExprPtr) : StoreM ExprPtr := do
-  addToExprStore
-    ⟨.cons, hash4 headPtr.tag.toF headPtr.val tailPtr.tag.toF tailPtr.val⟩
-    (.cons headPtr tailPtr)
-
-def insert (envPtr symPtr valPtr : ExprPtr) (recr : Bool := false) : StoreM ExprPtr := do
-  if symPtr.tag != .sym then throw "Can't bind data to non-symbolic pointers"
-  let entry ← cons symPtr valPtr
-  if recr then
-    let entry' ← cons entry (← putSym (.ofString "nil"))
-    cons entry' envPtr
-  else cons entry envPtr
-
-def getCont0 (contPtr : ContPtr) : StoreM ContPtr := do
-  match (← get).contData.find? contPtr with
-  | some $ .cont0 a => return a
-  | _ => throw "getCont0 failed"
-
-def getCont1 (contPtr : ContPtr) : StoreM (ExprPtr × ContPtr) := do
-  match (← get).contData.find? contPtr with
-  | some $ .cont1 a b => return (a, b)
-  | _ => throw "getCont1 failed"
-
-def getCont2 (contPtr : ContPtr) : StoreM (ExprPtr × ExprPtr × ContPtr) := do
-  match (← get).contData.find? contPtr with
-  | some $ .cont2 a b c => return (a, b, c)
-  | _ => throw "getCont2 failed"
-
-def getCont3 (contPtr : ContPtr) : StoreM (ExprPtr × ExprPtr × ExprPtr × ContPtr) := do
-  match (← get).contData.find? contPtr with
-  | some $ .cont3 a b c d => return (a, b, c, d)
-  | _ => throw "getCont3 failed"
-
-@[inline] def mkFunPtr (argsSymsPtr funEnvPtr bodyPtr : ExprPtr) : StoreM ExprPtr :=
-  addToExprStore
-    ⟨.fun, hash6 argsSymsPtr.tag.toF argsSymsPtr.val funEnvPtr.tag.toF funEnvPtr.val
-      bodyPtr.tag.toF bodyPtr.val⟩
-    (.fun argsSymsPtr funEnvPtr bodyPtr)
-
 structure Frame where
   expr : ExprPtr
   env  : ExprPtr
   cont : ContPtr
   deriving BEq
 
-def isTrivial (exprPtr : ExprPtr) : StoreM Bool :=
-  match exprPtr.tag with
-  | .num | .u64 | .char | .str | .comm | .fun => return true
-  | .sym => return ((← getSym exprPtr) matches .nil | .t)
-  | _ => return false
-
 abbrev StepInto := ExprPtr × ContPtr → StoreM Frame
 
 def finishUnOp (resPtr : ExprPtr) (op : UnOp) : StepInto := fun (envPtr, contPtr) =>
   match op with
   | .car => return ⟨← car resPtr, envPtr, contPtr⟩
+  | .emit => do dbg_trace (← printExprM resPtr); return ⟨resPtr, envPtr, contPtr⟩
+  | .commit => return ⟨← hide .zero resPtr, envPtr, contPtr⟩
+  | .open =>
+    if resPtr.tag matches .comm | .num then return ⟨← openComm resPtr.val, envPtr, contPtr⟩
+    else throw "Invalid input for open"
 
 def finishBinOp (lPtr rPtr : ExprPtr) (op : BinOp) : StepInto := fun (envPtr, contPtr) =>
   match op with
   | .add => return ⟨← lPtr.add rPtr, envPtr, contPtr⟩
   | .numEq => return ⟨← boolToExprPtr $ ← lPtr.numEq rPtr, envPtr, contPtr⟩
 
-def intoUnOp (tag : ContTag) (tailPtr : ExprPtr) : StepInto := fun (envPtr, contPtr) => do
-  let x ← unfold1 tailPtr
-  let contPtr' ← addToContStore
-    ⟨tag, hash2 contPtr.tag.toF contPtr.val⟩
-    (.cont0 contPtr)
-  return ⟨x, envPtr, contPtr'⟩
+def intoUnOp (tag : ContTag) (tailPtr : ExprPtr) : StepInto := fun (envPtr, contPtr) =>
+  return ⟨← unfold1 tailPtr, envPtr, ← putCont0 tag contPtr⟩
 
 def intoBinOp (tag : ContTag) (tailPtr : ExprPtr) : StepInto := fun (envPtr, contPtr) => do
   let (x, y) ← unfold2 tailPtr
-  let contPtr' ← addToContStore
-    ⟨tag, hash4 y.tag.toF y.val contPtr.tag.toF contPtr.val⟩
-    (.cont1 y contPtr)
+  let contPtr' ← putCont1 tag y contPtr
   return ⟨x, envPtr, contPtr'⟩
 
 def saveEnv (envPtr : ExprPtr) (contPtr : ContPtr) : StoreM ContPtr :=
-  if contPtr.tag == .env then pure contPtr else
-  addToContStore
-    ⟨.env, hash4 envPtr.tag.toF envPtr.val contPtr.tag.toF contPtr.val⟩
-    (.cont1 envPtr contPtr)
+  if contPtr.tag == .env then pure contPtr
+  else putCont1 .env envPtr contPtr
 
-def intoApp (fnPtr argsPtr : ExprPtr) : StepInto := fun (envPtr, contPtr) => do
-  let contPtr' ← addToContStore
-    ⟨.appFn, hash4 argsPtr.tag.toF argsPtr.val contPtr.tag.toF contPtr.val⟩
-    (.cont1 argsPtr contPtr)
-  return ⟨fnPtr, envPtr, contPtr'⟩
+def intoApp (fnPtr argsPtr : ExprPtr) : StepInto := fun (envPtr, contPtr) =>
+  return ⟨fnPtr, envPtr, ← putCont1 .appFn argsPtr contPtr⟩
 
 def intoNextAppArg (fnPtr argsSymsPtr argsPtr bodyPtr funEnvPtr : ExprPtr) : StepInto :=
   fun (envPtr, contPtr) => do match ← isNil argsSymsPtr, ← isNil argsPtr with
@@ -137,55 +48,48 @@ def intoNextAppArg (fnPtr argsSymsPtr argsPtr bodyPtr funEnvPtr : ExprPtr) : Ste
     | true,  false => throw "Too many arguments"
     | false, false => -- currying
       let (argPtr, argsPtr) ← uncons argsPtr
-      let contPtr' ← addToContStore
-        ⟨.appArg, hash6 fnPtr.tag.toF fnPtr.val argsPtr.tag.toF argsPtr.val
-          contPtr.tag.toF contPtr.val⟩
-        (.cont2 fnPtr argsPtr contPtr)
-      return ⟨argPtr, envPtr, contPtr'⟩
+      return ⟨argPtr, envPtr, ← putCont2 .appArg fnPtr argsPtr contPtr⟩
 
 def intoIf (tailPtr : ExprPtr) : StepInto := fun (envPtr, contPtr) => do
   let (propPtr, tailPtr) ← cadr tailPtr
   let (truePtr, tailPtr) ← cadr tailPtr
   let (falsePtr, tailPtr) ← cadr tailPtr
   if ← isNotNil tailPtr then throw "To many if arguments"
-  let contPtr' ← addToContStore
-    ⟨.if, hash6 truePtr.tag.toF truePtr.val falsePtr.tag.toF falsePtr.val
-      contPtr.tag.toF contPtr.val⟩
-    (.cont2 truePtr falsePtr contPtr)
-  return ⟨propPtr, envPtr, contPtr'⟩
+  return ⟨propPtr, envPtr, ← putCont2 .if truePtr falsePtr contPtr⟩
 
 def intoLet (bindsPtr bodyPtr: ExprPtr) : StepInto := fun (envPtr, contPtr) => do
   let bindPtr ← car bindsPtr
   let (_, bindExprPtr) ← unfold2 bindPtr
-  let contPtr' ← addToContStore
-    ⟨.let, hash6 bindsPtr.tag.toF bindsPtr.val bodyPtr.tag.toF bodyPtr.val
-      contPtr.tag.toF contPtr.val⟩
-    (.cont2 bindsPtr bodyPtr contPtr)
-  return ⟨bindExprPtr, envPtr, contPtr'⟩
+  return ⟨bindExprPtr, envPtr, ← putCont2 .let bindsPtr bodyPtr contPtr⟩
 
 def intoLetrec (bindsPtr bodyPtr : ExprPtr) : StepInto := fun (envPtr, contPtr) => do
   let bindPtr ← car bindsPtr
   let (_, bindExprPtr) ← unfold2 bindPtr
-  let contPtr' ← addToContStore
-    ⟨.letrec, hash6 bindsPtr.tag.toF bindsPtr.val bodyPtr.tag.toF bodyPtr.val
-      contPtr.tag.toF contPtr.val⟩
-    (.cont2 bindsPtr bodyPtr contPtr)
-  return ⟨bindExprPtr, envPtr, contPtr'⟩
+  return ⟨bindExprPtr, envPtr, ← putCont2 .letrec bindsPtr bodyPtr contPtr⟩
 
-def intoLookup (symPtr envTailPtr : ExprPtr) : StepInto := fun (envPtr, contPtr) => do
+def intoLookup (symPtr envTailPtr : ExprPtr) : StepInto := fun (envPtr, contPtr) =>
   if contPtr.tag == .lookup then -- don't stack lookup continuations
-    pure ⟨symPtr, envTailPtr, contPtr⟩
+    return ⟨symPtr, envTailPtr, contPtr⟩
   else -- push a lookup continuation to save the original env
-    let contPtr' ← addToContStore
-      ⟨.lookup, hash4 envPtr.tag.toF envPtr.val contPtr.tag.toF contPtr.val⟩
-      (.cont1 envPtr contPtr)
-    pure ⟨symPtr, envTailPtr, contPtr'⟩
+    return ⟨symPtr, envTailPtr, ← putCont1 .lookup envPtr contPtr⟩
 
 def outOfLookup (valPtr : ExprPtr) : StepInto := fun (envPtr, contPtr) => do
   if contPtr.tag == .lookup then
     let (envPtr₀, contPtr₀) ← getCont1 contPtr
     pure ⟨valPtr, envPtr₀, contPtr₀⟩
   else pure ⟨valPtr, envPtr, contPtr⟩
+
+def insert (envPtr symPtr valPtr : ExprPtr) (recr : Bool := false) : StoreM ExprPtr := do
+  if symPtr.tag != .sym then throw "Can't bind data to non-symbolic pointers"
+  let entry ← cons symPtr valPtr
+  if recr then cons (← cons entry (← putSym (.ofString "nil"))) envPtr
+  else cons entry envPtr
+
+def isTrivial (exprPtr : ExprPtr) : StoreM Bool :=
+  match exprPtr.tag with
+  | .num | .u64 | .char | .str | .comm | .fun => return true
+  | .sym => return ((← getSym exprPtr) matches .nil | .t)
+  | _ => return false
 
 def Frame.continue (frm : Frame) : StoreM Frame := do
   match frm.cont.tag with
@@ -196,30 +100,23 @@ def Frame.continue (frm : Frame) : StoreM Frame := do
     let (y, contPtr) ← getCont1 frm.cont
     let x := frm.expr
     let envPtr := frm.env
-    if ← isTrivial y then finishBinOp x y op (envPtr, contPtr) else
-    let contPtr' ← addToContStore
-      ⟨.binOp₂ op, hash4 x.tag.toF x.val contPtr.tag.toF contPtr.val⟩
-      (.cont1 x contPtr)
-    return ⟨y, envPtr, contPtr'⟩
+    if ← isTrivial y then finishBinOp x y op (envPtr, contPtr) -- skip trivial step
+    else return ⟨y, envPtr, ← putCont1 (.binOp₂ op) x contPtr⟩
   | .binOp₂ op =>
     let (x, contPtr) ← getCont1 frm.cont
     finishBinOp x frm.expr op (frm.env, contPtr)
   | .appFn =>
     let fnPtr := frm.expr
     let (argsPtr, contPtr) ← getCont1 frm.cont
-    match ← getExprPtrImg fnPtr with
-    | .fun argsSymsPtr funEnvPtr bodyPtr =>
-      intoNextAppArg fnPtr argsSymsPtr argsPtr bodyPtr funEnvPtr (frm.env, contPtr)
-    | _ => throw s!"Error evaluating app function. Head function expected"
+    let (argsSymsPtr, funEnvPtr, bodyPtr) ← getFun fnPtr
+    intoNextAppArg fnPtr argsSymsPtr argsPtr bodyPtr funEnvPtr (frm.env, contPtr)
   | .appArg =>
     let (fnPtr, argsPtr, contPtr) ← getCont2 frm.cont
-    match ← getExprPtrImg fnPtr with
-    | .fun argsSymsPtr funEnvPtr bodyPtr =>
-      let (argSymPtr, argsSymsPtr) ← uncons argsSymsPtr
-      let funEnvPtr' ← insert funEnvPtr argSymPtr frm.expr
-      let fnPtr' ← mkFunPtr argsSymsPtr funEnvPtr' bodyPtr
-      intoNextAppArg fnPtr' argsSymsPtr argsPtr bodyPtr funEnvPtr' (frm.env, contPtr)
-    | _ => throw "Error applying app argument. Head function expected"
+    let (argsSymsPtr, funEnvPtr, bodyPtr) ← getFun fnPtr
+    let (argSymPtr, argsSymsPtr') ← uncons argsSymsPtr
+    let funEnvPtr' ← insert funEnvPtr argSymPtr frm.expr
+    let fnPtr' ← mkFunPtr argsSymsPtr' funEnvPtr' bodyPtr
+    intoNextAppArg fnPtr' argsSymsPtr' argsPtr bodyPtr funEnvPtr' (frm.env, contPtr)
   | .if =>
     let (truePtr, falsePtr, contPtr) ← getCont2 frm.cont
     if ← isNil frm.expr then return ⟨falsePtr, frm.env, contPtr⟩
@@ -249,30 +146,6 @@ def Frame.continue (frm : Frame) : StoreM Frame := do
 @[inline] def Frame.withSavedEnv (frm : Frame) : StoreM Frame :=
   return { frm with cont := ← saveEnv frm.env frm.cont }
 
-def Frame.evalCons (frm : Frame) : StoreM Frame := do
-  let .cons head tail ← getExprPtrImg frm.expr
-    | throw "Expected cons. Malformed store"
-  if head.tag == .sym then match ← getSym head with
-    | .ofString "car" => intoUnOp (.unOp .car) tail frm.stepIntoParams
-    | .ofString "+" => intoBinOp (.binOp₁ .add) tail frm.stepIntoParams
-    | .ofString "=" => intoBinOp (.binOp₁ .numEq) tail frm.stepIntoParams
-    | .ofString "lambda" =>
-      let (argsSymsPtr, bodyPtr) ← unfold2 tail
-      let envPtr := frm.env
-      let funPtr ← mkFunPtr argsSymsPtr envPtr bodyPtr
-      pure ⟨funPtr, envPtr, frm.cont⟩ >>= Frame.continue
-    | .ofString "if" => intoIf tail frm.stepIntoParams
-    | .ofString "let" =>
-      let (bindsPtr, bodyPtr) ← unfold2 tail
-      if ← isNil bindsPtr then pure { frm with expr := bodyPtr } else
-      let frm ← frm.withSavedEnv; intoLet bindsPtr bodyPtr frm.stepIntoParams
-    | .ofString "letrec" =>
-      let (bindsPtr, bodyPtr) ← unfold2 tail
-      if ← isNil bindsPtr then pure { frm with expr := bodyPtr } else
-      let frm ← frm.withSavedEnv; intoLetrec bindsPtr bodyPtr frm.stepIntoParams
-    | _ => intoApp head tail frm.stepIntoParams
-  else intoApp head tail frm.stepIntoParams
-
 def Frame.step (frm : Frame) : StoreM Frame := do
   let frm' ← match frm.expr.tag with
     | .num | .u64 | .char | .str | .comm | .fun => frm.continue
@@ -291,50 +164,70 @@ def Frame.step (frm : Frame) : StoreM Frame := do
         match symOrEnvPtr.tag with
         | .sym =>
           if symPtr != symOrEnvPtr then intoLookup symPtr envTailPtr (envPtr, contPtr)
-          else -- we got a match, but we need to check if we're on a lookup continuation
-            let frm ← outOfLookup valPtr (envPtr, contPtr)
-            frm.continue
+          else outOfLookup valPtr (envPtr, contPtr) >>= Frame.continue
         | .cons => -- recursive env
-          if ← isNotNil valPtr then throw "Invalid recursive env"
+          if ← isNotNil valPtr then throw "Malformed recursive env"
           let (symPtr', valPtr) ← uncons symOrEnvPtr
           if symPtr != symPtr' then intoLookup symPtr envTailPtr (envPtr, contPtr)
-          else -- we got a match, but we need to check if we're on a lookup continuation
+          else
             let frm ← outOfLookup valPtr (envPtr, contPtr)
-            if valPtr.tag == ExprTag.fun then
-              let .fun argsSymsPtr funEnvPtr bodyPtr ← getExprPtrImg valPtr
-                | throw "Expected function. Malformed store"
-              let fnPtr ← mkFunPtr argsSymsPtr (← cons headPtr funEnvPtr) bodyPtr
-              Frame.continue { frm with expr := fnPtr }
-            else frm.continue
+            let frm ← if valPtr.tag == ExprTag.fun then
+                let (argsSymsPtr, funEnvPtr, bodyPtr) ← getFun valPtr
+                let fnPtr ← mkFunPtr argsSymsPtr (← cons headPtr funEnvPtr) bodyPtr
+                pure { frm with expr := fnPtr }
+              else pure frm
+            frm.continue
         | _ => throw "Malformed env"
-    | .cons => frm.evalCons
+    | .cons =>
+      let (head, tail) ← getCons frm.expr
+      if head.tag == .sym then match ← getSym head with
+        | .ofString "car" => intoUnOp (.unOp .car) tail frm.stepIntoParams
+        | .ofString "emit" => intoUnOp (.unOp .emit) tail frm.stepIntoParams
+        | .ofString "commit" => intoUnOp (.unOp .commit) tail frm.stepIntoParams
+        | .ofString "open" => intoUnOp (.unOp .open) tail frm.stepIntoParams
+        | .ofString "+" => intoBinOp (.binOp₁ .add) tail frm.stepIntoParams
+        | .ofString "=" => intoBinOp (.binOp₁ .numEq) tail frm.stepIntoParams
+        | .ofString "lambda" =>
+          let (argsSymsPtr, bodyPtr) ← unfold2 tail
+          let envPtr := frm.env
+          let funPtr ← mkFunPtr argsSymsPtr envPtr bodyPtr
+          pure ⟨funPtr, envPtr, frm.cont⟩ >>= Frame.continue
+        | .ofString "if" => intoIf tail frm.stepIntoParams
+        | .ofString "let" =>
+          let (bindsPtr, bodyPtr) ← unfold2 tail
+          if ← isNil bindsPtr then pure { frm with expr := bodyPtr } else
+          let frm ← frm.withSavedEnv; intoLet bindsPtr bodyPtr frm.stepIntoParams
+        | .ofString "letrec" =>
+          let (bindsPtr, bodyPtr) ← unfold2 tail
+          if ← isNil bindsPtr then pure { frm with expr := bodyPtr } else
+          let frm ← frm.withSavedEnv; intoLetrec bindsPtr bodyPtr frm.stepIntoParams
+        | _ => intoApp head tail frm.stepIntoParams
+      else intoApp head tail frm.stepIntoParams
   if (← isTrivial frm'.expr) && frm'.cont.tag == .entry then
     return { frm' with cont := ← getCont0 frm'.cont }
   else return frm'
 
-def printFrame (frm : Frame) : StoreM String := do
-  let expr ← printExpr frm.expr
-  let env ← printExpr frm.env
-  let cont := ToString.toString frm.cont
-  return s!"\nExpr: {expr}\nEnv:  {env}\nCont: {cont}"
+def printFrame (i : Nat) (frm : Frame) : StoreM String := do
+  let expr ← printExprM frm.expr
+  let env ← printExprM frm.env
+  let cont ← printCont frm.cont
+  return s!"\nFrame {i}\nExpr: {expr}\nEnv:  {env}\nCont: {cont}"
 
 def Frame.eval (frm : Frame) : StoreM $ ExprPtr × Array Frame := do
+  let mut i := 0
   let mut frm := frm
   let mut frms := #[frm]
-  dbg_trace ← printFrame frm
+  dbg_trace ← printFrame i frm
   while true do
+    i := i.succ
     frm ← frm.step
     frms := frms.push frm
-    dbg_trace ← printFrame frm
+    dbg_trace ← printFrame i frm
     if frm.cont.tag == .halt then break
   return (frm.expr, frms)
 
 def LDON.evalM (ldon : LDON) : StoreM $ ExprPtr × Array Frame := do
-  let haltPtr := ContPtr.mk .halt .zero
-  let contPtr ← addToContStore
-    ⟨.entry, hash2 haltPtr.tag.toF haltPtr.val⟩
-    (.cont0 haltPtr)
-  Frame.eval ⟨← putLDON ldon, ← putSym .nil, contPtr⟩
+  Frame.eval ⟨← putLDON ldon, ← putSym .nil, ← putCont0 .entry (← putHalt)⟩
 
 def LDON.eval (ldon : LDON) (store : Store := default) :
     Except String $ ExprPtr × (Array Frame) × Store :=
@@ -342,14 +235,10 @@ def LDON.eval (ldon : LDON) (store : Store := default) :
   | .ok (expr, frms) store => return (expr, frms, store)
   | .error err _ => throw err
 
-def test (ldon : LDON) : Except String Nat :=
-  match ldon.eval with
-  | .ok x => return x.2.1.size.pred
-  | .error x => throw x
-
 open LDON.DSL
 def main : IO Unit :=
   let code := ⟪
+    -- (emit 123)
     -- (letrec ((rec (lambda (x) (if x t (rec t))))) (rec nil))
     (letrec ((count10 (lambda (i) (if (= i 10) i (count10 (+ i 1)))))) (count10 0))
     -- (letrec ((countX (lambda (i) (if (= i 3) i (countX (+ i 1)))))) (countX 0))
@@ -373,5 +262,8 @@ def main : IO Unit :=
     -- (+ ((lambda (x) x) 1) x)
     -- (+ (let ((a 1)) a) a)
   ⟫
-  match test code with
-  | .ok e | .error e => IO.println e
+  match code.eval with
+  | .ok (e, frms, store) => match store.printExpr e with
+    | .ok res => IO.println s!"[{frms.size.pred} iterations] => {res}"
+    | .error e => IO.println s!"Printing error: {e}"
+  | .error e => IO.println s!"Error: {e}"
