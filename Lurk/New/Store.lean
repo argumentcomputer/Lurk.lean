@@ -13,7 +13,7 @@ def hash3 : F → F → F → F :=
 
 def hash4 : F → F → F → F → F :=
   fun a b c d => .ofNat $ (Poseidon.Lurk.hash4 a b c d).norm
- 
+
 def hash6 : F → F → F → F → F → F → F := -- FIX
   fun a b c d e f => hash2 (hash3 a b c) (hash3 d e f)
 
@@ -22,7 +22,6 @@ inductive ExprPtrImg
   | «fun» : ExprPtr → ExprPtr → ExprPtr → ExprPtrImg
 
 inductive ContPtrImg
-  | halt  : ContPtrImg
   | cont0 : ContPtr → ContPtrImg
   | cont1 : ExprPtr → ContPtr → ContPtrImg
   | cont2 : ExprPtr → ExprPtr → ContPtr → ContPtrImg
@@ -124,20 +123,37 @@ def getExprPtrImg (ptr : ExprPtr) : StoreM ExprPtrImg := do
   | some img => pure img
   | none => throw s!"Img not found for pointer {ptr}"
 
-def getStr (ptr : ExprPtr) : StoreM String := do
-  match (← get).ptrToStr.find? ptr with
-  | some str => return str
-  | none => unreachable! -- pull from store and then memoize
-
-def getSym (ptr : ExprPtr) : StoreM Symbol := do
-  match (← get).ptrToSym.find? ptr with
-  | some sym => return sym
-  | none => unreachable! -- pull from store and then memoize
-
 def getCons (ptr : ExprPtr) : StoreM $ ExprPtr × ExprPtr := do
   match ← getExprPtrImg ptr with
   | .cons x y => return (x, y)
   | _ => throw "Expected cons. Malformed store"
+
+partial def getStr (ptr : ExprPtr) : StoreM String := do
+  match (← get).ptrToStr.find? ptr with
+  | some str => return str
+  | none =>
+    if ptr.tag != .str then throw "Invalid tag to retrieve a string"
+    let str ← if ptr.val == .zero then pure "" else
+      let (⟨.char, c⟩, ptr') ← getCons ptr
+        | throw "Can't unfold str pointer correctly. Malformed store"
+      let str' ← getStr ptr'
+      pure ⟨.ofNat c.val :: str'.data⟩
+    modifyGet fun store => (str, { store with
+      ptrToStr := store.ptrToStr.insert ptr str
+      strToPtr := store.strToPtr.insert str ptr })
+
+partial def getSym (ptr : ExprPtr) : StoreM Symbol := do
+  match (← get).ptrToSym.find? ptr with
+  | some sym => return sym
+  | none =>
+    if ptr.tag != .sym then throw "Invalid tag to retrieve a symbol"
+    let sym ← if ptr.val == .zero then pure .root else
+      let (strPtr, ptr') ← getCons ptr
+      let sym' ← getSym ptr'
+      pure $ .cons (← getStr strPtr) sym'
+    modifyGet fun store => (sym, { store with
+      ptrToSym := store.ptrToSym.insert ptr sym
+      symToPtr := store.symToPtr.insert sym ptr })
 
 def getFun (ptr : ExprPtr) : StoreM $ ExprPtr × ExprPtr × ExprPtr := do
   match ← getExprPtrImg ptr with
@@ -246,9 +262,6 @@ end Expressions
 
 section Continuations
 
-@[inline] def putHalt : StoreM ContPtr :=
-  addToContStore ⟨.halt, .zero⟩ .halt
-
 @[inline] def putCont0 (tag : ContTag) (contPtr : ContPtr) : StoreM ContPtr :=
   addToContStore ⟨tag, hash2 contPtr.tag.toF contPtr.val⟩ (.cont0 contPtr)
 
@@ -277,13 +290,13 @@ def getCont2 (contPtr : ContPtr) : StoreM $ ExprPtr × ExprPtr × ContPtr := do
   | some $ .cont2 a b c => return (a, b, c)
   | _ => throw "Expected cont2. Malformed store"
 
-def printCont (contPtr : ContPtr) : StoreM String := do
+def printCont (contPtr : ContPtr) : StoreM String :=
+  if contPtr.tag == .halt then return "halt" else do
   match (← get).contData.find? contPtr with
-  | some $ .halt => return "halt"
   | some $ .cont0 c => return s!"{contPtr.tag} => {c.tag}"
-  | some $ .cont1 e c => return s!"{contPtr.tag} => {c.tag} [{← printExprM e}]"
+  | some $ .cont1 e c => return s!"{contPtr.tag} | {← printExprM e} => {c.tag}"
   | some $ .cont2 e₁ e₂ c =>
-    return s!"{contPtr.tag} => {c.tag} [{← printExprM e₁}] [{← printExprM e₂}]"
+    return s!"{contPtr.tag} | {← printExprM e₁} | {← printExprM e₂} => {c.tag}"
   | none => throw "Couldn't find continuation. Malformed store"
 
 end Continuations

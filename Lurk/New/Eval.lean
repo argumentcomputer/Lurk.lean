@@ -82,7 +82,7 @@ def outOfLookup (valPtr : ExprPtr) : StepInto := fun (envPtr, contPtr) => do
 def insert (envPtr symPtr valPtr : ExprPtr) (recr : Bool := false) : StoreM ExprPtr := do
   if symPtr.tag != .sym then throw "Can't bind data to non-symbolic pointers"
   let entry ← cons symPtr valPtr
-  if recr then cons (← cons entry (← putSym (.ofString "nil"))) envPtr
+  if recr then cons (← cons entry (← putSym .nil)) envPtr
   else cons entry envPtr
 
 def isTrivial (exprPtr : ExprPtr) : StoreM Bool :=
@@ -227,7 +227,7 @@ def Frame.eval (frm : Frame) : StoreM $ ExprPtr × Array Frame := do
   return (frm.expr, frms)
 
 def LDON.evalM (ldon : LDON) : StoreM $ ExprPtr × Array Frame := do
-  Frame.eval ⟨← putLDON ldon, ← putSym .nil, ← putCont0 .entry (← putHalt)⟩
+  Frame.eval ⟨← putLDON ldon, ← putSym .nil, ← putCont0 .entry ⟨.halt, .zero⟩⟩
 
 def LDON.eval (ldon : LDON) (store : Store := default) :
     Except String $ ExprPtr × (Array Frame) × Store :=

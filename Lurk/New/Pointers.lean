@@ -47,7 +47,8 @@ inductive ContTag
   | appFn | appArg
   | «if»
   | «let» | letrec
-  | env | lookup
+  | env
+  | lookup
   | unOp : UnOp → ContTag
   | binOp₁ : BinOp → ContTag
   | binOp₂ : BinOp → ContTag
