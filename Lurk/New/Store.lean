@@ -18,7 +18,8 @@ def hash6 : F → F → F → F → F → F → F := -- FIX
   fun a b c d e f => hash2 (hash3 a b c) (hash3 d e f)
 
 inductive ExprPtrImg
-  | cons : ExprPtr → ExprPtr → ExprPtrImg
+  | thunk : ExprPtr → ExprPtrImg
+  | cons  : ExprPtr → ExprPtr → ExprPtrImg
   | «fun» : ExprPtr → ExprPtr → ExprPtr → ExprPtrImg
 
 inductive ContPtrImg
@@ -160,6 +161,11 @@ def getFun (ptr : ExprPtr) : StoreM $ ExprPtr × ExprPtr × ExprPtr := do
   | .fun x y z => return (x, y, z)
   | _ => throw "Expected fun. Malformed store"
 
+def getThunk (ptr : ExprPtr) : StoreM ExprPtr := do
+  match ← getExprPtrImg ptr with
+  | .thunk x => return x
+  | _ => throw "Expected thunk. Malformed store"
+
 def hide (secret : F) (ptr : ExprPtr) : StoreM ExprPtr := do
   let hash := hash3 secret ptr.tag.toF ptr.val
   modifyGet fun store =>
@@ -180,19 +186,21 @@ def openComm (hash : F) : StoreM ExprPtr := do
   if b then putSym .t else putSym .nil
 
 def car (exprPtr : ExprPtr) : StoreM ExprPtr := do
-  match ← getExprPtrImg exprPtr with
-  | .cons x _ => pure x
-  | _ => if ← isNil exprPtr then pure exprPtr else throw "car failed"
+  if ← isNil exprPtr then pure exprPtr else
+  if exprPtr.tag == .sym then throw "Can't car symbols"
+  let (x, _) ← getCons exprPtr
+  return x
 
 def cdr (exprPtr : ExprPtr) : StoreM ExprPtr := do
-  match ← getExprPtrImg exprPtr with
-  | .cons _ x => pure x
-  | _ => if ← isNil exprPtr then pure exprPtr else throw "cdr failed"
+  if ← isNil exprPtr then pure exprPtr else
+  if exprPtr.tag == .sym then throw "Can't car symbols"
+  let (_, x) ← getCons exprPtr
+  return x
 
 def cadr (exprPtr : ExprPtr) : StoreM $ ExprPtr × ExprPtr := do
-  match ← getExprPtrImg exprPtr with
-  | .cons x y => pure (x, y)
-  | _ => if ← isNil exprPtr then pure (exprPtr, exprPtr) else throw "cadr failed"
+  if ← isNil exprPtr then pure (exprPtr, exprPtr) else
+  if exprPtr.tag == .sym then throw "Can't car symbols"
+  else getCons exprPtr
 
 def uncons (exprPtr : ExprPtr) : StoreM (ExprPtr × ExprPtr) := do
   match ← getExprPtrImg exprPtr with
@@ -252,6 +260,9 @@ partial def printExprM (exprPtr : ExprPtr) : StoreM String :=
   | .fun => do
     let (args, _, body) ← getFun exprPtr
     return s!"<fun {← printExprM args} {← printExprM body}>"
+  | .thunk => do
+    let thunk ← getThunk exprPtr
+    return s!"<thunk {← printExprM thunk}>"
 
 def printExpr (store : Store) (exprPtr : ExprPtr) : Except String String :=
   match EStateM.run (printExprM exprPtr) store with

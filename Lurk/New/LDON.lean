@@ -39,8 +39,7 @@ inductive LDON
 
 namespace LDON
 
-@[match_pattern] def nil : LDON := sym .nil
-@[match_pattern] def t   : LDON := sym .t
+def nil : LDON := sym .nil
 
 def consWith (xs : List LDON) (init : LDON) : LDON :=
   xs.foldr (init := init) cons
