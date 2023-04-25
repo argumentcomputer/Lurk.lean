@@ -59,7 +59,7 @@ def intoNextAppArg (fnPtr argsSymsPtr argsPtr bodyPtr funEnvPtr : ExprPtr) : Ste
   fun (envPtr, contPtr) => do match ← isNil argsSymsPtr, ← isNil argsPtr with
     | true,  true  => return ⟨← mkThunk $ bodyPtr, funEnvPtr, ← saveEnv envPtr contPtr⟩ -- fulfilled
     | false, true  => return ⟨fnPtr, envPtr, contPtr⟩ -- still missing args
-    | true,  false => throw "Too many arguments"
+    | true,  false => intoApp bodyPtr argsPtr (envPtr, contPtr) -- auto-curry
     | false, false => -- currying
       let (argPtr, argsPtr) ← uncons argsPtr
       return ⟨← mkThunk $ argPtr, envPtr, ← putCont2 .appArg fnPtr argsPtr contPtr⟩
