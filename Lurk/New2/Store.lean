@@ -1,7 +1,7 @@
 import Std.Data.RBMap
 import Poseidon.ForLurk
-import Lurk.New.Pointers
-import Lurk.New.LDON
+import Lurk.New2.Pointers
+import Lurk.New2.LDON
 
 open Lurk (F)
 
@@ -17,6 +17,9 @@ def hash4 : F → F → F → F → F :=
 def hash6 : F → F → F → F → F → F → F := -- FIX
   fun a b c d e f => hash2 (hash3 a b c) (hash3 d e f)
 
+def hash8 : F → F → F → F → F → F → F → F → F := -- FIX
+  fun a b c d e f g h => hash2 (hash4 a b c d) (hash4 e f g h)
+
 inductive ExprPtrImg
   | thunk : ExprPtr → ExprPtrImg
   | cons  : ExprPtr → ExprPtr → ExprPtrImg
@@ -26,6 +29,7 @@ inductive ContPtrImg
   | cont0 : ContPtr → ContPtrImg
   | cont1 : ExprPtr → ContPtr → ContPtrImg
   | cont2 : ExprPtr → ExprPtr → ContPtr → ContPtrImg
+  | cont3 : ExprPtr → ExprPtr → ExprPtr → ContPtr → ContPtrImg
 
 open Std (RBMap)
 
@@ -263,9 +267,9 @@ partial def printExprM (exprPtr : ExprPtr) : StoreM String :=
   | .fun => do
     let (args, _, body) ← getFun exprPtr
     return s!"<fun {← printExprM args} {← printExprM body}>"
-  | .thunk => do
-    let thunk ← getThunk exprPtr
-    return s!"<thunk {← printExprM thunk}>"
+  -- | .thunk => do
+  --   let thunk ← getThunk exprPtr
+  --   return s!"<thunk {← printExprM thunk}>"
 
 def printExpr (store : Store) (exprPtr : ExprPtr) : Except String String :=
   match EStateM.run (printExprM exprPtr) store with
@@ -289,6 +293,11 @@ section Continuations
     ⟨tag, hash6 e₁.tag.toF e₁.val e₂.tag.toF e₂.val contPtr.tag.toF contPtr.val⟩
     (.cont2 e₁ e₂ contPtr)
 
+@[inline] def putCont3 (tag : ContTag) (e₁ e₂ e₃ : ExprPtr) (contPtr : ContPtr) : StoreM ContPtr :=
+  addToContStore
+    ⟨tag, hash8 e₁.tag.toF e₁.val e₂.tag.toF e₂.val e₃.tag.toF e₃.val contPtr.tag.toF contPtr.val⟩
+    (.cont3 e₁ e₂ e₃ contPtr)
+
 def getCont0 (contPtr : ContPtr) : StoreM ContPtr := do
   match (← get).contData.find? contPtr with
   | some $ .cont0 a => return a
@@ -304,6 +313,11 @@ def getCont2 (contPtr : ContPtr) : StoreM $ ExprPtr × ExprPtr × ContPtr := do
   | some $ .cont2 a b c => return (a, b, c)
   | _ => throw "Expected cont2. Malformed store"
 
+def getCont3 (contPtr : ContPtr) : StoreM $ ExprPtr × ExprPtr × ExprPtr × ContPtr := do
+  match (← get).contData.find? contPtr with
+  | some $ .cont3 a b c d => return (a, b, c, d)
+  | _ => throw "Expected cont2. Malformed store"
+
 def printCont (contPtr : ContPtr) : StoreM String :=
   if contPtr.tag == .halt then return "halt" else do
   match (← get).contData.find? contPtr with
@@ -311,6 +325,8 @@ def printCont (contPtr : ContPtr) : StoreM String :=
   | some $ .cont1 e c => return s!"{contPtr.tag} | {← printExprM e} => {c.tag}"
   | some $ .cont2 e₁ e₂ c =>
     return s!"{contPtr.tag} | {← printExprM e₁} | {← printExprM e₂} => {c.tag}"
+  | some $ .cont3 e₁ e₂ e₃ c =>
+    return s!"{contPtr.tag} | {← printExprM e₁} | {← printExprM e₂} | {← printExprM e₃} => {c.tag}"
   | none => throw "Couldn't find continuation. Malformed store"
 
 end Continuations

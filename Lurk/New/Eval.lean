@@ -109,7 +109,7 @@ def Frame.continue (frm : Frame) : StoreM Frame := do
     let x := frm.expr
     let envPtr := frm.env
     if ← isTrivial y then finishBinOp x y op (envPtr, contPtr) -- skip trivial step
-    else return ⟨← mkThunk $ y, envPtr, ← putCont1 (.binOp₂ op) x contPtr⟩
+    else return ⟨y, envPtr, ← putCont1 (.binOp₂ op) x contPtr⟩
   | .binOp₂ op =>
     let (x, contPtr) ← getCont1 frm.cont
     finishBinOp x frm.expr op (frm.env, contPtr)
@@ -258,7 +258,7 @@ def main : IO Unit :=
     -- (emit 123)
     -- (current-env)
     -- (car (current-env))
-    ((lambda (x) (quote x)) 0)
+    (let ((a 1) (b a)) (current-env))
     -- (car (quote hi))
     -- (quote a)
     -- (quote (lambda (x) x))
@@ -293,3 +293,5 @@ def main : IO Unit :=
     | .ok res => IO.println s!"[{frms.size.pred} iterations] => {res}"
     | .error e => IO.println s!"Printing error: {e}"
   | .error e => IO.println s!"Error: {e}"
+
+#eval main
