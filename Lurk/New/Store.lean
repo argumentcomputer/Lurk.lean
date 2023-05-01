@@ -161,11 +161,6 @@ def getFun (ptr : ExprPtr) : StoreM $ ExprPtr × ExprPtr × ExprPtr := do
   | .fun x y z => return (x, y, z)
   | _ => throw "Expected fun. Malformed store"
 
-def getThunk (ptr : ExprPtr) : StoreM ExprPtr := do
-  match ← getExprPtrImg ptr with
-  | .thunk x => return x
-  | _ => throw "Expected thunk. Malformed store"
-
 def hide (secret : F) (ptr : ExprPtr) : StoreM ExprPtr := do
   let hash := hash3 secret ptr.tag.toF ptr.val
   modifyGet fun store =>
@@ -260,9 +255,6 @@ partial def printExprM (exprPtr : ExprPtr) : StoreM String :=
   | .fun => do
     let (args, _, body) ← getFun exprPtr
     return s!"<fun {← printExprM args} {← printExprM body}>"
-  | .thunk => do
-    let thunk ← getThunk exprPtr
-    return s!"<thunk {← printExprM thunk}>"
 
 def printExpr (store : Store) (exprPtr : ExprPtr) : Except String String :=
   match EStateM.run (printExprM exprPtr) store with
