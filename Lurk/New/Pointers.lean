@@ -33,11 +33,13 @@ instance : ToString UnOp := ⟨UnOp.toString⟩
 
 inductive BinOp
   | add
+  | sub
   | numEq
   deriving Ord, BEq
 
 def BinOp.toString : BinOp → String
   | add => "add"
+  | sub => "sub"
   | numEq => "numEq"
 
 instance : ToString BinOp := ⟨BinOp.toString⟩
@@ -97,9 +99,11 @@ def ContTag.toF : ContTag → F
   | .unOp .commit => .ofNat 34
   | .unOp .open => .ofNat 35
   | .binOp₁ .add => .ofNat 64
-  | .binOp₁ .numEq => .ofNat 65
+  | .binOp₁ .sub => .ofNat 65
+  | .binOp₁ .numEq => .ofNat 66
   | .binOp₂ .add => .ofNat 128
-  | .binOp₂ .numEq => .ofNat 129
+  | .binOp₂ .sub => .ofNat 129
+  | .binOp₂ .numEq => .ofNat 130
 
 theorem ExprTag.toF_inj {t₁ t₂ : ExprTag} (h : t₁ ≠ t₂) : t₁.toF ≠ t₂.toF := by
   cases t₁ <;> cases t₂ <;> simp only [h] <;> contradiction

@@ -32,6 +32,7 @@ def finishUnOp (resPtr : ExprPtr) (op : UnOp) : StepInto := fun (envPtr, contPtr
 def finishBinOp (lPtr rPtr : ExprPtr) (op : BinOp) : StepInto := fun (envPtr, contPtr) =>
   match op with
   | .add => return ⟨← lPtr.add rPtr, envPtr, contPtr, true⟩
+  | .sub => return ⟨← lPtr.sub rPtr, envPtr, contPtr, true⟩
   | .numEq => return ⟨← boolToExprPtr $ ← lPtr.numEq rPtr, envPtr, contPtr, true⟩
 
 def saveEnv (envPtr : ExprPtr) (contPtr : ContPtr) : StoreM ContPtr :=
@@ -190,6 +191,7 @@ def Frame.step (frm : Frame) : StoreM Frame := do
           | .ofString "commit" => intoUnOp (.unOp .commit) tail frm.stepIntoParams
           | .ofString "open" => intoUnOp (.unOp .open) tail frm.stepIntoParams
           | .ofString "+" => intoBinOp (.binOp₁ .add) tail frm.stepIntoParams
+          | .ofString "-" => intoBinOp (.binOp₁ .sub) tail frm.stepIntoParams
           | .ofString "=" => intoBinOp (.binOp₁ .numEq) tail frm.stepIntoParams
           | .ofString "current-env" =>
             if ← isNil tail then Frame.continue { frm with expr := frm.env }
@@ -264,7 +266,11 @@ def main : IO Unit :=
     -- (let ((a 1) (b a)) (+ b 1))
     -- (let ((a 1) (a 2)) a)
     -- ((lambda (i) (if (= i 10) i (+ i 1))) 0)
-    ((lambda (a b c) nil) 1 2 3)
+    -- ((lambda (a b c) nil) 1 2 3)
+    (letrec ((odd?
+          (letrec ((even? (lambda (n) (if (= n 0) 1 (odd? (- n 1))))))
+            (lambda (n) (if (= n 0) 0 (even? (- n 1)))))))
+      (odd? 3))
     -- ((((lambda (a b c) nil) 1) 2) 3)
     -- (+ (+ 1 1) (+ 1 1))
     -- 1
