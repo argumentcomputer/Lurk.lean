@@ -44,7 +44,7 @@ inductive ScalarExpr
   | nil
   deriving Repr
 
-open Std (RBMap RBSet)
+open Batteries (RBMap RBSet)
 
 abbrev Store := RBMap ScalarPtr (Option ScalarExpr) compare
 

@@ -1,9 +1,5 @@
-import Megaparsec.Char
-import Megaparsec.Common
+import Std.Internal.Parsec.String
 import Lurk.LDON
-
-def Char.isHexDigit (c : Char) : Bool :=
-  c.isDigit || (c.val ≥ 97 && c.val ≤ 102)
 
 def Char.asHexDigitToNat (c : Char) : Nat :=
   if c.isDigit then c.val.toNat - 48
@@ -11,89 +7,83 @@ def Char.asHexDigitToNat (c : Char) : Nat :=
 
 namespace Lurk.Parser
 
-open Megaparsec Char Parsec Common
+open Std.Internal.Parsec String
 
-abbrev P := Parsec Char String Unit
+private def between {α : Type} (init final : Char) (p : Parser α) : Parser α := do
+  skipChar init
+  let d ← p
+  skipChar final
+  return d
 
-def nonHexNumP : P LDON := do
-  let str := String.mk (← some' (satisfy Char.isDigit))
-  return .num $ .ofNat $ String.toNat! str
+#eval (between '(' ')' (pchar 'a')).run "(a)"
 
-def hexNumP : P LDON := do
-  discard $ string "0x"
-  discard $ many' (satisfy (· == '0'))
-  let chars ← some' (satisfy Char.isHexDigit)
+def nonHexNumP : Parser LDON := do
+  let d ← digits
+  return .num <| .ofNat d
+
+def hexNumP : Parser LDON := do
+  skipString "0x"
+  _ ← many <| skipChar '0'
+  let chars ← many1 <| hexDigit
   let (n, _) := chars.foldr (init := (0, 1)) fun c (n, p) =>
     (n + p * c.asHexDigitToNat, 16 * p)
-  return .num $ .ofNat n
+  return .num <| .ofNat n
 
-def numP : P LDON :=
+def numP : Parser LDON :=
   hexNumP <|> nonHexNumP
 
--- def charP : P LDON := attempt do
---   discard $ single '\''
---   let c ← satisfy fun _ => true
---   discard $ single '\''
---   return .char c
+def charP : Parser LDON := do
+  discard <| pstring "#\\"
+  return .char (←asciiLetter)
 
-def charP : P LDON := do
-  discard $ string "#\\"
-  .char <$> anySingle
-
-def strP : P LDON := between '"' '"' $
-  .str <$> String.mk <$> many' (satisfy (· != '\"'))
+def strP : Parser LDON := between '"' '"' $
+  .str <$> .mk <$> Array.data <$> many1 (satisfy (· != '\"'))
 
 def validSpecialSymChar : Char → Bool
-  | '+'
-  | '-'
-  | '*'
-  | '/'
-  | '='
-  | '<'
-  | '>' => true
+  | '+' | '-' | '*' | '/' | '=' | '<' | '>' => true
   | _ => false
 
-def noEscSymP : P LDON := do
+def noEscSymP : Parser LDON := do
   let c ← satisfy fun c => c.isAlpha || validSpecialSymChar c
-  let x ← many' (satisfy fun c => c.isAlphanum || validSpecialSymChar c)
-  let i : String := ⟨c :: x⟩
+  let x ← many (satisfy fun c => c.isAlphanum || validSpecialSymChar c)
+  let i : String := ⟨c :: x.data⟩
   let iU := i.toUpper
   if LDON.reservedSyms.contains iU then
     return .sym iU
   else
     return .sym i
 
-def escSymP : P LDON := between '|' '|' $
-  .sym <$> String.mk <$> many' (satisfy (· != '|'))
+def escSymP : Parser LDON := between '|' '|' $
+  .sym <$> String.mk <$> Array.data <$> many1 (satisfy (· != '|'))
 
-def symP : P LDON :=
+def symP : Parser LDON :=
   escSymP <|> noEscSymP
 
-def blanksP : P Unit :=
-  discard $ many' $ oneOf [' ', '\n', '\t']
+def blanksP : Parser Unit :=
+  discard <| many <| satisfy (fun x => x == ' ' || x == '\n' || x == '\t')
 
-def atomP : P LDON :=
+def atomP : Parser LDON :=
   symP <|> numP <|> charP <|> strP
 
 mutual
 
-partial def quoteP : P LDON := do
-  discard $ single '\''
+partial def quoteP : Parser LDON := do
+  skipChar '\''
   let x ← astP
   return .mkQuote x
 
-partial def listP : P LDON := between '(' ')' $ do
+partial def listP : Parser LDON := between '(' ')' $ do
   blanksP
-  let x ← many' astP
-  return .consWith x .nil
+  let x ← many astP
+  return .consWith x.data .nil
 
-partial def dottedListP : P LDON := between '(' ')' $ do
-  let xs ← some' astP
-  discard $ single '.'
+partial def dottedListP : Parser LDON := between '(' ')' $ do
+  let xs ← many1 astP
+  skipChar '.'
   let x ← astP
-  return .consWith xs x
+  return .consWith xs.data x
 
-partial def astP : P LDON := do
+partial def astP : Parser LDON := do
   blanksP
   let x ← atomP <|> (attempt listP) <|> dottedListP <|> quoteP
   blanksP
@@ -101,7 +91,6 @@ partial def astP : P LDON := do
 
 end
 
-protected def parse (code : String) : Except String LDON :=
-  Except.mapError toString $ parse astP code
+protected def parse (code : String) : Except String LDON := astP.run code
 
 end Lurk.Parser

@@ -3,3 +3,4 @@
 *.lurk
 *.ldstore
 *.frames
+.lake/

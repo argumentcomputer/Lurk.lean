@@ -23,7 +23,7 @@ def code := "(begin
     (  f)
     (g x y)
     (let (
-        (n1 nil    )   
+        (n1 nil    )
         (n2 (quote (nil)))
         (n3 (   begin)))
       (current-env))

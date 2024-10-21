@@ -62,7 +62,7 @@ instance : Encodable ScalarExpr LightData where
 --   decode := lightDataToLDON
 
 instance [Encodable (Array (α × β)) LightData] [Ord α] :
-    Encodable (Std.RBMap α β compare) LightData where
+    Encodable (Batteries.RBMap α β compare) LightData where
   encode x := (x.foldl (·.push (·, ·)) #[] : Array (α × β))
   decode x := return .ofArray (← dec x) _
 
@@ -71,6 +71,6 @@ instance : Encodable LDONHashState LightData where
     | ⟨store, chars, _⟩ => .cell #[store, chars.mapKeys String.mk]
   decode
     | .cell #[store, chars] => do
-      let chars : Std.RBMap String ScalarPtr compare ← dec chars
+      let chars : Batteries.RBMap String ScalarPtr compare ← dec chars
       return ⟨← dec store, chars.mapKeys String.data, default⟩
     | x => throw s!"Invalid encoding for LDONHashState: {x}"

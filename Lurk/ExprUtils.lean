@@ -1,6 +1,6 @@
 import Lurk.Expr
 import Lurk.StringSucc
-import Std.Data.RBMap
+import Batteries.Data.RBMap
 import Lean.Util.SCC
 
 namespace Lurk.Expr
@@ -26,7 +26,7 @@ Note: this is *different* from creating the literal list `(x₁ x₂ .. . tail)`
 def mkConsListWith (xs : List Expr) (tail : Expr := .nil) : Expr :=
   xs.foldr (init := tail) fun x acc => .op₂ .cons x acc
 
-open Std (RBMap RBSet)
+open Batteries (RBMap RBSet)
 
 def getFreeVars (bVars acc : RBSet String compare := default) :
     Expr → RBSet String compare
@@ -201,7 +201,7 @@ def mkMutualBlock
     (mutualName, .lambda key mutualBlock) :: projs
 
 /--
-Given a list of binders which are naively mutually recursive, 
+Given a list of binders which are naively mutually recursive,
 collect all the strongly connected components and then make them into mutual blocks.
 -/
 def mutualize (binders : List $ String × Expr) : List $ String × Expr :=

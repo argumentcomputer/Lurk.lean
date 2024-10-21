@@ -113,7 +113,7 @@ def elabOp₁ : TSyntax `op₁ → TermElabM Lean.Expr
   | `(op₁| U64)    | `(op₁| u64)    => mkSym "U64"
   | `(op₁| CHAR)   | `(op₁| char)   => mkSym "CHAR"
   | _ => throwUnsupportedSyntax
-  
+
 open Lurk.DSL in
 def elabOp₂ : TSyntax `op₂ → TermElabM Lean.Expr
   | `(op₂| CONS)    | `(op₂| cons)    => mkSym "CONS"
@@ -153,7 +153,7 @@ partial def elabSym : TSyntax `sym → TermElabM Lean.Expr
   | `(sym| eval)        | `(sym| EVAL)        => mkSym "EVAL"
   | `(sym| | $i:ident |) => mkSym i.getId.toString
   | `(sym| | current-env |)  => mkSym "current-env"
-  | `(sym| | if |)  => mkSym "if"  
+  | `(sym| | if |)  => mkSym "if"
   | `(sym| | let |) => mkSym "let"
   | `(sym| $i:ident.$n:num)
   | `(sym| | $i:ident.$n:num |) => do

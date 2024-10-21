@@ -28,7 +28,7 @@ def telescopeCons (acc : Array LDON := #[]) : LDON → Array LDON × LDON
 def consWith (xs : List LDON) (init : LDON) : LDON :=
   xs.foldr (init := init) cons
 
-def reservedSyms : Std.RBSet String compare := .ofList [
+def reservedSyms : Batteries.RBSet String compare := .ofList [
   "NIL",
   "T",
   "CURRENT-ENV",

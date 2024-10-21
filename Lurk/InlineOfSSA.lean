@@ -11,8 +11,8 @@ namespace SSA
 /-
 The current scope of the identifers were reassigning so far.
 -/
-abbrev Scope := Std.RBMap String Nat compare
-abbrev IdMap := Std.RBMap Nat String compare
+abbrev Scope := Batteries.RBMap String Nat compare
+abbrev IdMap := Batteries.RBMap Nat String compare
 
 structure Context where
   currScope     : Scope
@@ -21,9 +21,9 @@ deriving Inhabited, Repr, BEq
 
 structure State where
   usernames : IdMap
-  freeVars  : Std.RBMap String Nat compare
+  freeVars  : Batteries.RBMap String Nat compare
   /-- Set of recursive id's -/
-  recursive : Std.RBSet String compare
+  recursive : Batteries.RBSet String compare
   nextId    : Nat
 deriving Inhabited, Repr, BEq
 
@@ -112,7 +112,7 @@ where getSym (n : String) := do
   | some s => return s
   | none   => throw s!"bad expr: expected {n} to be in context"
 
-private abbrev Counts := Std.RBMap String Nat compare
+private abbrev Counts := Batteries.RBMap String Nat compare
 
 /--
 For each binder in the given expression, count how many
@@ -184,11 +184,11 @@ end
 
 namespace Prune
 
-abbrev ExprMap := Std.RBMap String Expr compare
+abbrev ExprMap := Batteries.RBMap String Expr compare
 
 structure Context where
-  prunable : Std.RBSet String compare
-  erasable : Std.RBSet String compare
+  prunable : Batteries.RBSet String compare
+  erasable : Batteries.RBSet String compare
 deriving Inhabited, Repr, BEq
 
 def Context.update (ctx : Context) (cnt : Nat) (sym : String) :=
@@ -216,7 +216,7 @@ no    | 0       | delete
 no    | 1       | inline
 -/
 def init (ctx : Context := default) (counts : Counts)
-    (recrs : Std.RBSet String compare) : Expr → Except String Context
+    (recrs : Batteries.RBSet String compare) : Expr → Except String Context
   | .let    s v b
   | .letrec s v b => do
     let ctx ← init ctx counts recrs v
@@ -302,7 +302,7 @@ end
 end Prune
 
 open Prune in
-def inlineOfSSA (e : Expr) (recrs : Std.RBSet String compare) : Except String Expr := do
+def inlineOfSSA (e : Expr) (recrs : Batteries.RBSet String compare) : Except String Expr := do
   let counts := e.countBVarOccs
   let ctx ← Prune.init default counts recrs e
   ReaderT.run (prune e) ctx

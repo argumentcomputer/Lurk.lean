@@ -1,7 +1,7 @@
 import Lurk.ExprUtils
 import Lurk.ExprLDON
 import Lurk.Scalar
-import Std.Data.RBMap
+import Batteries.Data.RBMap
 
 namespace Lurk
 
@@ -17,7 +17,7 @@ mutual
 inductive EnvImg
   | mk : Bool → Value → EnvImg
 
-inductive Env 
+inductive Env
   | mk : Lean.RBNode String (fun _ => EnvImg) → Env
 
 -- Does it make sense to extend LDON and use it here instead?
@@ -148,7 +148,7 @@ def ofArray : Array (String × EnvImg) → Env
 def toList : Env → List (String × EnvImg)
   | mk e => e.fold (init := []) fun acc k v => (k, v) :: acc
 
-def toRBMap : Env → Std.RBMap String EnvImg compare
+def toRBMap : Env → Batteries.RBMap String EnvImg compare
   | mk e => e.fold (init := default) fun acc k v => acc.insert k v
 
 end Env
@@ -382,21 +382,21 @@ mutual
 partial def Expr.evalApp₀ (fn : Expr) (env : Env) : EvalM Value := do
   match fn with
   | .sym n =>
-    let some ⟨r, v⟩ := env.find? n 
+    let some ⟨r, v⟩ := env.find? n
       | error fn s!"{n} not found"
-    let .fun "_" fnEnv body := v 
+    let .fun "_" fnEnv body := v
       | error fn s!"error evaluating\n{fn}\ninvalid 0-arity app"
     let fnEnv := if !r then fnEnv else fnEnv.insert n ⟨r, v⟩
     body.evalM fnEnv
   | fn =>
-    let .fun "_" fnEnv body ← fn.evalM env 
+    let .fun "_" fnEnv body ← fn.evalM env
       | error fn s!"error evaluating\n{fn}\ninvalid 0-arity app"
     body.evalM fnEnv
 
 partial def Expr.evalApp (fn : Expr) (arg : Expr) (env : Env) : EvalM Value := do
   match fn with
   | .sym n =>
-    let some ⟨r, v⟩ := env.find? n 
+    let some ⟨r, v⟩ := env.find? n
       | error fn s!"{n} not found"
     match v with
     | .fun "_" .. => error fn s!"error evaluating\n{fn}\ncannot apply argument to 0-arg lambda"
